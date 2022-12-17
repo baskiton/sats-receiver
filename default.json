@@ -1,0 +1,60 @@
+{
+    "observer": {
+        "latitude": 54.942624,
+        "longitude": 82.957928,
+        "elevation": null,
+        "weather": true
+    },
+    "tle": {
+        "url": "http://r4uab.ru/satonline.txt",
+        "update_period": 1
+    },
+    "receivers": [
+        {
+            "name": "137:1 MHz",
+            "source": "rtlsdr",
+            "serial": "00000001",
+            "gain": 38.6,
+            "tune": 137500000,
+            "samp_rate": 1024000,
+            "sats": [
+                {
+                    "name": "NOAA-15",
+                    "min_elevation": 15.0,
+                    "frequency": 137620000,
+                    "bandwidth": 37440,
+                    "mode": "QUAD",
+                    "decode": "APT",
+                    "output_directory": "~/sats_receiver/records/NOAA-15"
+                },
+                {
+                    "name": "NOAA-18",
+                    "min_elevation": 15.0,
+                    "frequency": 137912500,
+                    "bandwidth": 37440,
+                    "mode": "QUAD",
+                    "decode": "APT",
+                    "output_directory": "~/sats_receiver/records/NOAA-18"
+                },
+                {
+                    "name": "NOAA-19",
+                    "min_elevation": 15.0,
+                    "frequency": 137100000,
+                    "bandwidth": 37440,
+                    "mode": "QUAD",
+                    "decode": "APT",
+                    "output_directory": "~/sats_receiver/records/NOAA-19"
+                },
+                {
+                    "name": "METEOR-M2",
+                    "min_elevation": 15.0,
+                    "frequency": 137100000,
+                    "bandwidth": 150000,
+                    "mode": "RAW",
+                    "decode": "RAW",
+                    "output_directory": "~/sats_receiver/records/METEOR M2"
+                }
+            ]
+        }
+    ]
+}
