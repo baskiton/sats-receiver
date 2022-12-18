@@ -96,11 +96,12 @@ class RadioModule(gr.gr.hier_block2):
 
 
 class Satellite(gr.gr.hier_block2):
-    def __init__(self, config, main_tune, samp_rate):
+    def __init__(self, config, main_tune, samp_rate, output_directory):
         if not self._validate_config(config):
             raise ValueError('Observer: Invalid config!')
 
         self.config = config
+        self.output_directory = output_directory / self.name
         self.output_directory.mkdir(parents=True, exist_ok=True)
         self.events = [None, None, None]
 
@@ -132,7 +133,7 @@ class Satellite(gr.gr.hier_block2):
             'bandwidth',
             'mode',
             # 'decode',   # optional
-            'output_directory',
+            # 'doppler',  # optional
         ]))
 
     @property
@@ -178,8 +179,8 @@ class Satellite(gr.gr.hier_block2):
         return self.config.get('decode', 'RAW')
 
     @property
-    def output_directory(self):
-        return pathlib.Path(self.config['output_directory']).expanduser()
+    def doppler(self):
+        return self.config.get('doppler', True)
 
     @property
     def start_event(self):
@@ -288,7 +289,7 @@ class SatsReceiver(gr.gr.top_block):
 
             for sat_name in to_create_sats:
                 try:
-                    sat = Satellite(new_cfg_sats[sat_name], self.tune, self.samp_rate)
+                    sat = Satellite(new_cfg_sats[sat_name], self.tune, self.samp_rate, self.output_directory)
                 except ValueError as e:
                     logging.warning('Receiver: %s: %s. Skip', self.name, e)
                     continue
@@ -311,6 +312,7 @@ class SatsReceiver(gr.gr.top_block):
             # 'gain',     # optional
             'tune',
             'samp_rate',
+            'output_directory',
             'sats',
         ]))
 
@@ -337,6 +339,10 @@ class SatsReceiver(gr.gr.top_block):
     @property
     def samp_rate(self):
         return self.config['samp_rate']
+
+    @property
+    def output_directory(self):
+        return pathlib.Path(self.config['output_directory']).expanduser()
 
     @property
     def sats(self):
@@ -394,7 +400,7 @@ class SatsReceiver(gr.gr.top_block):
         if self.is_active:
             self.start()
             for sat in self.satellites.values():
-                if sat.is_runned:
+                if sat.is_runned and sat.doppler:
                     x = self.up.tle.get(sat.name)
                     x.compute(self.up.observer.get_obj())
                     sat.set_freq_offset(utils.doppler_shift(sat.frequency, x.range_velocity))

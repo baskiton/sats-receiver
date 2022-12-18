@@ -17,33 +17,34 @@
             "gain": 38.6,
             "tune": 137500000,
             "samp_rate": 1024000,
+            "output_directory": "~/sats_receiver/records",
             "sats": [
                 {
                     "name": "NOAA-15",
                     "min_elevation": 15.0,
                     "frequency": 137620000,
-                    "bandwidth": 37440,
+                    "bandwidth": 49920,
                     "mode": "QUAD",
                     "decode": "APT",
-                    "output_directory": "~/sats_receiver/records/NOAA-15"
+                    "doppler": false
                 },
                 {
                     "name": "NOAA-18",
                     "min_elevation": 15.0,
                     "frequency": 137912500,
-                    "bandwidth": 37440,
+                    "bandwidth": 49920,
                     "mode": "QUAD",
                     "decode": "APT",
-                    "output_directory": "~/sats_receiver/records/NOAA-18"
+                    "doppler": false
                 },
                 {
                     "name": "NOAA-19",
                     "min_elevation": 15.0,
                     "frequency": 137100000,
-                    "bandwidth": 37440,
+                    "bandwidth": 49920,
                     "mode": "QUAD",
                     "decode": "APT",
-                    "output_directory": "~/sats_receiver/records/NOAA-19"
+                    "doppler": false
                 },
                 {
                     "name": "METEOR-M2",
@@ -52,7 +53,7 @@
                     "bandwidth": 150000,
                     "mode": "RAW",
                     "decode": "RAW",
-                    "output_directory": "~/sats_receiver/records/METEOR M2"
+                    "doppler": false
                 }
             ]
         }
