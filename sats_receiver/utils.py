@@ -84,9 +84,9 @@ class Scheduler:
                 time.sleep(0)
 
 
-class MemMan:
-    def __init__(self, intv=600):
-        super(MemMan, self).__init__()
+class SysUsage:
+    def __init__(self, intv=3600):
+        super(SysUsage, self).__init__()
         gc.set_debug(gc.DEBUG_UNCOLLECTABLE)
         self.now = 0
         self.intv = intv

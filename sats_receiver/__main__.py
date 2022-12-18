@@ -13,7 +13,7 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('config', type=pathlib.Path)
     ap.add_argument('--log', default='INFO', type=(lambda x: getattr(logging, x.upper(), None)))
-    ap.add_argument('--memman', default=600, type=int)
+    ap.add_argument('--sysu', default=3600, type=int)
     args = ap.parse_args()
 
     for d in LOGSDIR, TLEDIR:
@@ -28,7 +28,7 @@ if __name__ == '__main__':
     logging.info('Hello!')
 
     asig = AsyncSignal(['SIGABRT', 'SIGHUP', 'SIGINT', 'SIGTERM', 'SIGUSR1', 'SIGUSR2'])
-    mem = utils.MemMan(args.memman)
+    mem = utils.SysUsage(args.sysu)
     mng = ReceiverManager(args.config)
 
     while not mng.action():

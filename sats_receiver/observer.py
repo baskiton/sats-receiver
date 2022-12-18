@@ -94,7 +94,7 @@ class Observer:
 
     def action(self, t):
         self.set_date(t)
-        if self.with_weather and self.last_weather_time < (t - dt.timedelta(hours=self.update_period)):
+        if self.with_weather and self.last_weather_time < (t - dt.timedelta(hours=self.update_period, minutes=1)):
             self.fetch_weather()
 
     def next_pass(self, body: ephem.EarthSatellite, start_time=None):

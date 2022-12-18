@@ -141,14 +141,14 @@ class Satellite(gr.gr.hier_block2):
 
     def start(self):
         if not self.is_runned:
-            logging.debug('Satellite %s: start', self.name)
+            logging.info('Satellite %s: start', self.name)
             self.start_event = None
             self.decoder.start()
             self.radio.set_enabled(1)
 
     def stop(self):
         if self.is_runned:
-            logging.debug('Satellite %s: stop', self.name)
+            logging.info('Satellite %s: stop', self.name)
             self.start_event = self.stop_event = None
             self.radio.set_enabled(0)
             self.decoder.finalize()
@@ -206,7 +206,6 @@ class Satellite(gr.gr.hier_block2):
         self.events[2] = val
 
     def set_freq_offset(self, new_freq):
-        logging.debug('Satellite %s: freq to %s', self.name, new_freq)
         self.radio.set_freq_offset(new_freq)
 
 
@@ -414,12 +413,12 @@ class SatsReceiver(gr.gr.top_block):
             while t <= tt:
                 rise_t, rise_az, culm_t, culm_alt, set_t, set_az = self.up.observer.next_pass(x, t)
                 if culm_alt >= sat.min_elevation:
-                    logging.info('Receiver: Sat `%s` planned on %s <-> %s', sat.name, rise_t.astimezone(ltz), set_t.astimezone(ltz))
                     sat.events = [
                         self.up.scheduler.plan(rise_t, sat.start),
                         self.up.scheduler.plan(set_t, sat.stop),
                         self.up.scheduler.plan(set_t, self.calculate_pass, sat, prior=1)
                     ]
+                    logging.info('Receiver: Sat `%s` planned on %s <-> %s', sat.name, rise_t.astimezone(ltz), set_t.astimezone(ltz))
                     break
 
                 t = set_t
