@@ -6,7 +6,6 @@ import gc
 import heapq
 import itertools
 import logging
-import math
 import resource
 import sched
 import sys
@@ -97,11 +96,12 @@ class SysUsage:
             self.next = self.now + self.intv
             gc.collect()
             ru = resource.getrusage(resource.RUSAGE_SELF)
-            logging.debug('MemMan: %s rss %s utime %s stime %s',
+            chru = resource.getrusage(resource.RUSAGE_CHILDREN)
+            logging.debug('SysUsage: %s rss %s(+%s) utime %s(+%s) stime %s(+%s)',
                           numdisp(sum(sys.getsizeof(i) for i in gc.get_objects())),
-                          numdisp(ru.ru_maxrss << 10),
-                          sec(ru.ru_utime),
-                          sec(ru.ru_stime))
+                          numdisp(ru.ru_maxrss << 10), numdisp(chru.ru_maxrss << 10),
+                          sec(ru.ru_utime), sec(chru.ru_utime),
+                          sec(ru.ru_stime), sec(chru.ru_stime))
 
     @property
     def t(self):
@@ -156,9 +156,3 @@ def sec(t, res=2):
 
 def doppler_shift(freq, vel):
     return freq * ephem.c / (ephem.c + vel)
-
-
-def doppler_shift_rel(freq, vel):
-    a = math.sqrt(1 - vel ** 2 / ephem.c ** 2)
-    b = 1 - (vel / ephem.c) * math.cos(ephem.pi if vel < 0 else 0.0)
-    return freq * (a / b)

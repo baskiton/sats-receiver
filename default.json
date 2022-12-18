@@ -22,38 +22,34 @@
                 {
                     "name": "NOAA-15",
                     "min_elevation": 15.0,
-                    "frequency": 137620000,
-                    "bandwidth": 49920,
+                    "frequency": 137621000,
+                    "bandwidth": 45760,
                     "mode": "QUAD",
-                    "decode": "APT",
-                    "doppler": false
+                    "decode": "APT"
                 },
                 {
                     "name": "NOAA-18",
                     "min_elevation": 15.0,
-                    "frequency": 137912500,
-                    "bandwidth": 49920,
+                    "frequency": 137913000,
+                    "bandwidth": 45760,
                     "mode": "QUAD",
-                    "decode": "APT",
-                    "doppler": false
+                    "decode": "APT"
                 },
                 {
                     "name": "NOAA-19",
                     "min_elevation": 15.0,
-                    "frequency": 137100000,
-                    "bandwidth": 49920,
+                    "frequency": 137100500,
+                    "bandwidth": 45760,
                     "mode": "QUAD",
-                    "decode": "APT",
-                    "doppler": false
+                    "decode": "APT"
                 },
                 {
                     "name": "METEOR-M2",
                     "min_elevation": 15.0,
                     "frequency": 137100000,
-                    "bandwidth": 150000,
+                    "bandwidth": 120000,
                     "mode": "RAW",
-                    "decode": "RAW",
-                    "doppler": false
+                    "decode": "RAW"
                 }
             ]
         }

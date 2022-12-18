@@ -28,11 +28,11 @@ if __name__ == '__main__':
     logging.info('Hello!')
 
     asig = AsyncSignal(['SIGABRT', 'SIGHUP', 'SIGINT', 'SIGTERM', 'SIGUSR1', 'SIGUSR2'])
-    mem = utils.SysUsage(args.sysu)
+    sus = utils.SysUsage(args.sysu)
     mng = ReceiverManager(args.config)
 
     while not mng.action():
-        mem.collect()
+        sus.collect()
         signame = asig.wait(1)
         if signame:
             if 'USR' in signame:

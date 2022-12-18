@@ -406,6 +406,7 @@ class SatsReceiver(gr.gr.top_block):
                     sat.set_freq_offset(utils.doppler_shift(sat.frequency, x.range_velocity))
         else:
             self.stop(False)
+            self.wait()
 
     def calculate_pass(self, sat: Satellite):
         sat.events = [None, None, None]
