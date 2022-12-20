@@ -9,6 +9,17 @@ from sats_receiver.manager import ReceiverManager
 from sats_receiver.async_signal import AsyncSignal
 
 
+def setup_logging(log_lvl):
+    if not isinstance(log_lvl, int):
+        raise ValueError('Invalid log level: %s' % log_lvl)
+
+    fmt = '%(asctime)s %(levelname)s: %(message)s'
+    logging.basicConfig(level=log_lvl, format=fmt, filename=LOGSDIR / 'sats_receiver.log')
+    sh = logging.StreamHandler()
+    sh.setFormatter(logging.Formatter(fmt))
+    logging.getLogger().addHandler(sh)
+
+
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('config', type=pathlib.Path)
@@ -20,10 +31,7 @@ if __name__ == '__main__':
         if not d.exists():
             d.mkdir(parents=True, exist_ok=True)
 
-    if not isinstance(args.log, int):
-        raise ValueError('Invalid log level: %s' % args.log)
-    logging.basicConfig(level=args.log, format='%(asctime)s %(levelname)s: %(message)s', filename=LOGSDIR / 'sats_receiver.log')
-    logging.getLogger().addHandler(logging.StreamHandler())
+    setup_logging(args.log)
 
     logging.info('Hello!')
 
