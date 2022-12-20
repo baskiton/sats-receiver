@@ -13,6 +13,7 @@ class Observer:
         self.config = {}
         self.last_weather_time = dt.datetime.fromtimestamp(0, dt.timezone.utc)
         self.update_period = 1  # hours
+        self.t_next = self.last_weather_time + dt.timedelta(hours=self.update_period, minutes=1)
         self._observer = ephem.Observer()
 
         if not self.update_config(config):
@@ -92,10 +93,12 @@ class Observer:
 
         logging.info('Observer: weather updated')
 
+        return 1
+
     def action(self, t):
         self.set_date(t)
-        if self.with_weather and self.last_weather_time < (t - dt.timedelta(hours=self.update_period, minutes=1)):
-            self.fetch_weather()
+        if self.with_weather and t >= self.t_next and self.fetch_weather():
+            self.t_next = self.last_weather_time + dt.timedelta(hours=self.update_period, minutes=1)
 
     def next_pass(self, body: ephem.EarthSatellite, start_time=None):
         """

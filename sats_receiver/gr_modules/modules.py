@@ -12,78 +12,40 @@ import gnuradio.gr
 import gnuradio.soapy
 
 from sats_receiver import utils
-from sats_receiver.gr_modules import decoders
+from sats_receiver.gr_modules import decoders, demodulators
 
 
 class RadioModule(gr.gr.hier_block2):
-    def __init__(self, up, main_tune, samp_rate):
+    def __init__(self, main_tune, samp_rate, bandwidth, frequency):
         super(RadioModule, self).__init__(
             'Radio Module',
             gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
             gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex)
         )
 
-        self.up = up
         self.enabled = False
         self.main_tune = main_tune
         self.samp_rate = samp_rate
+        self.bandwidth = bandwidth
+        self.frequency = frequency
 
-        self.resamp_gcd = resamp_gcd = math.gcd(up.bandwidth, samp_rate)
+        self.resamp_gcd = resamp_gcd = math.gcd(bandwidth, samp_rate)
 
         self.blocks_copy = gr.blocks.copy(gr.gr.sizeof_gr_complex)
         self.blocks_copy.set_enabled(self.enabled)
-        self.freqshifter = gr.blocks.rotator_cc(2 * math.pi * -(main_tune - up.frequency) / samp_rate)
+        self.freqshifter = gr.blocks.rotator_cc(2 * math.pi * -(main_tune - frequency) / samp_rate)
         self.resampler = gr.filter.rational_resampler_ccc(
-            interpolation=up.bandwidth // resamp_gcd,
+            interpolation=bandwidth // resamp_gcd,
             decimation=samp_rate // resamp_gcd,
             taps=[],
             fractional_bw=0,
         )
-        self.demodulator = None
-        self.float_to_complex = gr.blocks.float_to_complex()
-
-        if up.mode == utils.Mode.AM.value:
-            self.demodulator = gr.analog.am_demod_cf(
-                channel_rate=up.bandwidth,
-                audio_decim=1,
-                audio_pass=5000,
-                audio_stop=5500,
-            )
-        elif up.mode == utils.Mode.FM.value:
-            self.demodulator = gr.analog.fm_demod_cf(
-                channel_rate=up.bandwidth,
-                audio_decim=1,
-                deviation=up.bandwidth,
-                audio_pass=16000,
-                audio_stop=17000,
-                gain=1.0,
-                tau=0,
-            )
-        elif up.mode == utils.Mode.WFM.value:
-            self.demodulator = gr.analog.wfm_rcv(
-                quad_rate=up.bandwidth,
-                audio_decimation=1,
-            )
-        elif up.mode == utils.Mode.WFM_STEREO.value:
-            if up.bandwidth < 76800:
-                raise ValueError(f'param `bandwidth` for WFM Stereo must be at least 76800, got {up.bandwidth} instead')
-            self.demodulator = gr.analog.wfm_rcv_pll(
-                demod_rate=up.bandwidth,
-                audio_decimation=1,
-                deemph_tau=50e-6,
-            )
-            self.connect((self.demodulator, 1), (self.float_to_complex, 1))
-        elif up.mode == utils.Mode.QUAD.value:
-            self.demodulator = gr.analog.quadrature_demod_cf(1)
-        elif up.mode != utils.Mode.RAW.value:
-            raise ValueError(f'Unknown demodulation `{up.mode}` for `{up.name}`')
 
         self.connect(
             self,
             self.blocks_copy,
             self.freqshifter,
             self.resampler,
-            *((self.demodulator, self.float_to_complex) if self.demodulator else tuple()),
             self,
         )
 
@@ -111,30 +73,91 @@ class Satellite(gr.gr.hier_block2):
             gr.gr.io_signature(0, 0, 0)
         )
 
-        self.radio = RadioModule(self, main_tune, samp_rate)
+        self.radio = RadioModule(main_tune, samp_rate, self.bandwidth, self.frequency)
+        self.demodulator = None
+        self.post_demod = gr.blocks.float_to_complex()
+
+        if self.mode == utils.Mode.AM.value:
+            self.demodulator = gr.analog.am_demod_cf(
+                channel_rate=self.bandwidth,
+                audio_decim=1,
+                audio_pass=5000,
+                audio_stop=5500,
+            )
+
+        elif self.mode == utils.Mode.FM.value:
+            self.demodulator = gr.analog.fm_demod_cf(
+                channel_rate=self.bandwidth,
+                audio_decim=1,
+                deviation=self.bandwidth,
+                audio_pass=16000,
+                audio_stop=17000,
+                gain=1.0,
+                tau=0,
+            )
+
+        elif self.mode == utils.Mode.WFM.value:
+            self.demodulator = gr.analog.wfm_rcv(
+                quad_rate=self.bandwidth,
+                audio_decimation=1,
+            )
+
+        elif self.mode == utils.Mode.WFM_STEREO.value:
+            if self.bandwidth < 76800:
+                raise ValueError(f'param `bandwidth` for WFM Stereo must be at least 76800, got {self.bandwidth} instead')
+            self.demodulator = gr.analog.wfm_rcv_pll(
+                demod_rate=self.bandwidth,
+                audio_decimation=1,
+                deemph_tau=50e-6,
+            )
+            self.connect((self.demodulator, 1), (self.post_demod, 1))
+
+        elif self.mode == utils.Mode.QUAD.value:
+            self.demodulator = gr.analog.quadrature_demod_cf(1)
+
+        elif self.mode == utils.Mode.QPSK.value:
+            self.demodulator = demodulators.QpskDemod(self.bandwidth, self.qpsk_baudrate, self.qpsk_excess_bw, self.qpsk_ntaps)
+
+        elif self.mode != utils.Mode.RAW.value:
+            raise ValueError(f'Unknown demodulation `{self.mode}` for `{self.name}`')
 
         if self.decode == utils.Decode.APT.value:
             self.decoder = decoders.AptDecoder(self.bandwidth, self.output_directory)
+
         # elif self.decode == Decode.LRPT.value:
         #     # TODO
         #     # self.decoder =
+
+        elif self.decode == utils.Decode.RSTREAM.value:
+            self.decoder = decoders.RawStreamDecoder(self.bandwidth, self.output_directory)
+
         elif self.decode == utils.Decode.RAW.value:
             self.decoder = decoders.RawDecoder(self.bandwidth, self.output_directory)
+
         else:
             raise ValueError(f'Unknown decoder `{self.decode}` for `{self.name}`')
 
-        self.connect(self, self.radio, self.decoder)
+        self.connect(
+            self,
+            self.radio,
+            *((self.demodulator, self.post_demod) if self.demodulator else tuple()),
+            self.decoder,
+        )
 
     def _validate_config(self, config):
-        return all(map(lambda x: x in config, [
-            'name',
-            # 'min_elevation',    # optional
-            'frequency',
-            'bandwidth',
-            'mode',
-            # 'decode',   # optional
-            # 'doppler',  # optional
-        ]))
+        return (all(map(lambda x: x in config, [
+                    'name',
+                    # 'min_elevation',    # optional
+                    'frequency',
+                    'bandwidth',
+                    'mode',
+                    # 'decode',   # optional
+                    # 'doppler',  # optional
+                    # 'qpsk_baudrate',    # only in QPSK demode
+                    # 'qpsk_excess_bw',   # optional
+                    # 'qpsk_ntaps',   # optional
+                    ]))
+                and (config['mode'] != utils.Mode.QPSK or 'qpsk_baudrate' in config))
 
     @property
     def is_runned(self):
@@ -142,14 +165,15 @@ class Satellite(gr.gr.hier_block2):
 
     def start(self):
         if not self.is_runned:
-            logging.info('Satellite %s: start', self.name)
+            logging.info('Satellite: %s: start; doppler=%s', self.name, 'On' if self.doppler else 'Off')
+            self.output_directory.mkdir(parents=True, exist_ok=True)
             self.start_event = None
             self.decoder.start()
             self.radio.set_enabled(1)
 
     def stop(self):
         if self.is_runned:
-            logging.info('Satellite %s: stop', self.name)
+            logging.info('Satellite: %s: stop', self.name)
             self.start_event = self.stop_event = None
             self.radio.set_enabled(0)
             self.decoder.finalize()
@@ -181,6 +205,18 @@ class Satellite(gr.gr.hier_block2):
     @property
     def doppler(self):
         return self.config.get('doppler', True)
+
+    @property
+    def qpsk_baudrate(self):
+        return self.config['qpsk_baudrate']
+
+    @property
+    def qpsk_excess_bw(self):
+        return self.config.get('qpsk_excess_bw')
+
+    @property
+    def qpsk_ntaps(self):
+        return self.config.get('qpsk_ntaps')
 
     @property
     def start_event(self):

@@ -48,8 +48,11 @@
                     "min_elevation": 15.0,
                     "frequency": 137100000,
                     "bandwidth": 120000,
-                    "mode": "RAW",
-                    "decode": "RAW"
+                    "mode": "QPSK",
+                    "decode": "RSTREAM",
+                    "qpsk_baudrate": 72000,
+                    "qpsk_excess_bw": 0.6,
+                    "qpsk_ntaps": 361
                 }
             ]
         }

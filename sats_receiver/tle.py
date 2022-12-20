@@ -21,6 +21,8 @@ class Tle:
         if not self.update_config(config):
             raise ValueError('Tle: Invalid config!')
 
+        self.t_next = self.last_update_tle + dt.timedelta(days=self.update_period)
+
     def fill_objects(self):
         self.objects.clear()
         with self.tle_file.open() as f:
@@ -57,6 +59,8 @@ class Tle:
         self.fill_objects()
 
         logging.info('Tle: Tle updated')
+
+        return 1
 
     def update_config(self, config):
         if config != self.config:
@@ -98,8 +102,8 @@ class Tle:
         return self.config['update_period']
 
     def action(self, t):
-        if self.last_update_tle < (t - dt.timedelta(days=self.update_period)):
-            self.fetch_tle()
+        if t >= self.t_next and self.fetch_tle():
+            self.t_next = self.last_update_tle + dt.timedelta(days=self.update_period)
             return 1
 
     def get(self, name) -> ephem.EarthSatellite:

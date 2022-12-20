@@ -4,7 +4,7 @@ import argparse
 import logging
 import pathlib
 
-from sats_receiver import utils, HOMEDIR, LOGSDIR, TLEDIR
+from sats_receiver import utils, HOMEDIR, LOGSDIR, TLEDIR, RECDIR
 from sats_receiver.manager import ReceiverManager
 from sats_receiver.async_signal import AsyncSignal
 
@@ -16,7 +16,7 @@ if __name__ == '__main__':
     ap.add_argument('--sysu', default=3600, type=int)
     args = ap.parse_args()
 
-    for d in LOGSDIR, TLEDIR:
+    for d in LOGSDIR, TLEDIR, RECDIR:
         if not d.exists():
             d.mkdir(parents=True, exist_ok=True)
 

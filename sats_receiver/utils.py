@@ -20,10 +20,12 @@ class Mode(enum.Enum):
     WFM = 'WFM'
     WFM_STEREO = 'WFM_STEREO'
     QUAD = 'QUAD'
+    QPSK = 'QPSK'
 
 
 class Decode(enum.Enum):
     RAW = 'RAW'
+    RSTREAM = 'RSTREAM'
     APT = 'APT'
     LRPT = 'LRPT'
 
@@ -96,12 +98,11 @@ class SysUsage:
             self.next = self.now + self.intv
             gc.collect()
             ru = resource.getrusage(resource.RUSAGE_SELF)
-            chru = resource.getrusage(resource.RUSAGE_CHILDREN)
-            logging.debug('SysUsage: %s rss %s(+%s) utime %s(+%s) stime %s(+%s)',
+            logging.debug('SysUsage: %s rss %s utime %s stime %s',
                           numdisp(sum(sys.getsizeof(i) for i in gc.get_objects())),
-                          numdisp(ru.ru_maxrss << 10), numdisp(chru.ru_maxrss << 10),
-                          sec(ru.ru_utime), sec(chru.ru_utime),
-                          sec(ru.ru_stime), sec(chru.ru_stime))
+                          numdisp(ru.ru_maxrss << 10),
+                          sec(ru.ru_utime),
+                          sec(ru.ru_stime))
 
     @property
     def t(self):
