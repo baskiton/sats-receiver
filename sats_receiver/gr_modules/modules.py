@@ -392,8 +392,19 @@ class SatsReceiver(gr.gr.top_block):
         if not self.is_runned:
             logging.info('Receiver: %s: start', self.name)
 
-            self.signal_src = gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
-                                              'fc32', 1, '', '', [''], [''])
+            try:
+                self.signal_src = gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
+                                                  'fc32', 1, '', '', [''], [''])
+            except RuntimeError as e:
+                logging.error('SatsReceiver: %s: cannot start: %s', self.name, e)
+
+                self.stop()
+                t = self.up.now + dt.timedelta(minutes=5)
+                for sat in self.satellites.values():
+                    self.up.scheduler.plan(t, self.calculate_pass, sat)
+
+                return 1
+
             self.signal_src.set_sample_rate(0, self.samp_rate)
             self.signal_src.set_frequency(0, self.tune)
             self.signal_src.set_frequency_correction(0, 0)
@@ -433,8 +444,7 @@ class SatsReceiver(gr.gr.top_block):
                 self.disconnect(self.blocks_correctiq, sat)
 
     def action(self):
-        if self.is_active:
-            self.start()
+        if self.is_active and not self.start():
             for sat in self.satellites.values():
                 if sat.is_runned and sat.doppler:
                     x = self.up.tle.get(sat.name)
@@ -459,7 +469,6 @@ class SatsReceiver(gr.gr.top_block):
                 if culm_alt >= sat.min_elevation:
                     if set_t < rise_t:
                         rise_t = t
-                        logging.debug('sat %s rise > set', sat.name)
                     sat.events = [
                         self.up.scheduler.plan(rise_t, sat.start),
                         self.up.scheduler.plan(set_t, sat.stop),

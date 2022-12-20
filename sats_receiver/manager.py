@@ -133,8 +133,9 @@ class ReceiverManager:
                 if x:
                     try:
                         x.update_config(cfg, True)
-                    except RuntimeError:
-                        pass
+                    except RuntimeError as e:
+                        logging.error('SatsReceiver: %s: cannot update config: %s. Stop', x.name, e)
+                        x.stop()
 
         for rn, r in self.receivers.items():
             r.action()
