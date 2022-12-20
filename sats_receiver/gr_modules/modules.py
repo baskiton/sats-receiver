@@ -455,16 +455,20 @@ class SatsReceiver(gr.gr.top_block):
 
             while t <= tt:
                 rise_t, rise_az, culm_t, culm_alt, set_t, set_az = self.up.observer.next_pass(x, t)
+                set_tt = set_t + dt.timedelta(seconds=5)
                 if culm_alt >= sat.min_elevation:
+                    if set_t < rise_t:
+                        rise_t = t
+                        logging.debug('sat %s rise > set', sat.name)
                     sat.events = [
                         self.up.scheduler.plan(rise_t, sat.start),
                         self.up.scheduler.plan(set_t, sat.stop),
-                        self.up.scheduler.plan(set_t, self.calculate_pass, sat, prior=1)
+                        self.up.scheduler.plan(set_tt, self.calculate_pass, sat)
                     ]
                     logging.info('Receiver: Sat `%s` planned on %s <-> %s', sat.name, rise_t.astimezone(ltz), set_t.astimezone(ltz))
                     break
 
-                t = set_t
+                t = set_tt
 
             if t > tt:
                 logging.info('Receiver: Sat `%s`: No passes found for the next 24 hours', sat.name)

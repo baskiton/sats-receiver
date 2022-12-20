@@ -108,7 +108,7 @@ class Observer:
         if start_time is not None:
             o.date = start_time
 
-        rise_t, rise_az, culm_t, culm_alt, set_t, set_az = o.next_pass(body)
+        rise_t, rise_az, culm_t, culm_alt, set_t, set_az = o.next_pass(body, False)
 
         return (ephem.to_timezone(rise_t, dt.timezone.utc), rise_az / ephem.degree,
                 ephem.to_timezone(culm_t, dt.timezone.utc), culm_alt / ephem.degree,
