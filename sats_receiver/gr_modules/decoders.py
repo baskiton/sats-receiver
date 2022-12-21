@@ -39,7 +39,7 @@ class RawDecoder(Decoder):
             2,
             samp_rate,
             gr.blocks.FORMAT_WAV,
-            gr.blocks.FORMAT_PCM_16,
+            gr.blocks.FORMAT_FLOAT,
             False
         )
         self.wav_sink.close()
@@ -60,16 +60,16 @@ class RawDecoder(Decoder):
 
 
 class AptDecoder(Decoder):
+    APT_CARRIER_FREQ = 2400
     APT_IMG_WIDTH = 2080
 
     def __init__(self, samp_rate, out_dir):
         super(AptDecoder, self).__init__('APT Decoder', samp_rate, out_dir)
 
         self.work_rate = work_rate = self.APT_IMG_WIDTH * 2 * 4
-        carrier_freq = 2400
         resamp_gcd = math.gcd(samp_rate, work_rate)
 
-        self.frs = gr.blocks.rotator_cc(2 * math.pi * -carrier_freq / samp_rate)
+        self.frs = gr.blocks.rotator_cc(2 * math.pi * -self.APT_CARRIER_FREQ / samp_rate)
         self.rsp = gr.filter.rational_resampler_ccc(
             interpolation=work_rate // resamp_gcd,
             decimation=samp_rate // resamp_gcd,
@@ -96,7 +96,14 @@ class AptDecoder(Decoder):
         self.out_file_sink.close()
         self.tmp_file.unlink(True)
 
-        self.connect(self, self.frs, self.rsp, self.lpf, self.ctm, self.out_file_sink)
+        self.connect(
+            self,
+            self.frs,
+            self.rsp,
+            self.lpf,
+            self.ctm,
+            self.out_file_sink,
+        )
 
     def start(self):
         super(AptDecoder, self).start()
