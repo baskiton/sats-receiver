@@ -1,16 +1,10 @@
-import datetime as dt
-import dateutil.tz
-import logging
 import math
-import pathlib
 
 import gnuradio as gr
 import gnuradio.analog
-import gnuradio.blocks
 import gnuradio.digital
 import gnuradio.filter
 import gnuradio.gr
-import gnuradio.soapy
 
 
 class QpskDemod(gr.gr.hier_block2):
@@ -48,15 +42,23 @@ class QpskDemod(gr.gr.hier_block2):
             detector_type=gr.digital.TED_MUELLER_AND_MULLER,
             sps=samp_rate / baudrate,
             loop_bw=(2 * math.pi) / (2 * baudrate),
+            damping_factor=1.0,
+            ted_gain=1.0,
+            max_deviation=1.5,
+            osps=1,
             slicer=gr.digital.constellation_qpsk().base(),
+            interp_type=gr.digital.IR_MMSE_8TAP,
+            n_filters=128,
+            taps=[],
         )
-        self.const_decoder = gr.digital.constellation_soft_decoder_cf(gr.digital.constellation_qpsk().base())
+        self.constel_decoder = gr.digital.constellation_soft_decoder_cf(gr.digital.constellation_qpsk().base())
 
         self.connect(
             self,
+            self.rrc,
             self.agc,
             self.costas,
             self.symbol_sync,
-            self.const_decoder,
+            self.constel_decoder,
             self,
         )
