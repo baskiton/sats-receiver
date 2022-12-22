@@ -116,7 +116,7 @@ class Satellite(gr.gr.hier_block2):
             self.demodulator = gr.analog.quadrature_demod_cf(1)
 
         elif self.mode == utils.Mode.QPSK.value:
-            self.demodulator = demodulators.QpskDemod(self.bandwidth, self.qpsk_baudrate, self.qpsk_excess_bw, self.qpsk_ntaps)
+            self.demodulator = demodulators.QpskDemod(self.bandwidth, self.qpsk_baudrate, self.qpsk_excess_bw, self.qpsk_ntaps, self.qpsk_costas_bw)
 
         elif self.mode != utils.Mode.RAW.value:
             raise ValueError(f'Unknown demodulation `{self.mode}` for `{self.name}`')
@@ -155,7 +155,8 @@ class Satellite(gr.gr.hier_block2):
                     # 'doppler',  # optional
                     # 'qpsk_baudrate',    # only in QPSK demode
                     # 'qpsk_excess_bw',   # optional
-                    # 'qpsk_ntaps',   # optional
+                    # 'qpsk_ntaps',       # optional
+                    # 'qpsk_costas_bw',   # optional
                     ]))
                 and (config['mode'] != utils.Mode.QPSK or 'qpsk_baudrate' in config))
 
@@ -217,6 +218,10 @@ class Satellite(gr.gr.hier_block2):
     @property
     def qpsk_ntaps(self):
         return self.config.get('qpsk_ntaps')
+
+    @property
+    def qpsk_costas_bw(self):
+        return self.config.get('qpsk_costas_bw')
 
     @property
     def start_event(self):

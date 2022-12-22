@@ -51,8 +51,9 @@
                     "mode": "QPSK",
                     "decode": "RSTREAM",
                     "qpsk_baudrate": 72000,
-                    "qpsk_excess_bw": 0.6,
-                    "qpsk_ntaps": 361
+                    "qpsk_excess_bw": 0.35,
+                    "qpsk_ntaps": 33,
+                    "qpsk_costas_bw": 0.005
                 }
             ]
         }
