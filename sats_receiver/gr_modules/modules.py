@@ -177,7 +177,7 @@ class Satellite(gr.gr.hier_block2):
             logging.info('Satellite: %s: stop', self.name)
             self.start_event = self.stop_event = None
             self.radio.set_enabled(0)
-            self.decoder.finalize()
+            self.decoder.finalize(self.name)
 
     @property
     def name(self):
@@ -332,7 +332,7 @@ class SatsReceiver(gr.gr.top_block):
                 try:
                     sat = Satellite(new_cfg_sats[sat_name], self.tune, self.samp_rate, self.output_directory)
                 except ValueError as e:
-                    logging.warning('Receiver: %s: %s. Skip', self.name, e)
+                    logging.warning('Receiver: %s: %s: %s. Skip', self.name, sat_name, e)
                     continue
 
                 if self.calculate_pass(sat):
