@@ -120,6 +120,10 @@ class ReceiverManager:
             'receivers',
         ]))
 
+    @property
+    def recs_runned(self):
+        return any(x.is_runned for x in self.receivers.values())
+
     def action(self):
         if self.stopped:
             return 1
@@ -128,7 +132,7 @@ class ReceiverManager:
             self.update_config()
             self.scheduler.action()
             self.observer.action(self.t)
-            if self.tle.action(self.now):
+            if not self.recs_runned and self.tle.action(self.now):
                 for cfg in self.config['receivers']:
                     x = self.receivers.get(cfg['name'])
                     if x:
