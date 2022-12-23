@@ -14,6 +14,7 @@
             "name": "137:1 MHz",
             "source": "rtlsdr",
             "serial": "00000001",
+            "biast": false,
             "gain": 38.6,
             "tune": 137500000,
             "samp_rate": 1024000,

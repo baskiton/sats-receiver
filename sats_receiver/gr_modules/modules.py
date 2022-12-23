@@ -11,7 +11,7 @@ import gnuradio.filter
 import gnuradio.gr
 import gnuradio.soapy
 
-from sats_receiver import utils
+from sats_receiver import librtlsdr, utils
 from sats_receiver.gr_modules import decoders, demodulators
 
 
@@ -166,7 +166,7 @@ class Satellite(gr.gr.hier_block2):
 
     def start(self):
         if not self.is_runned:
-            logging.info('Satellite: %s: start; doppler=%s', self.name, 'On' if self.doppler else 'Off')
+            logging.info('Satellite: %s: START doppler=%s mode=%s decode=%s', self.name, self.doppler, self.mode, self.decode)
             self.output_directory.mkdir(parents=True, exist_ok=True)
             self.start_event = None
             self.decoder.start()
@@ -174,7 +174,7 @@ class Satellite(gr.gr.hier_block2):
 
     def stop(self):
         if self.is_runned:
-            logging.info('Satellite: %s: stop', self.name)
+            logging.info('Satellite: %s: STOP', self.name)
             self.start_event = self.stop_event = None
             self.radio.set_enabled(0)
             self.decoder.finalize(self.name)
@@ -265,12 +265,18 @@ class SatsReceiver(gr.gr.top_block):
         self.src_null_sink = gr.blocks.null_sink(gr.gr.sizeof_gr_complex)
 
         if not self.update_config(config):
-            raise ValueError('SatsReceiver: Invalid config!')
+            raise ValueError('Receiver: %s: Invalid config!', self.name)
 
     def update_config(self, config, force=False):
         if force or self.config != config:
             if not self._validate_config(config):
-                logging.warning('Observer: invalid new config!')
+                logging.warning('Receiver: %s: invalid new config!', self.name)
+                return
+
+            if (self.is_runned
+                    and (self.source != config['source']
+                         or self.serial != config.get('serial', ''))):
+                logging.warning('Receiver: %s: Could not change receiver on running state!', self.name)
                 return
 
             try:
@@ -281,20 +287,9 @@ class SatsReceiver(gr.gr.top_block):
             self.config = config
 
             if old_src != self.source or old_serial != self.serial:
-                if self.is_runned:
-                    self.lock()
-                    self.disconnect(self.signal_src, self.blocks_correctiq)
-
-                new_src = gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
-                                          'fc32', 1, '', '', [''], [''])
-                logging.info('SatsReceiver: New source found')
-
-                if self.is_runned:
-                    self.signal_src = new_src
-                    self.connect(self.signal_src, self.blocks_correctiq)
-                    self.unlock()
-                else:
-                    del new_src
+                gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
+                                'fc32', 1, '', '', [''], [''])
+                logging.info('Receiver: %s: New source found', self.name)
 
             if self.is_runned:
                 self.signal_src.set_sample_rate(0, self.samp_rate)
@@ -350,6 +345,7 @@ class SatsReceiver(gr.gr.top_block):
             'name',
             'source',
             # 'serial',   # optional
+            # 'biast',    # optional
             # 'gain',     # optional
             'tune',
             'samp_rate',
@@ -368,6 +364,10 @@ class SatsReceiver(gr.gr.top_block):
     @property
     def serial(self):
         return self.config.get('serial', '')
+
+    @property
+    def biast(self):
+        return self.config.get('biast', False)
 
     @property
     def gain(self):
@@ -395,15 +395,31 @@ class SatsReceiver(gr.gr.top_block):
 
     def start(self, max_noutput_items=10000000):
         if not self.is_runned:
-            logging.info('Receiver: %s: start', self.name)
+            logging.info('Receiver: %s: START tune=%s samp_rate=%s gain=%s biast=%s',
+                         self.name, self.tune, self.samp_rate, self.gain, self.biast)
+
+            try:
+                if self.source == 'rtlsdr':
+                    librtlsdr.set_bt(self.biast, self.serial)
+            except librtlsdr.LibRtlSdrError as e:
+                if self.biast:
+                    logging.info('Receiver: %s: turn on bias-t error: %s', self.name, e)
 
             try:
                 self.signal_src = gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
                                                   'fc32', 1, '', '', [''], [''])
             except RuntimeError as e:
-                logging.error('SatsReceiver: %s: cannot start: %s', self.name, e)
+                logging.error('Receiver: %s: cannot start: %s', self.name, e)
 
                 self.stop()
+                self.wait()
+
+                try:
+                    if self.source == 'rtlsdr':
+                        librtlsdr.set_bt(0, self.serial)
+                except librtlsdr.LibRtlSdrError:
+                    pass
+
                 t = self.up.now + dt.timedelta(minutes=5)
                 for sat in self.satellites.values():
                     self.up.scheduler.plan(t, self.calculate_pass, sat)
@@ -430,7 +446,7 @@ class SatsReceiver(gr.gr.top_block):
 
     def stop(self, sched_clear=True):
         if self.is_runned:
-            logging.info('Receiver: %s: stop', self.name)
+            logging.info('Receiver: %s: STOP', self.name)
 
             super(SatsReceiver, self).stop()
             self.is_runned = False
@@ -456,8 +472,16 @@ class SatsReceiver(gr.gr.top_block):
                     x.compute(self.up.observer.get_obj())
                     sat.set_freq_offset(utils.doppler_shift(sat.frequency, x.range_velocity))
         else:
+            x = self.is_runned
+
             self.stop(False)
             self.wait()
+
+            try:
+                if x and self.source == 'rtlsdr':
+                    librtlsdr.set_bt(0, self.serial)
+            except librtlsdr.LibRtlSdrError as e:
+                logging.debug('Receiver: %s: turn off bias-t error: %s', self.name, e)
 
     def calculate_pass(self, sat: Satellite):
         sat.events = [None, None, None]
@@ -479,15 +503,15 @@ class SatsReceiver(gr.gr.top_block):
                         self.up.scheduler.plan(set_t, sat.stop),
                         self.up.scheduler.plan(set_tt, self.calculate_pass, sat)
                     ]
-                    logging.info('Receiver: Sat `%s` planned on %s <-> %s', sat.name, rise_t.astimezone(ltz), set_t.astimezone(ltz))
+                    logging.info('Receiver: %s: Sat `%s` planned on %s <-> %s', self.name, sat.name, rise_t.astimezone(ltz), set_t.astimezone(ltz))
                     break
 
                 t = set_tt
 
             if t > tt:
-                logging.info('Receiver: Sat `%s`: No passes found for the next 24 hours', sat.name)
+                logging.info('Receiver: %s: Sat `%s`: No passes found for the next 24 hours', self.name, sat.name)
                 self.up.scheduler.plan(tt, self.calculate_pass, sat)
 
             return 1
 
-        logging.info('Receiver: Sat `%s` not found in TLE. Skip', sat.name)
+        logging.info('Receiver: %s: Sat `%s` not found in TLE. Skip', self.name, sat.name)
