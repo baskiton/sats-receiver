@@ -185,9 +185,17 @@ class AptDecoder(Decoder):
                 self.peaks_file.unlink(True)
                 return
 
-        start_pos, end_pos, data, peaks_idx = self._prepare_data(self.tmp_file, self.corr_file, self.peaks_file)
-        tail_correct = end_pos
-        peaks = [peaks_idx[0]]
+        try:
+            start_pos, end_pos, data, peaks_idx = self._prepare_data(self.tmp_file, self.corr_file, self.peaks_file)
+            peaks = [peaks_idx[0]]
+            if not data.size or peaks_idx.size < 5:
+                raise IndexError
+        except IndexError:
+            logging.error('AptDecoder: %s: invalid received data', sat_name)
+            self.tmp_file.unlink(True)
+            self.corr_file.unlink(True)
+            self.peaks_file.unlink(True)
+            return
 
         it = iter(range(1, peaks_idx.size))
         for i in it:
@@ -225,6 +233,7 @@ class AptDecoder(Decoder):
 
         result = np.zeros((len(peaks), self.samples_per_work_row), dtype=np.float32)
         without_last = err = 0
+        tail_correct = end_pos
 
         for idx, i in enumerate(peaks):
             try:

@@ -124,18 +124,22 @@ class ReceiverManager:
         if self.stopped:
             return 1
 
-        self.update_config()
-        self.scheduler.action()
-        self.observer.action(self.t)
-        if self.tle.action(self.now):
-            for cfg in self.config['receivers']:
-                x = self.receivers.get(cfg['name'])
-                if x:
-                    try:
-                        x.update_config(cfg, True)
-                    except RuntimeError as e:
-                        logging.error('SatsReceiver: %s: cannot update config: %s. Stop', x.name, e)
-                        x.stop()
+        try:
+            self.update_config()
+            self.scheduler.action()
+            self.observer.action(self.t)
+            if self.tle.action(self.now):
+                for cfg in self.config['receivers']:
+                    x = self.receivers.get(cfg['name'])
+                    if x:
+                        try:
+                            x.update_config(cfg, True)
+                        except RuntimeError as e:
+                            logging.error('SatsReceiver: %s: cannot update config: %s. Stop', x.name, e)
+                            x.stop()
 
-        for rn, r in self.receivers.items():
-            r.action()
+            for rn, r in self.receivers.items():
+                r.action()
+        except Exception as e:
+            logging.exception('%s. Exit', e)
+            self.stop()
