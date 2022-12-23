@@ -89,34 +89,40 @@ class AptDecoder(Decoder):
 
         resamp_gcd = math.gcd(samp_rate, work_rate)
         pix_width = work_rate // self.APT_FINAL_RATE
-        sync_a, sync_b = self._generate_sync_frame(samp_rate, self.APT_FINAL_RATE)
+        sync_a, sync_b = self._generate_sync_frame()
 
         self.frs = gr.blocks.rotator_cc(2 * math.pi * -self.APT_CARRIER_FREQ / samp_rate)
         self.rsp = gr.filter.rational_resampler_ccc(
             interpolation=work_rate // resamp_gcd,
             decimation=samp_rate // resamp_gcd,
             taps=[],
-            fractional_bw=0
+            fractional_bw=0,
         )
 
         tofilter_freq = 2080
-        resamp_gcd = math.gcd(work_rate, tofilter_freq)
+        lp_gcd = math.gcd(work_rate, tofilter_freq)
 
         self.lpf = gr.filter.fir_filter_ccf(
             1,
             gr.filter.firdes.low_pass(
-                1,
-                work_rate / resamp_gcd,
-                tofilter_freq / resamp_gcd,
-                0.1,
-                gr.fft.window.WIN_HAMMING,
-                6.76
+                gain=1,
+                sampling_freq=work_rate / lp_gcd,
+                cutoff_freq=tofilter_freq / lp_gcd,
+                transition_width=0.1,
+                window=gr.fft.window.WIN_HAMMING,
+                param=6.76,
             )
         )
         self.ctm = gr.blocks.complex_to_mag()
         self.ftc = gr.blocks.float_to_complex()
         # self.dc_rem = gr.blocks.correctiq()
-        self.correllator = gr.digital.corr_est_cc(sync_a, pix_width, 1, 0.9, gr.digital.THRESHOLD_ABSOLUTE)
+        self.correllator = gr.digital.corr_est_cc(
+            symbols=sync_a,
+            sps=1,
+            mark_delay=1,
+            threshold=0.9,
+            threshold_method=gr.digital.THRESHOLD_ABSOLUTE,
+        )
         self.ctf_out = gr.blocks.complex_to_float()
         self.ctf_corr = gr.blocks.complex_to_float()
 
@@ -128,7 +134,11 @@ class AptDecoder(Decoder):
         self.out_corr_sink.close()
         self.corr_file.unlink(True)
 
-        self.peak_detector = gr.blocks.peak_detector2_fb(7, self.samples_per_work_row, 0.001)
+        self.peak_detector = gr.blocks.peak_detector2_fb(
+            threshold_factor_rise=7,
+            look_ahead=self.samples_per_work_row,
+            alpha=0.001,
+        )
         self.out_peaks_sink = gr.blocks.file_sink(gr.gr.sizeof_char, str(self.peaks_file), False)
         self.out_peaks_sink.close()
         self.peaks_file.unlink(True)
@@ -267,18 +277,16 @@ class AptDecoder(Decoder):
 
         return res_fn
 
-    def _generate_sync_frame(self, work_rate, final_rate) -> tuple[np.array, np.array]:
-        if work_rate % final_rate:
+    def _generate_sync_frame(self) -> tuple[np.array, np.array]:
+        if self.work_rate % self.APT_FINAL_RATE:
             raise ValueError('work_rate is not multiple of final_rate')
 
-        pix_width = work_rate // final_rate
+        pix_width = self.work_rate // self.APT_FINAL_RATE
 
-        sync_a = np.array([*map(float, self.APT_SYNC_A)], dtype=np.int8).repeat(pix_width)
-        sync_a[sync_a == 0] = -1
-        sync_b = np.array([*map(float, self.APT_SYNC_B)], dtype=np.int8).repeat(pix_width)
-        sync_b[sync_b == 0] = -1
+        sync_a = np.array([*map(float, self.APT_SYNC_A)], dtype=np.float32).repeat(pix_width) * 2 - 1
+        sync_b = np.array([*map(float, self.APT_SYNC_B)], dtype=np.float32).repeat(pix_width) * 2 - 1
 
-        return sync_a.astype(np.float32), sync_b.astype(np.float32)
+        return sync_a, sync_b
 
     def _prepare_data(self, dataf, corrf, peaksf) -> tuple[int, int, np.ndarray, np.ndarray]:
         data: np.ndarray = np.fromfile(dataf, dtype=np.float32)
