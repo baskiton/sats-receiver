@@ -6,9 +6,9 @@ import gnuradio as gr
 import gnuradio.analog
 import gnuradio.blocks
 import gnuradio.digital
+import gnuradio.fft
 import gnuradio.filter
 import gnuradio.gr
-import gnuradio.fft
 
 import numpy as np
 import scipy as sp
@@ -218,11 +218,19 @@ class AptDecoder(Decoder):
                 for i_ in it:
                     prev_ = peaks_idx[i_ - 1]
                     cur_ = peaks_idx[i_]
+                    k_ = prev_ - prev
+                    d_ = cur_ - prev_
 
-                    if self.dist_min < (cur_ - prev_) < self.dist_max:
-                        for j in range(1, i_ - i):
+                    if self.dist_min < d_ < self.dist_max:
+                        for j in range(1, round(k_ / self.samples_per_work_row)):
                             peaks.append(prev + self.samples_per_work_row * j)
-                        peaks.append(prev_)
+
+                        k_ = prev_ - peaks[-1]
+                        if self.dist_min < k_ < self.dist_max or k_ > self.dist_dev:
+                            peaks.append(prev_)
+                        else:
+                            peaks[-1] = prev_
+
                         peaks.append(cur_)
                         break
 
@@ -231,7 +239,7 @@ class AptDecoder(Decoder):
                     cur_ = peaks_idx[i_]
                     d_ = cur_ - prev_
 
-                    m = math.ceil(d_ / self.samples_per_work_row)
+                    m = round(d_ / self.samples_per_work_row)
                     if self.dist_min * m < d_ < self.dist_max * m:
                         m += 1
 
@@ -249,11 +257,14 @@ class AptDecoder(Decoder):
             try:
                 x = data[i:peaks[idx + 1]]
             except IndexError:
-                x = data[i:]
-                if x.size < self.dist_min:
-                    tail_correct += x.size
+                z = data.size - i
+                if z < self.dist_min:
+                    tail_correct += z
                     without_last = 1
                     break
+
+                x = data[i:i + self.samples_per_work_row]
+
             try:
                 x = sp.signal.resample(x, self.samples_per_work_row)
             except ValueError as e:
@@ -261,6 +272,7 @@ class AptDecoder(Decoder):
                     logging.debug('AptDecoder: %s: error on line resample: %s', sat_name, e)
                     err = 1
                 continue
+
             result[idx] = x
 
         result = result[0:-1 - without_last, self.decim_factor // 2::self.decim_factor]
