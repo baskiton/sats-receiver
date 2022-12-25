@@ -4,7 +4,7 @@ import logging
 import pathlib
 import time
 
-from sats_receiver.gr_modules import SatsReceiver
+from sats_receiver.gr_modules.receiver import SatsReceiver
 from sats_receiver.observer import Observer
 from sats_receiver.tle import Tle
 from sats_receiver.utils import Scheduler
