@@ -92,7 +92,7 @@ class SatsReceiver(gr.gr.top_block):
 
             for sat_name in to_create_sats:
                 try:
-                    sat = modules.Satellite(new_cfg_sats[sat_name], self.tune, self.samp_rate, self.output_directory)
+                    sat = modules.Satellite(new_cfg_sats[sat_name], self.tune, self.samp_rate, self.output_directory, self.up.executor)
                 except ValueError as e:
                     logging.warning('Receiver: %s: %s: %s. Skip', self.name, sat_name, e)
                     continue

@@ -54,10 +54,11 @@ class RadioModule(gr.gr.hier_block2):
 
 
 class Satellite(gr.gr.hier_block2):
-    def __init__(self, config, main_tune, samp_rate, output_directory):
+    def __init__(self, config, main_tune, samp_rate, output_directory, executor):
         if not self._validate_config(config):
             raise ValueError('Observer: Invalid config!')
 
+        self.executor = executor
         self.config = config
         self.output_directory = output_directory / self.name
         self.output_directory.mkdir(parents=True, exist_ok=True)
@@ -173,7 +174,7 @@ class Satellite(gr.gr.hier_block2):
             logging.info('Satellite: %s: STOP', self.name)
             self.start_event = self.stop_event = None
             self.radio.set_enabled(0)
-            self.decoder.finalize(self.name)
+            self.decoder.finalize(self.name, self.executor)
 
     @property
     def name(self):

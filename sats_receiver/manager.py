@@ -1,13 +1,15 @@
 import datetime as dt
 import json
 import logging
+import multiprocessing as mp
 import pathlib
 import time
+import queue
 
 from sats_receiver.gr_modules.receiver import SatsReceiver
 from sats_receiver.observer import Observer
 from sats_receiver.tle import Tle
-from sats_receiver.utils import Scheduler
+from sats_receiver.utils import Scheduler, SysUsage
 
 # Rate Ranges:
 #     137...138 MHz: 1.024
@@ -15,8 +17,53 @@ from sats_receiver.utils import Scheduler
 #     435...438 MHz: 3.2
 
 
+class Executor(mp.Process):
+    def __init__(self, sysu_intv=SysUsage.DEFAULT_INTV):
+        super().__init__(daemon=False)
+
+        self.sysu_intv = sysu_intv
+        self.q = mp.Queue()
+
+    def run(self):
+        logging.debug('Executor: start')
+
+        sysu = SysUsage('Executor', self.sysu_intv)
+
+        while 1:
+            sysu.collect()
+
+            try:
+                x = self.q.get(timeout=1)
+            except queue.Empty:
+                continue
+
+            if x == '.':
+                break
+
+            try:
+                fn, args, kwargs = x
+            except ValueError:
+                logging.error('Executor: invalid task: %s', x)
+                continue
+
+            if callable(fn):
+                try:
+                    fn(*args, **kwargs)
+                except Exception:
+                    logging.exception('Executor: %s with args=%s kwargs=%s', args, kwargs)
+
+        logging.debug('Executor: finish')
+
+    def execute(self, fn, *args, **kwargs):
+        self.q.put((fn, args, kwargs))
+
+    def stop(self):
+        self.q.put('.')
+
+
 class ReceiverManager:
-    def __init__(self, config_filename: pathlib.Path):
+    def __init__(self, config_filename: pathlib.Path, sysu_intv=SysUsage.DEFAULT_INTV):
+        self.sysu = SysUsage(ReceiverManager, sysu_intv)
         self.config_filename = config_filename
         self.config_file_stat = None
         self.config = {}
@@ -32,6 +79,8 @@ class ReceiverManager:
         self.observer = Observer(self.config['observer'])
         self.tle = Tle(self.config['tle'])
         self.scheduler = Scheduler()
+        self.executor = Executor(sysu_intv)
+        self.executor.start()
 
         for cfg in self.config['receivers']:
             self._add_receiver(cfg)
@@ -51,8 +100,11 @@ class ReceiverManager:
     def stop(self):
         for rec in self.receivers.values():
             rec.stop()
+
+        self.executor.stop()
         self.stopped = True
-        logging.info('ReceiverManager: stop')
+
+        logging.info('ReceiverManager: finish')
 
     def wait(self):
         for rec in self.receivers.values():
@@ -125,6 +177,8 @@ class ReceiverManager:
         return any(x.is_runned for x in self.receivers.values())
 
     def action(self):
+        self.sysu.collect()
+
         if self.stopped:
             return 1
 

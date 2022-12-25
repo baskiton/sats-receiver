@@ -86,19 +86,23 @@ class Scheduler:
 
 
 class SysUsage:
-    def __init__(self, intv=3600):
+    DEFAULT_INTV = 3600
+
+    def __init__(self, ctx, intv=DEFAULT_INTV):
         super(SysUsage, self).__init__()
         gc.set_debug(gc.DEBUG_UNCOLLECTABLE)
         self.now = 0
         self.intv = intv
         self.next = self.t + intv
+        self.ctx = ctx
 
     def collect(self):
         if self.t >= self.next:
             self.next = self.now + self.intv
             gc.collect()
             ru = resource.getrusage(resource.RUSAGE_SELF)
-            logging.debug('SysUsage: %s rss %s utime %s stime %s',
+            logging.debug('SysUsage %s: %s rss %s utime %s stime %s',
+                          self.ctx,
                           numdisp(sum(sys.getsizeof(i) for i in gc.get_objects())),
                           numdisp(ru.ru_maxrss << 10),
                           sec(ru.ru_utime),

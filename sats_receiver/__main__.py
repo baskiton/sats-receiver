@@ -4,7 +4,7 @@ import argparse
 import logging
 import pathlib
 
-from sats_receiver import utils, HOMEDIR, LOGSDIR, TLEDIR, RECDIR
+from sats_receiver import HOMEDIR, LOGSDIR, TLEDIR, RECDIR
 from sats_receiver.manager import ReceiverManager
 from sats_receiver.async_signal import AsyncSignal
 
@@ -36,11 +36,9 @@ if __name__ == '__main__':
     logging.info('Hello!')
 
     asig = AsyncSignal(['SIGABRT', 'SIGHUP', 'SIGINT', 'SIGTERM', 'SIGUSR1', 'SIGUSR2'])
-    sus = utils.SysUsage(args.sysu)
-    mng = ReceiverManager(args.config)
+    mng = ReceiverManager(args.config, args.sysu)
 
     while not mng.action():
-        sus.collect()
         signame = asig.wait(1)
         if signame:
             if 'USR' in signame:

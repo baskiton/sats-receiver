@@ -31,7 +31,7 @@ class Decoder(gr.gr.hier_block2):
         self.tmp_file = self.out_dir / ('_'.join([dt.datetime.now().strftime('%Y%m%d%H%M%S'),
                                                   *self.name().lower().split()]) + '.tmp')
 
-    def finalize(self, sat_name):
+    def finalize(self, sat_name, executor):
         pass
 
 
@@ -59,7 +59,7 @@ class RawDecoder(Decoder):
 
         self.wav_sink.open(str(self.tmp_file))
 
-    def finalize(self, sat_name):
+    def finalize(self, sat_name, executor):
         self.wav_sink.close()
         if self.tmp_file.exists():
             return self.tmp_file.rename(self.out_dir / dt.datetime.fromtimestamp(self.tmp_file.stat().st_mtime).strftime('%Y-%m-%d_%H-%M-%S_RAW.wav'))
@@ -80,15 +80,8 @@ class AptDecoder(Decoder):
         self.peaks_file = out_dir / ('_'.join(name.lower().split()) + '.peaks')
 
         self.work_rate = work_rate = self.APT_IMG_WIDTH * 2 * 4
-        self.samples_per_work_row = self.APT_IMG_WIDTH * work_rate // self.APT_FINAL_RATE
-        self.decim_factor = self.work_rate // self.APT_FINAL_RATE
-        self.dev = 0.02
-        self.dist_dev = int(self.samples_per_work_row * self.dev)
-        self.dist_min = self.samples_per_work_row - self.dist_dev
-        self.dist_max = self.samples_per_work_row + self.dist_dev
 
         resamp_gcd = math.gcd(samp_rate, work_rate)
-        pix_width = work_rate // self.APT_FINAL_RATE
         sync_a, sync_b = self._generate_sync_frame()
 
         self.frs = gr.blocks.rotator_cc(2 * math.pi * -self.APT_CARRIER_FREQ / samp_rate)
@@ -136,7 +129,7 @@ class AptDecoder(Decoder):
 
         self.peak_detector = gr.blocks.peak_detector2_fb(
             threshold_factor_rise=7,
-            look_ahead=self.samples_per_work_row,
+            look_ahead=self.APT_IMG_WIDTH * work_rate // self.APT_FINAL_RATE,
             alpha=0.001,
         )
         self.out_peaks_sink = gr.blocks.file_sink(gr.gr.sizeof_char, str(self.peaks_file), False)
@@ -182,7 +175,7 @@ class AptDecoder(Decoder):
         self.out_peaks_sink.open(str(self.peaks_file))
         self.out_peaks_sink.set_unbuffered(False)
 
-    def finalize(self, sat_name):
+    def finalize(self, sat_name, executor):
         self.out_file_sink.close()
         self.out_corr_sink.close()
         self.out_peaks_sink.close()
@@ -195,17 +188,29 @@ class AptDecoder(Decoder):
                 self.peaks_file.unlink(True)
                 return
 
+        executor.execute(self._finalize, sat_name, self.tmp_file, self.corr_file, self.peaks_file,
+                         self.out_dir, self.work_rate)
+
+    @staticmethod
+    def _finalize(sat_name, tmp_file, corr_file, peaks_file, out_dir, work_rate):
         try:
-            start_pos, end_pos, data, peaks_idx = self._prepare_data(self.tmp_file, self.corr_file, self.peaks_file)
+            start_pos, end_pos, data, peaks_idx = AptDecoder._prepare_data(tmp_file, corr_file, peaks_file)
             peaks = [peaks_idx[0]]
             if not data.size or peaks_idx.size < 5:
                 raise IndexError
         except IndexError:
             logging.error('AptDecoder: %s: invalid received data', sat_name)
-            self.tmp_file.unlink(True)
-            self.corr_file.unlink(True)
-            self.peaks_file.unlink(True)
+            tmp_file.unlink(True)
+            corr_file.unlink(True)
+            peaks_file.unlink(True)
             return
+
+        samples_per_work_row = AptDecoder.APT_IMG_WIDTH * work_rate // AptDecoder.APT_FINAL_RATE
+        decim_factor = work_rate // AptDecoder.APT_FINAL_RATE
+        dev = 0.02
+        dist_dev = int(samples_per_work_row * dev)
+        dist_min = samples_per_work_row - dist_dev
+        dist_max = samples_per_work_row + dist_dev
 
         it = iter(range(1, peaks_idx.size))
         for i in it:
@@ -213,7 +218,7 @@ class AptDecoder(Decoder):
             cur = peaks_idx[i]
             d = cur - prev
 
-            if d < self.dist_min or d > self.dist_max:
+            if d < dist_min or d > dist_max:
                 i_ = i
                 for i_ in it:
                     prev_ = peaks_idx[i_ - 1]
@@ -221,12 +226,12 @@ class AptDecoder(Decoder):
                     k_ = prev_ - prev
                     d_ = cur_ - prev_
 
-                    if self.dist_min < d_ < self.dist_max:
-                        for j in range(1, round(k_ / self.samples_per_work_row)):
-                            peaks.append(prev + self.samples_per_work_row * j)
+                    if dist_min < d_ < dist_max:
+                        for j in range(1, round(k_ / samples_per_work_row)):
+                            peaks.append(prev + samples_per_work_row * j)
 
                         k_ = prev_ - peaks[-1]
-                        if self.dist_min < k_ < self.dist_max or k_ > self.dist_dev:
+                        if dist_min < k_ < dist_max or k_ > dist_dev:
                             peaks.append(prev_)
                         else:
                             peaks[-1] = prev_
@@ -239,17 +244,17 @@ class AptDecoder(Decoder):
                     cur_ = peaks_idx[i_]
                     d_ = cur_ - prev_
 
-                    m = round(d_ / self.samples_per_work_row)
-                    if self.dist_min * m < d_ < self.dist_max * m:
+                    m = round(d_ / samples_per_work_row)
+                    if dist_min * m < d_ < dist_max * m:
                         m += 1
 
                     for j in range(1, m):
-                        peaks.append(prev_ + self.samples_per_work_row * j)
+                        peaks.append(prev_ + samples_per_work_row * j)
 
             else:
                 peaks.append(cur)
 
-        result = np.zeros((len(peaks), self.samples_per_work_row), dtype=np.float32)
+        result = np.zeros((len(peaks), samples_per_work_row), dtype=np.float32)
         without_last = err = 0
         tail_correct = end_pos
 
@@ -258,15 +263,15 @@ class AptDecoder(Decoder):
                 x = data[i:peaks[idx + 1]]
             except IndexError:
                 z = data.size - i
-                if z < self.dist_min:
+                if z < dist_min:
                     tail_correct += z
                     without_last = 1
                     break
 
-                x = data[i:i + self.samples_per_work_row]
+                x = data[i:i + samples_per_work_row]
 
             try:
-                x = sp.signal.resample(x, self.samples_per_work_row)
+                x = sp.signal.resample(x, samples_per_work_row)
             except ValueError as e:
                 if not err:
                     logging.debug('AptDecoder: %s: error on line resample: %s', sat_name, e)
@@ -275,17 +280,17 @@ class AptDecoder(Decoder):
 
             result[idx] = x
 
-        result = result[0:-1 - without_last, self.decim_factor // 2::self.decim_factor]
+        result = result[0:-1 - without_last, decim_factor // 2::decim_factor]
         # result = (result * 255).round().clip(0, 255).astype(np.uint8)
 
-        tail_correct /= self.work_rate
-        end_time = dt.datetime.fromtimestamp(self.tmp_file.stat().st_mtime - tail_correct)
+        tail_correct /= work_rate
+        end_time = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime - tail_correct)
 
-        self.tmp_file.write_bytes(result.tobytes())
-        res_fn = self.tmp_file.rename(self.out_dir / end_time.strftime('%Y-%m-%d_%H-%M-%S.apt'))
+        tmp_file.write_bytes(result.tobytes())
+        res_fn = tmp_file.rename(out_dir / end_time.strftime('%Y-%m-%d_%H-%M-%S.apt'))
 
-        self.corr_file.unlink(True)
-        self.peaks_file.unlink(True)
+        corr_file.unlink(True)
+        peaks_file.unlink(True)
 
         return res_fn
 
@@ -300,7 +305,8 @@ class AptDecoder(Decoder):
 
         return sync_a, sync_b
 
-    def _prepare_data(self, dataf, corrf, peaksf) -> tuple[int, int, np.ndarray, np.ndarray]:
+    @staticmethod
+    def _prepare_data(dataf, corrf, peaksf) -> tuple[int, int, np.ndarray, np.ndarray]:
         data: np.ndarray = np.fromfile(dataf, dtype=np.float32)
         corrs: np.ndarray = np.fromfile(corrf, dtype=np.float32)
         peaks: np.ndarray = np.fromfile(peaksf, dtype=np.byte)
@@ -339,7 +345,7 @@ class RawStreamDecoder(Decoder):
         self.out_file_sink.open(str(self.tmp_file))
         self.out_file_sink.set_unbuffered(False)
 
-    def finalize(self, sat_name):
+    def finalize(self, sat_name, executor):
         self.out_file_sink.close()
         if self.tmp_file.exists():
             return self.tmp_file.rename(self.out_dir / dt.datetime.fromtimestamp(self.tmp_file.stat().st_mtime).strftime('%Y-%m-%d_%H-%M-%S.s'))
@@ -352,5 +358,5 @@ class LrptDecoder(RawStreamDecoder):
     def start(self):
         super(LrptDecoder, self).start()
 
-    def finalize(self, sat_name):
+    def finalize(self, sat_name, executor):
         sf = super(LrptDecoder, self).finalize(sat_name)
