@@ -258,7 +258,7 @@ class AptDecoder(Decoder):
             else:
                 peaks.append(cur)
 
-        result = np.zeros((len(peaks), samples_per_work_row), dtype=np.float32)
+        result = np.full((len(peaks), samples_per_work_row), np.nan, dtype=np.float)
         without_last = err = 0
         tail_correct = end_pos
 
@@ -284,8 +284,11 @@ class AptDecoder(Decoder):
 
             result[idx] = x
 
-        result = result[0:-1 - without_last, decim_factor // 2::decim_factor]
-        # result = (result * 255).round().clip(0, 255).astype(np.uint8)
+        z = np.argmax(np.isnan(result).all(axis=1))
+        if not z:
+            z = result.shape[0]
+
+        result = result[0:z - without_last, decim_factor // 2::decim_factor]
 
         tail_correct /= work_rate
         end_time = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime - tail_correct)
