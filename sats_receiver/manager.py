@@ -111,40 +111,44 @@ class ReceiverManager:
             rec.wait()
 
     def update_config(self, init=False, force=False):
-        if self._check_config():
-            try:
-                new_cfg = json.load(self.config_filename.open())
-            except (IOError, json.JSONDecodeError) as e:
-                logging.error('ReceiverManager: Error during load config: %s', e)
-                return
+        if not self._check_config():
+            return
 
-            if new_cfg != self.config:
-                if not self._validate_config(new_cfg):
-                    logging.warning('Tle: invalid new config!')
-                    return
+        try:
+            new_cfg = json.load(self.config_filename.open())
+        except (IOError, json.JSONDecodeError) as e:
+            logging.error('ReceiverManager: Error during load config: %s', e)
+            return
 
-                logging.debug('ReceiverManager: reconf')
-                self.config = new_cfg
+        if new_cfg == self.config:
+            return
 
-                if init:
-                    return 1
+        if not self._validate_config(new_cfg):
+            logging.warning('Tle: invalid new config!')
+            return
 
-                self.observer.update_config(new_cfg['observer'])
-                self.tle.update_config(new_cfg['tle'])
+        logging.debug('ReceiverManager: reconf')
+        self.config = new_cfg
 
-                for cfg in new_cfg['receivers']:
-                    x = self.receivers.get(cfg['name'])
-                    if x:
-                        try:
-                            x.update_config(cfg, force)
-                        except RuntimeError as e:
-                            self.receivers.pop(cfg['name'])
-                            logging.error('ReceiverManager: Delete receiver "%s" with new config: %s',
-                                          cfg['name'], e)
-                    else:
-                        self._add_receiver(cfg)
-
+        if init:
             return 1
+
+        self.observer.update_config(new_cfg['observer'])
+        self.tle.update_config(new_cfg['tle'])
+
+        for cfg in new_cfg['receivers']:
+            x = self.receivers.get(cfg['name'])
+            if x:
+                try:
+                    x.update_config(cfg, force)
+                except RuntimeError as e:
+                    self.receivers.pop(cfg['name'])
+                    logging.error('ReceiverManager: Delete receiver "%s" with new config: %s',
+                                  cfg['name'], e)
+            else:
+                self._add_receiver(cfg)
+
+        return 1
 
     def _check_config(self):
         try:
