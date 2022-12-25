@@ -14,6 +14,8 @@ import numpy as np
 import scipy as sp
 import scipy.signal
 
+from sats_receiver import utils
+
 
 class Decoder(gr.gr.hier_block2):
     def __init__(self, name, samp_rate, out_dir):
@@ -193,6 +195,7 @@ class AptDecoder(Decoder):
 
     @staticmethod
     def _finalize(sat_name, tmp_file, corr_file, peaks_file, out_dir, work_rate):
+        logging.debug('AptDecoder: %s: finalizing...', sat_name)
         try:
             start_pos, end_pos, data, peaks_idx = AptDecoder._prepare_data(tmp_file, corr_file, peaks_file)
             peaks = [peaks_idx[0]]
@@ -212,6 +215,7 @@ class AptDecoder(Decoder):
         dist_min = samples_per_work_row - dist_dev
         dist_max = samples_per_work_row + dist_dev
 
+        logging.debug('AptDecoder: %s: syncing...', sat_name)
         it = iter(range(1, peaks_idx.size))
         for i in it:
             prev = peaks_idx[i - 1]
@@ -292,7 +296,7 @@ class AptDecoder(Decoder):
         corr_file.unlink(True)
         peaks_file.unlink(True)
 
-        return res_fn
+        logging.debug('AptDecoder: %s: finish: %s (%s)', sat_name, res_fn, utils.numdisp(res_fn.stat().st_size))
 
     def _generate_sync_frame(self) -> tuple[np.array, np.array]:
         if self.work_rate % self.APT_FINAL_RATE:

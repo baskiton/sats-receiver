@@ -63,7 +63,7 @@ class Executor(mp.Process):
 
 class ReceiverManager:
     def __init__(self, config_filename: pathlib.Path, sysu_intv=SysUsage.DEFAULT_INTV):
-        self.sysu = SysUsage(ReceiverManager, sysu_intv)
+        self.sysu = SysUsage('ReceiverManager', sysu_intv)
         self.config_filename = config_filename
         self.config_file_stat = None
         self.config = {}
