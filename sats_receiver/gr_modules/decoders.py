@@ -259,7 +259,6 @@ class AptDecoder(Decoder):
                 peaks.append(cur)
 
         result = np.full((len(peaks), samples_per_work_row), np.nan, dtype=np.float32)
-
         without_last = err = 0
         tail_correct = end_pos
 
