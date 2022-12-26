@@ -1,3 +1,4 @@
+import atexit
 import datetime as dt
 import json
 import logging
@@ -81,6 +82,7 @@ class ReceiverManager:
         self.scheduler = Scheduler()
         self.executor = Executor(sysu_intv)
         self.executor.start()
+        atexit.register(lambda x: (x.stop(), x.join()), self.executor)
 
         for cfg in self.config['receivers']:
             self._add_receiver(cfg)
@@ -101,7 +103,6 @@ class ReceiverManager:
         for rec in self.receivers.values():
             rec.stop()
 
-        self.executor.stop()
         self.stopped = True
 
         logging.info('ReceiverManager: finish')
