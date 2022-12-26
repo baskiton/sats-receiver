@@ -197,7 +197,7 @@ class AptDecoder(Decoder):
     def _finalize(sat_name, tmp_file, corr_file, peaks_file, out_dir, work_rate):
         logging.debug('AptDecoder: %s: finalizing...', sat_name)
         try:
-            start_pos, end_pos, data, peaks_idx = AptDecoder._prepare_data(tmp_file, corr_file, peaks_file)
+            origin_data_size, data, peaks_idx = AptDecoder._prepare_data(tmp_file, corr_file, peaks_file)
             peaks = [peaks_idx[0]]
             if not data.size or peaks_idx.size < 5:
                 raise IndexError
@@ -260,7 +260,6 @@ class AptDecoder(Decoder):
 
         result = np.full((len(peaks), samples_per_work_row), np.nan, dtype=np.float32)
         without_last = err = 0
-        tail_correct = end_pos
 
         for idx, i in enumerate(peaks):
             try:
@@ -268,7 +267,6 @@ class AptDecoder(Decoder):
             except IndexError:
                 z = data.size - i
                 if z < dist_min:
-                    tail_correct += z
                     without_last = 1
                     break
 
@@ -284,18 +282,15 @@ class AptDecoder(Decoder):
 
             result[idx] = x
 
-        z = np.argmax(np.isnan(result).all(axis=1))
-        if not z:
-            z = result.shape[0]
-
+        z = np.argmax(np.isnan(result).all(axis=1)) or result.shape[0]
         result = result[0:z - without_last, decim_factor // 2::decim_factor]
 
-        tail_correct /= work_rate
+        tail_correct = (origin_data_size / samples_per_work_row - z - without_last) / 2
         end_time = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime - tail_correct)
+        res_fn = out_dir / end_time.strftime('%Y-%m-%d_%H-%M-%S.apt')
+        res_fn.write_bytes(result.tobytes())
 
-        tmp_file.write_bytes(result.tobytes())
-        res_fn = tmp_file.rename(out_dir / end_time.strftime('%Y-%m-%d_%H-%M-%S.apt'))
-
+        tmp_file.unlink(True)
         corr_file.unlink(True)
         peaks_file.unlink(True)
 
@@ -313,7 +308,7 @@ class AptDecoder(Decoder):
         return sync_a, sync_b
 
     @staticmethod
-    def _prepare_data(dataf, corrf, peaksf) -> tuple[int, int, np.ndarray, np.ndarray]:
+    def _prepare_data(dataf, corrf, peaksf) -> tuple[int, np.ndarray, np.ndarray]:
         data: np.ndarray = np.fromfile(dataf, dtype=np.float32)
         corrs: np.ndarray = np.fromfile(corrf, dtype=np.float32)
         peaks: np.ndarray = np.fromfile(peaksf, dtype=np.byte)
@@ -321,7 +316,7 @@ class AptDecoder(Decoder):
         x = np.flatnonzero(corrs > (np.max(corrs[np.flatnonzero(peaks)]) * 0.4))
         start_pos, end_pos = x[0], x[-1]
 
-        return start_pos, end_pos, data[start_pos:end_pos], np.flatnonzero(peaks[start_pos:end_pos])
+        return data.size, data[start_pos:end_pos], np.flatnonzero(peaks[start_pos:end_pos])
 
 
 class RawStreamDecoder(Decoder):
