@@ -299,7 +299,7 @@ class AptDecoder(Decoder):
         corr_file.unlink(True)
         peaks_file.unlink(True)
 
-        logging.debug('AptDecoder: %s: finish: %s (%s)', sat_name, res_fn, utils.numdisp(res_fn.stat().st_size))
+        logging.debug('AptDecoder: %s: finish: %s (%s)', sat_name, res_fn, utils.numdisp(result.size * result.itemsize))
 
     def _generate_sync_frame(self) -> tuple[np.array, np.array]:
         if self.work_rate % self.APT_FINAL_RATE:
@@ -366,4 +366,4 @@ class LrptDecoder(RawStreamDecoder):
         super(LrptDecoder, self).start()
 
     def finalize(self, sat_name, executor):
-        sf = super(LrptDecoder, self).finalize(sat_name)
+        sf = super(LrptDecoder, self).finalize(sat_name, executor)
