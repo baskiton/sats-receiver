@@ -65,16 +65,19 @@ _f.argtypes = POINTER(c_char),
 _f.restype = c_int
 def rtlsdr_get_index_by_serial(serial: str) -> int:
     r = _lib.rtlsdr_get_index_by_serial(serial.encode('utf8'))
-    if r < 0:
-        m = ''
-        if r == -1:
-            m = 'Null serial'
-        elif r == -1:
-            m = 'No devices'
-        elif r == -3:
-            m = 'Device not found'
-        raise LibRtlSdrError(m)
-    return r
+    if r >= 0:
+        return r
+
+    if r == -1:
+        m = 'Null serial'
+    elif r == -2:
+        m = 'No devices'
+    elif r == -3:
+        m = 'Device not found'
+    else:   # unreachable
+        m = f'Unknown {r}'
+
+    raise LibRtlSdrError(m)
 
 
 def get_serials() -> str:
