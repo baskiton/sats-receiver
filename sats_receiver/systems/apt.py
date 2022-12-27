@@ -106,7 +106,7 @@ class Apt:
                       dtype=np.float32).repeat(PIX_WIDTH) * 2 - 1
     SYNC_B = np.array([*map(float, '000011100111001110011100111001110011100')],
                       dtype=np.float32).repeat(PIX_WIDTH) * 2 - 1
-    WEDGE_SAMPLE = np.array([31, 63, 95, 127, 159, 191, 223, 255, 0,
+    WEDGE_SAMPLE = np.array([*np.interp([31, 63, 95, 127, 159, 191, 223, 255, 0], [0, 255], [-1, 1]),
                              0, 0, 0, 0, 0, 0, 0], dtype=np.float32).repeat(BLOCK_HEIGHT)
 
     @classmethod
