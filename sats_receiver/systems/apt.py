@@ -26,12 +26,12 @@ class AptWedgeNum(enum.IntEnum):
 
 
 class AptChannelName(enum.Enum):
-    _1 = '1'
-    _2 = '2'
-    _3a = '3a'
-    _4 = '4'
-    _5 = '5'
-    _3b = '3b'
+    _1 = '1'    # Visible (0.58 – 0.68 um)
+    _2 = '2'    # Near Infrared (0.325 – 1.10 um)
+    _3a = '3a'  # Thermal Infrared (1.58 – 1.64 um)
+    _4 = '4'    # Thermal Infrared (10.30 – 11.30 um)
+    _5 = '5'    # Thermal Infrared (11.50 – 12.50 um)
+    _3b = '3b'  # Thermal Infrared (3.55 – 3.93 um)
 
 
 class AptTelemetry:

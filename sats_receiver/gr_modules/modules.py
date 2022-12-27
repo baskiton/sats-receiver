@@ -144,6 +144,7 @@ class Satellite(gr.gr.hier_block2):
     def _validate_config(self, config):
         return (all(map(lambda x: x in config, [
                     'name',
+                    # 'enabled',  # optional
                     # 'min_elevation',    # optional
                     'frequency',
                     'bandwidth',
@@ -162,7 +163,7 @@ class Satellite(gr.gr.hier_block2):
         return self.radio.enabled
 
     def start(self):
-        if not self.is_runned:
+        if self.enabled and not self.is_runned:
             logging.info('Satellite: %s: START doppler=%s mode=%s decode=%s', self.name, self.doppler, self.mode, self.decode)
             self.output_directory.mkdir(parents=True, exist_ok=True)
             self.start_event = None
@@ -179,6 +180,10 @@ class Satellite(gr.gr.hier_block2):
     @property
     def name(self):
         return self.config['name']
+
+    @property
+    def enabled(self):
+        return self.config.get('enabled', True)
 
     @property
     def min_elevation(self):

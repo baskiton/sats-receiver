@@ -40,6 +40,11 @@ class SatsReceiver(gr.gr.top_block):
                 logging.warning('Receiver: %s: invalid new config!', self.name)
                 return
 
+            if self.is_runned and config.get('enabled', True):
+                logging.debug('Receiver: %s: stop by disabling', self.name)
+                self.stop()
+                self.wait()
+
             if (self.is_runned
                     and (self.source != config['source']
                          or self.serial != config.get('serial', ''))):
@@ -91,8 +96,13 @@ class SatsReceiver(gr.gr.top_block):
                 del self.satellites[sat_name]
 
             for sat_name in to_create_sats:
+                cfg = new_cfg_sats[sat_name]
+                if not cfg.get('enabled', True):
+                    logging.debug('Receiver: %s: Skip disabled sat `%s`', self.name, sat_name)
+                    continue
+
                 try:
-                    sat = modules.Satellite(new_cfg_sats[sat_name], self.tune, self.samp_rate, self.output_directory, self.up.executor)
+                    sat = modules.Satellite(cfg, self.tune, self.samp_rate, self.output_directory, self.up.executor)
                 except ValueError as e:
                     logging.warning('Receiver: %s: %s: %s. Skip', self.name, sat_name, e)
                     continue
@@ -110,6 +120,7 @@ class SatsReceiver(gr.gr.top_block):
     def _validate_config(self, config):
         return all(map(lambda x: x in config, [
             'name',
+            # 'enabled',  # optional
             'source',
             # 'serial',   # optional
             # 'biast',    # optional
@@ -123,6 +134,10 @@ class SatsReceiver(gr.gr.top_block):
     @property
     def name(self):
         return self.config['name']
+
+    @property
+    def enabled(self):
+        return self.config.get('enabled', True)
 
     @property
     def source(self):
@@ -161,7 +176,7 @@ class SatsReceiver(gr.gr.top_block):
         return any(x.is_runned for x in self.satellites.values())
 
     def start(self, max_noutput_items=10000000):
-        if not self.is_runned:
+        if self.enabled and not self.is_runned:
             logging.info('Receiver: %s: START tune=%s samp_rate=%s gain=%s biast=%s',
                          self.name, self.tune, self.samp_rate, self.gain, self.biast)
 
@@ -189,7 +204,9 @@ class SatsReceiver(gr.gr.top_block):
 
                 t = self.up.now + dt.timedelta(minutes=5)
                 for sat in self.satellites.values():
-                    self.up.scheduler.plan(t, self.calculate_pass, sat)
+                    self.up.scheduler.cancel(*sat.events)
+                    if sat.enabled:
+                        self.up.scheduler.plan(t, self.calculate_pass, sat)
 
                 return 1
 
@@ -216,7 +233,6 @@ class SatsReceiver(gr.gr.top_block):
             logging.info('Receiver: %s: STOP', self.name)
 
             super(SatsReceiver, self).stop()
-            self.is_runned = False
 
             self.disconnect(
                 self.signal_src,
@@ -225,11 +241,14 @@ class SatsReceiver(gr.gr.top_block):
             )
             self.signal_src = gr.blocks.null_source(gr.gr.sizeof_gr_complex)
 
-            for sat in self.satellites.values():
-                if sched_clear:
-                    self.up.scheduler.cancel(*sat.events)
-                sat.stop()
+        for sat in self.satellites.values():
+            if sched_clear:
+                self.up.scheduler.cancel(*sat.events)
+            sat.stop()
+            if self.is_runned:
                 self.disconnect(self.blocks_correctiq, sat)
+
+        self.is_runned = False
 
     def action(self):
         if self.is_active and not self.start():
@@ -259,6 +278,7 @@ class SatsReceiver(gr.gr.top_block):
             tt = t + dt.timedelta(hours=24)
             ltz = dateutil.tz.tzlocal()
 
+            self.up.scheduler.cancel(*sat.events)
             while t <= tt:
                 rise_t, rise_az, culm_t, culm_alt, set_t, set_az = self.up.observer.next_pass(x, t)
                 set_tt = set_t + dt.timedelta(seconds=5)

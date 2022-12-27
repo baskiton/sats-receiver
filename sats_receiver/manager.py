@@ -51,7 +51,7 @@ class Executor(mp.Process):
                 try:
                     fn(*args, **kwargs)
                 except Exception:
-                    logging.exception('Executor: %s with args=%s kwargs=%s', args, kwargs)
+                    logging.exception('Executor: %s with args=%s kwargs=%s', fn, args, kwargs)
 
         logging.debug('Executor: finish')
 
@@ -88,11 +88,14 @@ class ReceiverManager:
             self._add_receiver(cfg)
 
     def _add_receiver(self, cfg):
-        try:
-            rec = SatsReceiver(self, cfg)
-            self.receivers[cfg['name']] = rec
-        except RuntimeError as e:
-            logging.error('ReceiverManager: Skip receiver "%s": %s', cfg['name'], e)
+        if cfg.get('enabled', True):
+            try:
+                rec = SatsReceiver(self, cfg)
+                self.receivers[cfg['name']] = rec
+            except RuntimeError as e:
+                logging.error('ReceiverManager: Skip receiver "%s": %s', cfg['name'], e)
+        else:
+            logging.debug('ReceiverManager: Skip disabled receiver `%s`', cfg['name'])
 
     @property
     def t(self):
@@ -125,7 +128,7 @@ class ReceiverManager:
             return
 
         if not self._validate_config(new_cfg):
-            logging.warning('Tle: invalid new config!')
+            logging.warning('ReceiverManager: invalid new config!')
             return
 
         logging.debug('ReceiverManager: reconf')
@@ -140,6 +143,13 @@ class ReceiverManager:
         for cfg in new_cfg['receivers']:
             x = self.receivers.get(cfg['name'])
             if x:
+                if not cfg.get('enabled', True):
+                    logging.debug('ReceiverManager: %s: stop by disabling', x.name)
+                    x.stop()
+                    x.wait()
+                    self.receivers.pop(x.name)
+                    continue
+
                 try:
                     x.update_config(cfg, force)
                 except RuntimeError as e:
@@ -198,11 +208,12 @@ class ReceiverManager:
                         try:
                             x.update_config(cfg, True)
                         except RuntimeError as e:
-                            logging.error('SatsReceiver: %s: cannot update config: %s. Stop', x.name, e)
+                            logging.error('ReceiverManager: %s: cannot update config: %s. Stop', x.name, e)
                             x.stop()
+                            x.wait()
 
             for rn, r in self.receivers.items():
                 r.action()
         except Exception as e:
-            logging.exception('%s. Exit', e)
+            logging.exception('ReceiverManager: %s. Exit', e)
             self.stop()

@@ -12,6 +12,7 @@
     "receivers": [
         {
             "name": "137:1 MHz",
+            "enabled": true,
             "source": "rtlsdr",
             "serial": "00000001",
             "biast": false,
@@ -22,6 +23,7 @@
             "sats": [
                 {
                     "name": "NOAA-15",
+                    "enabled": true,
                     "min_elevation": 15.0,
                     "frequency": 137621000,
                     "bandwidth": 45760,
@@ -30,6 +32,7 @@
                 },
                 {
                     "name": "NOAA-18",
+                    "enabled": true,
                     "min_elevation": 15.0,
                     "frequency": 137913000,
                     "bandwidth": 45760,
@@ -38,6 +41,7 @@
                 },
                 {
                     "name": "NOAA-19",
+                    "enabled": true,
                     "min_elevation": 15.0,
                     "frequency": 137100500,
                     "bandwidth": 45760,
@@ -46,6 +50,7 @@
                 },
                 {
                     "name": "METEOR-M2",
+                    "enabled": true,
                     "min_elevation": 15.0,
                     "frequency": 137100000,
                     "bandwidth": 120000,

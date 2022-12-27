@@ -22,16 +22,23 @@ class Decoder(gr.gr.hier_block2):
             gr.gr.io_signature(0, 0, 0)
         )
 
+        self.now = dt.datetime.fromtimestamp(0)
         self.samp_rate = samp_rate
         self.out_dir = out_dir
         self.tmp_file = out_dir / ('_'.join(name.lower().split()) + '.tmp')
 
     def start(self):
-        self.tmp_file = self.out_dir / ('_'.join([dt.datetime.now().strftime('%Y%m%d%H%M%S'),
+        self.tmp_file = self.out_dir / ('_'.join([self.t.strftime('%Y%m%d%H%M%S'),
                                                   *self.name().lower().split()]) + '.tmp')
 
     def finalize(self, sat_name, executor):
         pass
+
+    @property
+    def t(self):
+        t = dt.datetime.now()
+        self.now = t
+        return t
 
 
 class RawDecoder(Decoder):
@@ -151,9 +158,9 @@ class AptDecoder(Decoder):
 
     def start(self):
         super(AptDecoder, self).start()
-        self.corr_file = self.out_dir / ('_'.join([dt.datetime.now().strftime('%Y%m%d%H%M%S'),
+        self.corr_file = self.out_dir / ('_'.join([self.now.strftime('%Y%m%d%H%M%S'),
                                                    *self.name().lower().split()]) + '.corr.tmp')
-        self.peaks_file = self.out_dir / ('_'.join([dt.datetime.now().strftime('%Y%m%d%H%M%S'),
+        self.peaks_file = self.out_dir / ('_'.join([self.now.strftime('%Y%m%d%H%M%S'),
                                                     *self.name().lower().split()]) + '.peaks.tmp')
 
         self.out_file_sink.open(str(self.tmp_file))
