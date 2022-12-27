@@ -91,7 +91,7 @@ class Observer:
         else:
             self._observer.pressure = press
 
-        logging.info('Observer: weather updated')
+        logging.info('Observer: weather updated: %s°C %shPa', self._observer.temp, self._observer.pressure)
 
         return 1
 
