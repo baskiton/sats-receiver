@@ -10,11 +10,8 @@ import gnuradio.fft
 import gnuradio.filter
 import gnuradio.gr
 
-import numpy as np
-import scipy as sp
-import scipy.signal
-
 from sats_receiver import utils
+from sats_receiver.systems import apt
 
 
 class Decoder(gr.gr.hier_block2):
@@ -68,12 +65,6 @@ class RawDecoder(Decoder):
 
 
 class AptDecoder(Decoder):
-    APT_CARRIER_FREQ = 2400
-    APT_FINAL_RATE = 4160
-    APT_IMG_WIDTH = 2080
-    APT_SYNC_A = '000011001100110011001100110011000000000'
-    APT_SYNC_B = '000011100111001110011100111001110011100'
-
     def __init__(self, samp_rate, out_dir):
         name = 'APT Decoder'
         super(AptDecoder, self).__init__(name, samp_rate, out_dir)
@@ -81,27 +72,24 @@ class AptDecoder(Decoder):
         self.corr_file = out_dir / ('_'.join(name.lower().split()) + '.corr')
         self.peaks_file = out_dir / ('_'.join(name.lower().split()) + '.peaks')
 
-        self.work_rate = work_rate = self.APT_IMG_WIDTH * 2 * 4
+        resamp_gcd = math.gcd(samp_rate, apt.Apt.WORK_RATE)
 
-        resamp_gcd = math.gcd(samp_rate, work_rate)
-        sync_a, sync_b = self._generate_sync_frame()
-
-        self.frs = gr.blocks.rotator_cc(2 * math.pi * -self.APT_CARRIER_FREQ / samp_rate)
+        self.frs = gr.blocks.rotator_cc(2 * math.pi * -apt.Apt.CARRIER_FREQ / samp_rate)
         self.rsp = gr.filter.rational_resampler_ccc(
-            interpolation=work_rate // resamp_gcd,
+            interpolation=apt.Apt.WORK_RATE // resamp_gcd,
             decimation=samp_rate // resamp_gcd,
             taps=[],
             fractional_bw=0,
         )
 
         tofilter_freq = 2080
-        lp_gcd = math.gcd(work_rate, tofilter_freq)
+        lp_gcd = math.gcd(apt.Apt.WORK_RATE, tofilter_freq)
 
         self.lpf = gr.filter.fir_filter_ccf(
             1,
             gr.filter.firdes.low_pass(
                 gain=1,
-                sampling_freq=work_rate / lp_gcd,
+                sampling_freq=apt.Apt.WORK_RATE / lp_gcd,
                 cutoff_freq=tofilter_freq / lp_gcd,
                 transition_width=0.1,
                 window=gr.fft.window.WIN_HAMMING,
@@ -112,7 +100,7 @@ class AptDecoder(Decoder):
         self.ftc = gr.blocks.float_to_complex()
         # self.dc_rem = gr.blocks.correctiq()
         self.correllator = gr.digital.corr_est_cc(
-            symbols=sync_a,
+            symbols=apt.Apt.SYNC_A,
             sps=1,
             mark_delay=1,
             threshold=0.9,
@@ -131,7 +119,7 @@ class AptDecoder(Decoder):
 
         self.peak_detector = gr.blocks.peak_detector2_fb(
             threshold_factor_rise=7,
-            look_ahead=self.APT_IMG_WIDTH * work_rate // self.APT_FINAL_RATE,
+            look_ahead=apt.Apt.IMG_WIDTH * apt.Apt.WORK_RATE // apt.Apt.FINAL_RATE,
             alpha=0.001,
         )
         self.out_peaks_sink = gr.blocks.file_sink(gr.gr.sizeof_char, str(self.peaks_file), False)
@@ -190,133 +178,25 @@ class AptDecoder(Decoder):
                 self.peaks_file.unlink(True)
                 return
 
-        executor.execute(self._finalize, sat_name, self.tmp_file, self.corr_file, self.peaks_file,
-                         self.out_dir, self.work_rate)
+        executor.execute(self._finalize, self.out_dir, sat_name,
+                         self.tmp_file, self.corr_file, self.peaks_file)
 
     @staticmethod
-    def _finalize(sat_name, tmp_file, corr_file, peaks_file, out_dir, work_rate):
+    def _finalize(out_dir, sat_name, tmp_file, corr_file, peaks_file):
         logging.debug('AptDecoder: %s: finalizing...', sat_name)
-        try:
-            origin_data_size, data, peaks_idx = AptDecoder._prepare_data(tmp_file, corr_file, peaks_file)
-            peaks = [peaks_idx[0]]
-            if not data.size or peaks_idx.size < 5:
-                raise IndexError
-        except IndexError:
-            logging.error('AptDecoder: %s: invalid received data', sat_name)
-            tmp_file.unlink(True)
-            corr_file.unlink(True)
-            peaks_file.unlink(True)
-            return
 
-        samples_per_work_row = AptDecoder.APT_IMG_WIDTH * work_rate // AptDecoder.APT_FINAL_RATE
-        decim_factor = work_rate // AptDecoder.APT_FINAL_RATE
-        dev = 0.02
-        dist_dev = int(samples_per_work_row * dev)
-        dist_min = samples_per_work_row - dist_dev
-        dist_max = samples_per_work_row + dist_dev
-
-        logging.debug('AptDecoder: %s: syncing...', sat_name)
-        it = iter(range(1, peaks_idx.size))
-        for i in it:
-            prev = peaks_idx[i - 1]
-            cur = peaks_idx[i]
-            d = cur - prev
-
-            if d < dist_min or d > dist_max:
-                i_ = i
-                for i_ in it:
-                    prev_ = peaks_idx[i_ - 1]
-                    cur_ = peaks_idx[i_]
-                    k_ = prev_ - prev
-                    d_ = cur_ - prev_
-
-                    if dist_min < d_ < dist_max:
-                        for j in range(1, round(k_ / samples_per_work_row)):
-                            peaks.append(prev + samples_per_work_row * j)
-
-                        k_ = prev_ - peaks[-1]
-                        if dist_min < k_ < dist_max or k_ > dist_dev:
-                            peaks.append(prev_)
-                        else:
-                            peaks[-1] = prev_
-
-                        peaks.append(cur_)
-                        break
-
-                else:
-                    prev_ = peaks_idx[i_ - 1]
-                    cur_ = peaks_idx[i_]
-                    d_ = cur_ - prev_
-
-                    m = round(d_ / samples_per_work_row)
-                    if dist_min * m < d_ < dist_max * m:
-                        m += 1
-
-                    for j in range(1, m):
-                        peaks.append(prev_ + samples_per_work_row * j)
-
-            else:
-                peaks.append(cur)
-
-        result = np.full((len(peaks), samples_per_work_row), np.nan, dtype=np.float32)
-        without_last = err = 0
-
-        for idx, i in enumerate(peaks):
-            try:
-                x = data[i:peaks[idx + 1]]
-            except IndexError:
-                z = data.size - i
-                if z < dist_min:
-                    without_last = 1
-                    break
-
-                x = data[i:i + samples_per_work_row]
-
-            try:
-                x = sp.signal.resample(x, samples_per_work_row)
-            except ValueError as e:
-                if not err:
-                    logging.debug('AptDecoder: %s: error on line resample: %s', sat_name, e)
-                    err = 1
-                continue
-
-            result[idx] = x
-
-        z = np.argmax(np.isnan(result).all(axis=1)) or result.shape[0]
-        result = result[0:z - without_last, decim_factor // 2::decim_factor]
-
-        tail_correct = (origin_data_size / samples_per_work_row - z - without_last) / 2
-        end_time = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime - tail_correct)
-        res_fn = out_dir / end_time.strftime('%Y-%m-%d_%H-%M-%S.apt')
-        res_fn.write_bytes(result.tobytes())
+        a = apt.Apt(sat_name, tmp_file, corr_file, peaks_file)
+        if a.process():
+            logging.info('AptDecoder: %s: finish with error', sat_name)
+        else:
+            res_fn = out_dir / a.end_time.strftime('%Y-%m-%d_%H-%M-%S.apt')
+            res_fn.write_bytes(a.data.tobytes())
+            logging.info('AptDecoder: %s: finish: %s (%s)',
+                         sat_name, res_fn, utils.numdisp(a.data.size * a.data.itemsize))
 
         tmp_file.unlink(True)
         corr_file.unlink(True)
         peaks_file.unlink(True)
-
-        logging.debug('AptDecoder: %s: finish: %s (%s)', sat_name, res_fn, utils.numdisp(result.size * result.itemsize))
-
-    def _generate_sync_frame(self) -> tuple[np.array, np.array]:
-        if self.work_rate % self.APT_FINAL_RATE:
-            raise ValueError('work_rate is not multiple of final_rate')
-
-        pix_width = self.work_rate // self.APT_FINAL_RATE
-
-        sync_a = np.array([*map(float, self.APT_SYNC_A)], dtype=np.float32).repeat(pix_width) * 2 - 1
-        sync_b = np.array([*map(float, self.APT_SYNC_B)], dtype=np.float32).repeat(pix_width) * 2 - 1
-
-        return sync_a, sync_b
-
-    @staticmethod
-    def _prepare_data(dataf, corrf, peaksf) -> tuple[int, np.ndarray, np.ndarray]:
-        data: np.ndarray = np.fromfile(dataf, dtype=np.float32)
-        corrs: np.ndarray = np.fromfile(corrf, dtype=np.float32)
-        peaks: np.ndarray = np.fromfile(peaksf, dtype=np.byte)
-
-        x = np.flatnonzero(corrs > (np.max(corrs[np.flatnonzero(peaks)]) * 0.4))
-        start_pos, end_pos = x[0], x[-1]
-
-        return data.size, data[start_pos:end_pos], np.flatnonzero(peaks[start_pos:end_pos])
 
 
 class RawStreamDecoder(Decoder):
