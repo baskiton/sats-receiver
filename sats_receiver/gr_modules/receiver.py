@@ -1,5 +1,6 @@
 import datetime as dt
 import dateutil.tz
+import enum
 import logging
 import pathlib
 
@@ -18,6 +19,12 @@ except OSError as e:
     LIBRTLSDR = str(e)
 
 
+class RecUpdState(enum.IntEnum):
+    UPD_NEED = enum.auto()
+    FORCE_NEED = enum.auto()
+    NO_NEED = enum.auto()
+
+
 class SatsReceiver(gr.gr.top_block):
     def __init__(self, up, config):
         super(SatsReceiver, self).__init__('Sats Receiver', catch_exceptions=True)
@@ -26,6 +33,7 @@ class SatsReceiver(gr.gr.top_block):
         self.config = {}
         self.satellites: dict[str, modules.Satellite] = {}
         self.is_runned = False
+        self.updated = RecUpdState.UPD_NEED
 
         self.signal_src = gr.blocks.null_source(gr.gr.sizeof_gr_complex)
         self.blocks_correctiq = gr.blocks.correctiq()
@@ -35,7 +43,7 @@ class SatsReceiver(gr.gr.top_block):
             raise ValueError('Receiver: %s: Invalid config!', self.name)
 
     def update_config(self, config, force=False):
-        if force or self.config != config:
+        if force or self.updated == RecUpdState.FORCE_NEED or self.config != config:
             if not self._validate_config(config):
                 logging.warning('Receiver: %s: invalid new config!', self.name)
                 return
@@ -114,6 +122,8 @@ class SatsReceiver(gr.gr.top_block):
 
             if to_remove_sats or to_create_sats:
                 self.unlock()
+
+            self.updated = RecUpdState.NO_NEED
 
             return 1
 

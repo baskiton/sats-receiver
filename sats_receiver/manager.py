@@ -7,7 +7,7 @@ import pathlib
 import time
 import queue
 
-from sats_receiver.gr_modules.receiver import SatsReceiver
+from sats_receiver.gr_modules.receiver import RecUpdState, SatsReceiver
 from sats_receiver.observer import Observer
 from sats_receiver.tle import Tle
 from sats_receiver.utils import Scheduler, SysUsage
@@ -143,25 +143,32 @@ class ReceiverManager:
         for cfg in new_cfg['receivers']:
             x = self.receivers.get(cfg['name'])
             if x:
-                if not cfg.get('enabled', True):
-                    logging.debug('ReceiverManager: %s: stop by disabling', x.name)
-                    x.stop()
-                    x.wait()
-                    self.receivers.pop(x.name)
-                    continue
+                if ((force or x.updated == RecUpdState.FORCE_NEED)
+                        or (not x.is_runned and x.updated != RecUpdState.NO_NEED)):
+                    if not cfg.get('enabled', True):
+                        logging.debug('ReceiverManager: %s: stop by disabling', x.name)
+                        x.stop()
+                        x.wait()
+                        self.receivers.pop(x.name)
+                        continue
 
-                try:
-                    x.update_config(cfg, force)
-                except RuntimeError as e:
-                    self.receivers.pop(cfg['name'])
-                    logging.error('ReceiverManager: Delete receiver "%s" with new config: %s',
-                                  cfg['name'], e)
+                    try:
+                        x.update_config(cfg, force)
+                    except RuntimeError as e:
+                        x.stop()
+                        x.wait()
+                        self.receivers.pop(x.name)
+                        logging.error('ReceiverManager: %s: cannot update config: %s. Stop', x.name, e)
+
             else:
                 self._add_receiver(cfg)
 
         return 1
 
     def _check_config(self):
+        x = any(i.updated == RecUpdState.FORCE_NEED
+                for i in self.receivers.values())
+
         try:
             st = self.config_filename.stat()
         except FileNotFoundError:
@@ -169,16 +176,19 @@ class ReceiverManager:
             if t - self.file_failed_t > 300:
                 logging.error('ReceiverManager: Config file does\'t exist: %s', self.config_filename)
                 self.file_failed_t = t
-            return
+        else:
+            old = self.config_file_stat
+            if not old or (st.st_ino != old.st_ino
+                           or st.st_dev != old.st_dev
+                           or st.st_mtime != old.st_mtime
+                           or st.st_size != old.st_size
+                           or st.st_mode != old.st_mode):
+                self.config_file_stat = st
+                x = 1
+                for i in self.receivers.values():
+                    i.updated = RecUpdState.UPD_NEED
 
-        old = self.config_file_stat
-        if not old or (st.st_ino != old.st_ino
-                       or st.st_dev != old.st_dev
-                       or st.st_mtime != old.st_mtime
-                       or st.st_size != old.st_size
-                       or st.st_mode != old.st_mode):
-            self.config_file_stat = st
-            return 1
+        return x
 
     def _validate_config(self, config):
         return all(map(lambda x: x in config, [
@@ -186,10 +196,6 @@ class ReceiverManager:
             'tle',
             'receivers',
         ]))
-
-    @property
-    def recs_runned(self):
-        return any(x.is_runned for x in self.receivers.values())
 
     def action(self):
         self.sysu.collect()
@@ -201,16 +207,9 @@ class ReceiverManager:
             self.update_config()
             self.scheduler.action()
             self.observer.action(self.t)
-            if not self.recs_runned and self.tle.action(self.now):
-                for cfg in self.config['receivers']:
-                    x = self.receivers.get(cfg['name'])
-                    if x:
-                        try:
-                            x.update_config(cfg, True)
-                        except RuntimeError as e:
-                            logging.error('ReceiverManager: %s: cannot update config: %s. Stop', x.name, e)
-                            x.stop()
-                            x.wait()
+            if self.tle.action(self.now):
+                for i in self.receivers.values():
+                    i.updated = RecUpdState.FORCE_NEED
 
             for rn, r in self.receivers.items():
                 r.action()
