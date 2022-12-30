@@ -1,6 +1,7 @@
 import datetime as dt
 import logging
 import math
+import os
 
 import gnuradio as gr
 import gnuradio.analog
@@ -198,6 +199,7 @@ class AptDecoder(Decoder):
         else:
             res_fn = out_dir / a.end_time.strftime('%Y-%m-%d_%H-%M-%S.apt')
             res_fn.write_bytes(a.data.tobytes())
+            os.utime(res_fn, (a.end_time.timestamp(), a.end_time.timestamp()))
             logging.info('AptDecoder: %s: finish: %s (%s)',
                          sat_name, res_fn, utils.numdisp(a.data.size * a.data.itemsize))
 
