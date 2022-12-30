@@ -1,4 +1,6 @@
 import datetime as dt
+import math
+
 import dateutil.tz
 import enum
 import logging
@@ -16,10 +18,10 @@ class AptChannel(enum.Enum):
 class AptWedgeNum(enum.IntEnum):
     ONE = 7
     ZERO = 8
-    THERM_TEMP_1 = 9
-    THERM_TEMP_2 = 10
-    THERM_TEMP_3 = 11
-    THERM_TEMP_4 = 12
+    PRT_1 = 9
+    PRT_2 = 10
+    PRT_3 = 11
+    PRT_4 = 12
     PATCH_TEMP = 13
     BACK_SCAN = 14
     CHAN_IDENT = 15
@@ -71,8 +73,8 @@ class AptFrame:
         return self.data[:, Apt.IMAGE_B_START:Apt.TLM_B_START]
 
     def set_tlm_calibration(self, c: np.ndarray):
-        self.tlm.ch_a[:AptWedgeNum.THERM_TEMP_1] = c
-        self.tlm.ch_b[:AptWedgeNum.THERM_TEMP_1] = c
+        self.tlm.ch_a[:AptWedgeNum.PRT_1] = c
+        self.tlm.ch_b[:AptWedgeNum.PRT_1] = c
 
 
 class Apt:
@@ -149,14 +151,14 @@ class Apt:
 
         if not self.synced:
             try:
-                origin_data_size, data, peaks_idx = self._prepare_data()
+                tail_cutted, data, peaks_idx = self._prepare_data()
                 if not data.size or peaks_idx.size < 5:
                     raise IndexError
             except IndexError:
                 logging.error('Apt: %s: invalid received data', self.sat_name)
                 return 1
 
-            self._syncing(origin_data_size, data, peaks_idx)
+            self._syncing(tail_cutted, data, peaks_idx)
 
         return self._read_telemetry()
 
@@ -167,10 +169,11 @@ class Apt:
 
         x = np.flatnonzero(corrs > (np.max(corrs[np.flatnonzero(peaks)]) * self.peak_coef))
         start_pos, end_pos = x[0], x[-1]
+        tail_cutted = data.size - end_pos
 
-        return data.size, data[start_pos:end_pos], np.flatnonzero(peaks[start_pos:end_pos])
+        return tail_cutted, data[start_pos:end_pos], np.flatnonzero(peaks[start_pos:end_pos])
 
-    def _syncing(self, origin_data_size, data, peaks_idx):
+    def _syncing(self, tail_cutted, data, peaks_idx):
         logging.debug('Apt: %s: syncing...', self.sat_name)
 
         peaks = [peaks_idx[0]]
@@ -240,11 +243,12 @@ class Apt:
 
             result[idx] = x
 
-        z = np.argmax(np.isnan(result).all(axis=1)) or result.shape[0]
-        tail_correct = (origin_data_size / self.SAMPLES_PER_WORK_ROW - z - without_last) / 2
+        result_end_pos = (np.argmax(np.isnan(result).all(axis=1)) or result.shape[0]) - without_last
+        result_tail_cutted = data.size / self.SAMPLES_PER_WORK_ROW - result_end_pos
+        tail_cutted /= self.SAMPLES_PER_WORK_ROW
 
-        self.end_time = dt.datetime.fromtimestamp(self.data_file.stat().st_mtime - tail_correct, dateutil.tz.tzlocal())
-        self.data = result[0:z - without_last, self.PIX_WIDTH // 2::self.PIX_WIDTH]
+        self.end_time -= dt.timedelta(milliseconds=(tail_cutted + result_tail_cutted) * 500)
+        self.data = result[0:result_end_pos, self.PIX_WIDTH // 2::self.PIX_WIDTH]
         self.synced = True
 
     def _read_telemetry(self):
