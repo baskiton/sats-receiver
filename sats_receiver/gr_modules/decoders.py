@@ -17,6 +17,9 @@ from sats_receiver.systems import apt
 
 class Decoder(gr.gr.hier_block2):
     def __init__(self, name, samp_rate, out_dir):
+        self.prefix = self.__class__.__name__
+        self.log = logging.getLogger(self.prefix)
+
         super(Decoder, self).__init__(
             name,
             gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
@@ -180,28 +183,28 @@ class AptDecoder(Decoder):
 
         for p in self.tmp_file, self.corr_file, self.peaks_file:
             if not p.exists():
-                logging.warning('AptDecoder: %s: missing components `%s`', sat_name, p)
+                self.log.warning('%s: missing components `%s`', sat_name, p)
                 self.tmp_file.unlink(True)
                 self.corr_file.unlink(True)
                 self.peaks_file.unlink(True)
                 return
 
-        executor.execute(self._finalize, self.out_dir, sat_name,
+        executor.execute(self._finalize, self.log, self.out_dir, sat_name,
                          self.tmp_file, self.corr_file, self.peaks_file)
 
     @staticmethod
-    def _finalize(out_dir, sat_name, tmp_file, corr_file, peaks_file):
-        logging.debug('AptDecoder: %s: finalizing...', sat_name)
+    def _finalize(log, out_dir, sat_name, tmp_file, corr_file, peaks_file):
+        log.debug('%s: finalizing...', sat_name)
 
         a = apt.Apt(sat_name, tmp_file, corr_file, peaks_file)
         if a.process():
-            logging.info('AptDecoder: %s: finish with error', sat_name)
+            log.info('%s: finish with error', sat_name)
         else:
             res_fn = out_dir / a.end_time.strftime('%Y-%m-%d_%H-%M-%S.apt')
             res_fn.write_bytes(a.data.tobytes())
             os.utime(res_fn, (a.end_time.timestamp(), a.end_time.timestamp()))
-            logging.info('AptDecoder: %s: finish: %s (%s)',
-                         sat_name, res_fn, utils.numdisp(a.data.size * a.data.itemsize))
+            log.info('%s: finish: %s (%s)',
+                     sat_name, res_fn, utils.numdisp(a.data.size * a.data.itemsize))
 
         tmp_file.unlink(True)
         corr_file.unlink(True)

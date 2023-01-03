@@ -55,8 +55,12 @@ class RadioModule(gr.gr.hier_block2):
 
 class Satellite(gr.gr.hier_block2):
     def __init__(self, config, main_tune, samp_rate, output_directory, executor):
+        n = config.get('name', '')
+        self.prefix = f'{self.__class__.__name__}{n and f": {n}"}'
+        self.log = logging.getLogger(self.prefix)
+
         if not self._validate_config(config):
-            raise ValueError('Observer: Invalid config!')
+            raise ValueError(f'{self.prefix}: Invalid config!')
 
         self.executor = executor
         self.config = config
@@ -101,7 +105,7 @@ class Satellite(gr.gr.hier_block2):
 
         elif self.mode == utils.Mode.WFM_STEREO.value:
             if self.bandwidth < 76800:
-                raise ValueError(f'param `bandwidth` for WFM Stereo must be at least 76800, got {self.bandwidth} instead')
+                raise ValueError(f'{self.prefix}: param `bandwidth` for WFM Stereo must be at least 76800, got {self.bandwidth} instead')
             self.demodulator = gr.analog.wfm_rcv_pll(
                 demod_rate=self.bandwidth,
                 audio_decimation=1,
@@ -116,7 +120,7 @@ class Satellite(gr.gr.hier_block2):
             self.demodulator = demodulators.QpskDemod(self.bandwidth, self.qpsk_baudrate, self.qpsk_excess_bw, self.qpsk_ntaps, self.qpsk_costas_bw)
 
         elif self.mode != utils.Mode.RAW.value:
-            raise ValueError(f'Unknown demodulation `{self.mode}` for `{self.name}`')
+            raise ValueError(f'{self.prefix}: Unknown demodulation `{self.mode}` for `{self.name}`')
 
         if self.decode == utils.Decode.APT.value:
             self.decoder = decoders.AptDecoder(self.bandwidth, self.output_directory)
@@ -132,7 +136,7 @@ class Satellite(gr.gr.hier_block2):
             self.decoder = decoders.RawDecoder(self.bandwidth, self.output_directory)
 
         else:
-            raise ValueError(f'Unknown decoder `{self.decode}` for `{self.name}`')
+            raise ValueError(f'{self.prefix}: Unknown decoder `{self.decode}` for `{self.name}`')
 
         self.connect(
             self,
@@ -164,7 +168,7 @@ class Satellite(gr.gr.hier_block2):
 
     def start(self):
         if self.enabled and not self.is_runned:
-            logging.info('Satellite: %s: START doppler=%s mode=%s decode=%s', self.name, self.doppler, self.mode, self.decode)
+            self.log.info('START doppler=%s mode=%s decode=%s', self.doppler, self.mode, self.decode)
             self.output_directory.mkdir(parents=True, exist_ok=True)
             self.start_event = None
             self.decoder.start()
@@ -172,7 +176,7 @@ class Satellite(gr.gr.hier_block2):
 
     def stop(self):
         if self.is_runned:
-            logging.info('Satellite: %s: STOP', self.name)
+            self.log.info('STOP')
             self.start_event = self.stop_event = None
             self.radio.set_enabled(0)
             self.decoder.finalize(self.name, self.executor)

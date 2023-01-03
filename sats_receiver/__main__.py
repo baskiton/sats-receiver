@@ -13,7 +13,7 @@ def setup_logging(log_lvl):
     if not isinstance(log_lvl, int):
         raise ValueError('Invalid log level: %s' % log_lvl)
 
-    fmt = '%(asctime)s %(levelname)s: %(message)s'
+    fmt = '%(asctime)s %(levelname)s: %(name)s: %(message)s'
     logging.basicConfig(level=log_lvl, format=fmt, filename=LOGSDIR / 'sats_receiver.log')
     sh = logging.StreamHandler()
     sh.setFormatter(logging.Formatter(fmt))

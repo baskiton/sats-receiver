@@ -13,13 +13,16 @@ from sats_receiver import TLEDIR
 
 class Tle:
     def __init__(self, config):
+        self.prefix = self.__class__.__name__
+        self.log = logging.getLogger(self.prefix)
+
         self.config = {}
         self.tle_file = pathlib.Path(TLEDIR / 'dummy')
         self.last_update_tle = dt.datetime.fromtimestamp(0, dt.timezone.utc)
         self.objects: dict[str, ephem.EarthSatellite] = {}
 
         if not self.update_config(config):
-            raise ValueError('Tle: Invalid config!')
+            raise ValueError(f'{self.prefix}: Invalid config!')
 
         self.t_next = self.last_update_tle + dt.timedelta(days=self.update_period)
 
@@ -50,25 +53,25 @@ class Tle:
             msg = f'Tle not fetched: {e}'
             if e.code == 400:
                 msg = f'{msg}: "{e.url}"'
-            logging.error('Tle: %s', msg)
+            self.log.error('%s', msg)
             return
         except (urllib.error.URLError, ValueError) as e:
-            logging.error('Tle: Tle not fetched: %s', e)
+            self.log.error('Tle not fetched: %s', e)
             return
 
         self.fill_objects()
 
-        logging.info('Tle: Tle updated')
+        self.log.info('Tle updated')
 
         return 1
 
     def update_config(self, config):
         if config != self.config:
             if not self._validate_config(config):
-                logging.warning('Tle: invalid new config!')
+                self.log.warning('invalid new config!')
                 return
 
-            logging.debug('Tle: reconf')
+            self.log.debug('reconf')
             self.config = config
 
             fn = pathlib.Path(urllib.parse.urlparse(self.url).path).name

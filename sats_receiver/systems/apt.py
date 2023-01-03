@@ -128,6 +128,9 @@ class Apt:
         return x
 
     def __init__(self, sat_name, data_file, corr_file, peaks_file):
+        self.prefix = f'{self.__class__.__name__}: {sat_name}'
+        self.log = logging.getLogger(self.prefix)
+
         self.sat_name = sat_name
         self.data_file = data_file
         self.corr_file = corr_file
@@ -147,7 +150,7 @@ class Apt:
         self.data = np.empty((0, self.IMG_WIDTH))
 
     def process(self):
-        logging.debug('Apt: %s: process...', self.sat_name)
+        self.log.debug('process...')
 
         if not self.synced:
             try:
@@ -155,7 +158,7 @@ class Apt:
                 if not data.size or peaks_idx.size < 5:
                     raise IndexError
             except IndexError:
-                logging.error('Apt: %s: invalid received data', self.sat_name)
+                self.log.error('invalid received data')
                 return 1
 
             self._syncing(tail_cutted, data, peaks_idx)
@@ -174,7 +177,7 @@ class Apt:
         return tail_cutted, data[start_pos:end_pos], np.flatnonzero(peaks[start_pos:end_pos])
 
     def _syncing(self, tail_cutted, data, peaks_idx):
-        logging.debug('Apt: %s: syncing...', self.sat_name)
+        self.log.debug('syncing...')
 
         peaks = [peaks_idx[0]]
         it = iter(range(1, peaks_idx.size))
@@ -237,7 +240,7 @@ class Apt:
                 x = sp.signal.resample(x, self.SAMPLES_PER_WORK_ROW)
             except ValueError as e:
                 if not err:
-                    logging.debug('Apt: %s: error on line resample: %s', self.sat_name, e)
+                    self.log.debug('error on line resample: %s', e)
                     err = 1
                 continue
 
@@ -252,13 +255,13 @@ class Apt:
         self.synced = True
 
     def _read_telemetry(self):
-        logging.debug('Apt: %s: read telemetry...', self.sat_name)
+        self.log.debug('read telemetry...')
 
         if self.data.shape[0] < self.WEDGE_SAMPLE.size:
-            logging.error('Apt: %s: recording too short for telemetry decoding', self.sat_name)
+            self.log.error('recording too short for telemetry decoding')
             return 1
         if self.data.shape[0] < self.WEDGE_SAMPLE.size * 2:
-            logging.warning('Apt: %s: reading telemetry on short recording, expect unreliable results', self.sat_name)
+            self.log.warning('reading telemetry on short recording, expect unreliable results')
 
         tlm_a = self.data[0:, self.TLM_A_START:self.SYNC_B_START]
         tlm_b = self.data[0:, self.TLM_B_START:]
@@ -284,7 +287,7 @@ class Apt:
             # image correction by contrast values
             self.data = (self.data - lo) / rng
         else:
-            logging.warning('Apt: %s: invalid telemetry data, perhaps is too noisy', self.sat_name)
+            self.log.warning('invalid telemetry data, perhaps is too noisy')
 
         # TODO
         # frames_num = math.ceil(mean_a.shape[0] / self.FRAME_HEIGHT)

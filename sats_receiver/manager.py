@@ -20,15 +20,18 @@ from sats_receiver.utils import Scheduler, SysUsage
 
 class Executor(mp.Process):
     def __init__(self, sysu_intv=SysUsage.DEFAULT_INTV):
+        self.prefix = self.__class__.__name__
+        self.log = logging.getLogger(self.prefix)
+
         super().__init__(daemon=False)
 
         self.sysu_intv = sysu_intv
         self.q = mp.Queue()
 
     def run(self):
-        logging.debug('Executor: start')
+        self.log.debug('start')
 
-        sysu = SysUsage('Executor', self.sysu_intv)
+        sysu = SysUsage(self.prefix, self.sysu_intv)
 
         while 1:
             sysu.collect()
@@ -44,16 +47,16 @@ class Executor(mp.Process):
             try:
                 fn, args, kwargs = x
             except ValueError:
-                logging.error('Executor: invalid task: %s', x)
+                self.log.error('invalid task: %s', x)
                 continue
 
             if callable(fn):
                 try:
                     fn(*args, **kwargs)
                 except Exception:
-                    logging.exception('Executor: %s with args=%s kwargs=%s', fn, args, kwargs)
+                    self.log.exception('%s with args=%s kwargs=%s', fn, args, kwargs)
 
-        logging.debug('Executor: finish')
+        self.log.debug('finish')
 
     def execute(self, fn, *args, **kwargs):
         self.q.put((fn, args, kwargs))
@@ -64,7 +67,10 @@ class Executor(mp.Process):
 
 class ReceiverManager:
     def __init__(self, config_filename: pathlib.Path, sysu_intv=SysUsage.DEFAULT_INTV):
-        self.sysu = SysUsage('ReceiverManager', sysu_intv)
+        self.prefix = self.__class__.__name__
+        self.log = logging.getLogger(self.prefix)
+
+        self.sysu = SysUsage(self.prefix, sysu_intv)
         self.config_filename = config_filename
         self.config_file_stat = None
         self.config = {}
@@ -75,7 +81,7 @@ class ReceiverManager:
         self.file_failed_t = 0
 
         if not self.update_config(True, True):
-            raise ValueError('ReceiverManager: Invalid config!')
+            raise ValueError(f'{self.prefix}: Invalid config!')
 
         self.observer = Observer(self.config['observer'])
         self.tle = Tle(self.config['tle'])
@@ -93,9 +99,9 @@ class ReceiverManager:
                 rec = SatsReceiver(self, cfg)
                 self.receivers[cfg['name']] = rec
             except RuntimeError as e:
-                logging.error('ReceiverManager: Skip receiver "%s": %s', cfg['name'], e)
+                self.log.error('Skip receiver "%s": %s', cfg['name'], e)
         else:
-            logging.debug('ReceiverManager: Skip disabled receiver `%s`', cfg['name'])
+            self.log.debug('Skip disabled receiver `%s`', cfg['name'])
 
     @property
     def t(self):
@@ -106,13 +112,15 @@ class ReceiverManager:
         for rec in self.receivers.values():
             rec.stop()
 
+        self.executor.stop()
         self.stopped = True
 
-        logging.info('ReceiverManager: finish')
+        self.log.info('finish')
 
     def wait(self):
         for rec in self.receivers.values():
             rec.wait()
+        self.executor.join()
 
     def update_config(self, init=False, force=False):
         if not self._check_config():
@@ -121,17 +129,17 @@ class ReceiverManager:
         try:
             new_cfg = json.load(self.config_filename.open())
         except (IOError, json.JSONDecodeError) as e:
-            logging.error('ReceiverManager: Error during load config: %s', e)
+            self.log.error('Error during load config: %s', e)
             return
 
         if new_cfg == self.config:
             return
 
         if not self._validate_config(new_cfg):
-            logging.warning('ReceiverManager: invalid new config!')
+            self.log.warning('invalid new config!')
             return
 
-        logging.debug('ReceiverManager: reconf')
+        self.log.debug('reconf')
         self.config = new_cfg
 
         if init:
@@ -146,7 +154,7 @@ class ReceiverManager:
                 if ((force or x.updated == RecUpdState.FORCE_NEED)
                         or (not x.is_runned and x.updated != RecUpdState.NO_NEED)):
                     if not cfg.get('enabled', True):
-                        logging.debug('ReceiverManager: %s: stop by disabling', x.name)
+                        self.log.debug('%s: stop by disabling', x.name)
                         x.stop()
                         x.wait()
                         self.receivers.pop(x.name)
@@ -158,7 +166,7 @@ class ReceiverManager:
                         x.stop()
                         x.wait()
                         self.receivers.pop(x.name)
-                        logging.error('ReceiverManager: %s: cannot update config: %s. Stop', x.name, e)
+                        self.log.error('%s: cannot update config: %s. Stop', x.name, e)
 
             else:
                 self._add_receiver(cfg)
@@ -174,7 +182,7 @@ class ReceiverManager:
         except FileNotFoundError:
             t = time.monotonic()
             if t - self.file_failed_t > 300:
-                logging.error('ReceiverManager: Config file does\'t exist: %s', self.config_filename)
+                self.log.error('Config file does\'t exist: %s', self.config_filename)
                 self.file_failed_t = t
         else:
             old = self.config_file_stat
@@ -214,5 +222,5 @@ class ReceiverManager:
             for rn, r in self.receivers.items():
                 r.action()
         except Exception as e:
-            logging.exception('ReceiverManager: %s. Exit', e)
+            self.log.exception('%s. Exit', e)
             self.stop()

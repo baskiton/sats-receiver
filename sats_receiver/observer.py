@@ -10,6 +10,9 @@ import ephem
 
 class Observer:
     def __init__(self, config):
+        self.prefix = self.__class__.__name__
+        self.log = logging.getLogger(self.prefix)
+
         self.config = {}
         self.last_weather_time = dt.datetime.fromtimestamp(0, dt.timezone.utc)
         self.update_period = 1  # hours
@@ -17,7 +20,7 @@ class Observer:
         self._observer = ephem.Observer()
 
         if not self.update_config(config):
-            raise ValueError('Observer: Invalid config!')
+            raise ValueError(f'{self.prefix}: Invalid config!')
 
     @property
     def with_weather(self):
@@ -30,10 +33,10 @@ class Observer:
     def update_config(self, config):
         if self.config != config:
             if not self._validate_config(config):
-                logging.warning('Observer: invalid new config!')
+                self.log.warning('invalid new config!')
                 return
 
-            logging.debug('Observer: reconf')
+            self.log.debug('reconf')
             self.config = config
 
             self._observer = ephem.Observer()
@@ -70,7 +73,7 @@ class Observer:
             msg = f'Weather not fetched!\n{e}'
             if e.code == 400:
                 msg = f'{msg}:\n"{e.url}"'
-            logging.error('Observer: %s', msg)
+            self.log.error('%s', msg)
             return
 
         self.last_weather_time = dt.datetime.fromisoformat(j['current_weather']['time']).replace(tzinfo=dt.timezone.utc)
@@ -91,7 +94,7 @@ class Observer:
         else:
             self._observer.pressure = press
 
-        logging.info('Observer: weather updated: %s°C %shPa', self._observer.temp, self._observer.pressure)
+        self.log.info('weather updated: %s°C %shPa', self._observer.temp, self._observer.pressure)
 
         return 1
 
