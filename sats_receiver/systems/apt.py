@@ -11,6 +11,10 @@ import numpy as np
 import scipy as sp
 import scipy.signal
 
+from PIL import Image, ImageDraw
+
+from sats_receiver import utils
+
 
 class AptChannel(enum.Enum):
     A = enum.auto()
@@ -164,6 +168,7 @@ class Apt:
             t = self.data_file.stat().st_mtime
         self.end_time = dt.datetime.fromtimestamp(t, dateutil.tz.tzutc())
         self.data = np.empty((0, self.FRAME_WIDTH))
+        self.map_overlay = np.empty((0, self.IMAGE_WIDTH, 4))
 
     def to_apt(self, out_dir: pathlib.Path):
         """
@@ -341,3 +346,82 @@ class Apt:
         #     frames.append((i, self.FRAME_HEIGHT, q))
         # a, b, c = frames[-1]
         # frames[-1] = a, self.data.shape[0] - a, c
+
+    def create_maps_overlay(self, shapes: utils.MapShapes):
+        self.log.debug('create maps overlay...')
+
+        ss_factor = 4
+        self._height = height = self.data.shape[0]
+        self._ss_height = height * ss_factor
+        self._half_ss_height = self._ss_height / 2
+        self._ss_width = self.IMAGE_WIDTH * ss_factor
+        self._half_ss_width = self._ss_width / 2
+        self._line_width = shapes.line_width * ss_factor
+
+        start_time = self.end_time - self.LINE_DUR * height
+        sat_positions = np.empty((height, 2), dtype=float)
+        self._x_offsets = np.empty(height, dtype=float)
+        x_fovs = np.empty(height, dtype=float)
+
+        a = math.radians(110.74 / 2)
+        b = math.pi / 2 - a
+        sa = math.sin(a)
+        for i in range(height):
+            t = start_time + self.LINE_DUR * i
+            self.sat_ephem.compute(t)
+            sat_positions[i] = self.sat_ephem.sublong, self.sat_ephem.sublat
+
+            c = b - math.acos(sa * (ephem.earth_radius + self.sat_ephem.elevation) / ephem.earth_radius)
+            x_fovs[i] = c * 2 / 909
+
+        self._ref_lonlat = sat_positions[height // 2]
+        self._y_res = (ephem.separation(sat_positions[0], sat_positions[-1]) / height) / ss_factor
+        # x_res = np.mean(x_fovs)
+        self._ref_x_res = x_fovs[height // 2] / ss_factor
+        self._ref_az = utils.azimuth(self._ref_lonlat, sat_positions[height // 2 + 1])
+
+        for i in range(height):
+            self._x_offsets[i] = self._lonlat_to_rel_px(x_fovs[i], sat_positions[i])[0]
+
+        overlay_img = Image.new('RGBA', (self._ss_width, self._ss_height))
+        self._draw = ImageDraw.Draw(overlay_img)
+
+        for points, color in shapes.iter():
+            self._draw_lines(points, color)
+
+        self.map_overlay = np.array(overlay_img.resize((self.IMAGE_WIDTH, height), Image.Resampling.LANCZOS), dtype=np.uint8)
+
+        del self._height
+        del self._ss_height
+        del self._half_ss_height
+        del self._ss_width
+        del self._half_ss_width
+        del self._line_width
+        del self._x_offsets
+        del self._ref_lonlat
+        del self._y_res
+        del self._ref_x_res
+        del self._ref_az
+        del self._draw
+
+    def _lonlat_to_rel_px(self, x_res, lonlat):
+        ab = utils.azimuth(self._ref_lonlat, lonlat) - self._ref_az
+        c = min(max(ephem.separation(self._ref_lonlat, lonlat), -utils.THIRD_PI), utils.THIRD_PI)
+        a = math.atan(math.cos(ab) * math.tan(c))
+        b = math.asin(math.sin(ab) * math.sin(c))
+        x = -b / x_res
+        y = a / self._y_res
+        return x, y
+
+    def _draw_lines(self, points, color):
+        to_draw = [(0, 0)] * len(points)
+
+        for i, pt in enumerate(points):
+            x, y = self._lonlat_to_rel_px(self._ref_x_res, pt)
+            x -= self._x_offsets[round(np.clip(y, 0, self._height - 1))]
+            to_draw[i] = x + self._half_ss_width, y + self._half_ss_height
+
+        self._draw.line(to_draw, fill=color, width=self._line_width)
+
+    def black_overlay(self):
+        return self.map_overlay * np.array([0, 0, 0, 1], dtype=np.uint8)

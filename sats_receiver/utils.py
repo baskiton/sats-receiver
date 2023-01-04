@@ -1,16 +1,27 @@
 import collections
 import datetime as dt
 import enum
-import ephem
 import gc
 import heapq
 import itertools
 import logging
+import math
+import pathlib
 import resource
-import sched
 import sys
 import threading
 import time
+
+from typing import Any, Callable, Iterable, Union
+
+import ephem
+import numpy as np
+import shapefile
+
+from PIL import ImageColor
+
+
+THIRD_PI = math.pi / 3
 
 
 class Mode(enum.Enum):
@@ -39,13 +50,13 @@ class Scheduler:
         self._lock = threading.RLock()
         self._sequence_generator = itertools.count()
 
-    def plan(self, t: dt.datetime, fn, *a, prior=0, **kw):
+    def plan(self, t: dt.datetime, fn: Callable, *a: Any, prior : int = 0, **kw: Any) -> Event:
         with self._lock:
             event = Event(t, prior, next(self._sequence_generator), fn, a, kw)
             heapq.heappush(self._queue, event)
         return event
 
-    def cancel(self, *evt: sched.Event):
+    def cancel(self, *evt: Event):
         for e in evt:
             try:
                 with self._lock:
@@ -59,7 +70,7 @@ class Scheduler:
             self._queue.clear()
             heapq.heapify(self._queue)
 
-    def empty(self):
+    def empty(self) -> bool:
         with self._lock:
             return not self._queue
 
@@ -88,7 +99,7 @@ class Scheduler:
 class SysUsage:
     DEFAULT_INTV = 3600
 
-    def __init__(self, ctx, intv=DEFAULT_INTV):
+    def __init__(self, ctx: str, intv : Union[int, float] = DEFAULT_INTV):
         self.prefix = f'{self.__class__.__name__}: {ctx}'
         self.log = logging.getLogger(self.prefix)
 
@@ -111,9 +122,54 @@ class SysUsage:
                            sec(ru.ru_stime))
 
     @property
-    def t(self):
+    def t(self) -> float:
         self.now = time.monotonic()
         return self.now
+
+
+class MapShapes:
+    BORDERS = 'BORDERS'
+    LAKES = 'LAKES'
+    RIVERS = 'RIVERS'
+    COASTLINE = 'COASTLINE'
+    GRATICULES = 'GRATICULES'
+
+    def __init__(self, config: dict):
+        self.config = config
+        self.shapes = []
+
+        for i, shf, col in sorted(config['shapes'], key=lambda x: x[0]):
+            alpha = 255
+            if isinstance(col, list):
+                if len(col) == 4:
+                    alpha = col[3]
+                col = tuple(col[:3]) + (alpha,)
+            elif isinstance(col, str):
+                col = ImageColor.getcolor(col, 'RGBA')
+            elif isinstance(col, int):
+                col = col, alpha
+            else:
+                raise TypeError('Invalid color value type')
+
+            self.shapes.append((shf, col))
+
+    @property
+    def shapes_dir(self) -> pathlib.Path:
+        return pathlib.Path(self.config['shapes_dir'])
+
+    @property
+    def line_width(self) -> int:
+        return self.config.get('line_width', 1)
+
+    def iter(self) -> tuple[Iterable, Any]:
+        for shf, color in self.shapes:
+            for i in shapefile.Reader(self.shapes_dir / shf).iterShapes():
+                pts = np.radians(i.points)
+                if len(i.parts) <= 1:
+                    yield pts, color
+                else:
+                    for j, k in itertools.pairwise(i.parts):
+                        yield pts[j:k], color
 
 
 def numdisp(number, zero=None):
@@ -163,3 +219,10 @@ def sec(t, res=2):
 
 def doppler_shift(freq, vel):
     return freq * ephem.c / (ephem.c + vel)
+
+
+def azimuth(a_lonlat: tuple[float, float], b_lonlat: tuple[float, float]) -> float:
+    lon_a, lat_a = a_lonlat
+    lon_b, lat_b = b_lonlat
+    delta_lon = lon_b - lon_a
+    return math.atan2(math.sin(delta_lon), math.cos(lat_a) * math.tan(lat_b) - math.sin(lat_a) * math.cos(delta_lon))
