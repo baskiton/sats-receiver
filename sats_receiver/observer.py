@@ -30,6 +30,22 @@ class Observer:
     def fetch_elev(self):
         return self.config['elevation'] is None
 
+    @property
+    def lon(self):
+        return self.config['longitude']
+
+    @property
+    def lat(self):
+        return self.config['latitude']
+
+    @property
+    def elev(self):
+        return self.config['elevation'] or 0
+
+    @property
+    def lonlat(self):
+        return self.lon, self.lat
+
     def update_config(self, config):
         if self.config != config:
             if not self._validate_config(config):
@@ -40,9 +56,9 @@ class Observer:
             self.config = config
 
             self._observer = ephem.Observer()
-            self._observer.lat = str(config['latitude'])
-            self._observer.lon = str(config['longitude'])
-            self._observer.elev = config['elevation'] or 0
+            self._observer.lat = str(self.lat)
+            self._observer.lon = str(self.lon)
+            self._observer.elev = self.elev
             self._observer.compute_pressure()
 
             return 1

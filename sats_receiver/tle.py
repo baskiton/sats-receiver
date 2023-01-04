@@ -6,6 +6,8 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from typing import Optional
+
 import ephem
 
 from sats_receiver import TLEDIR
@@ -19,7 +21,7 @@ class Tle:
         self.config = {}
         self.tle_file = pathlib.Path(TLEDIR / 'dummy')
         self.last_update_tle = dt.datetime.fromtimestamp(0, dt.timezone.utc)
-        self.objects: dict[str, ephem.EarthSatellite] = {}
+        self.objects: dict[str, tuple[ephem.EarthSatellite, tuple[str, str, str]]] = {}
 
         if not self.update_config(config):
             raise ValueError(f'{self.prefix}: Invalid config!')
@@ -30,25 +32,20 @@ class Tle:
         self.objects.clear()
         with self.tle_file.open() as f:
             for line in f:
-                names = []
+                names = set()
                 while len(line) <= 69:
-                    names.append(line.strip())
+                    names.add(line.strip())
                     line = f.readline()
+                names.add(int(line[2:7]))
 
-                if not names:
-                    names.append(line[2:7])
-
-                l1 = line
-                l2 = f.readline()
+                l1 = line.rstrip()
+                l2 = f.readline().rstrip()
                 for name in names:
-                    self.objects[name.rstrip()] = ephem.readtle(name.rstrip(), l1, l2)
+                    self.objects[name] = ephem.readtle(str(name), l1, l2), (str(name), l1, l2)
 
     def fetch_tle(self):
         try:
-            with urllib.request.urlopen(self.url) as r:
-                tle = r.read()
-                self.tle_file.write_bytes(tle)
-                self.last_update_tle = dt.datetime.now(dt.timezone.utc)
+            urllib.request.urlretrieve(self.url, self.tle_file)
         except urllib.error.HTTPError as e:
             msg = f'Tle not fetched: {e}'
             if e.code == 400:
@@ -59,6 +56,7 @@ class Tle:
             self.log.error('Tle not fetched: %s', e)
             return
 
+        self.last_update_tle = dt.datetime.now(dt.timezone.utc)
         self.fill_objects()
 
         self.log.info('Tle updated')
@@ -109,5 +107,13 @@ class Tle:
             self.t_next = self.last_update_tle + dt.timedelta(days=self.update_period)
             return 1
 
-    def get(self, name) -> ephem.EarthSatellite:
+    def get(self, name) -> Optional[tuple[ephem.EarthSatellite, tuple[str, str, str]]]:
         return self.objects.get(name, None)
+
+    def get_ephem(self, name) -> Optional[ephem.EarthSatellite]:
+        x = self.objects.get(name, None)
+        return x and x[0]
+
+    def get_tle(self, name) -> Optional[tuple[str, str, str]]:
+        x = self.objects.get(name, None)
+        return x and x[1]

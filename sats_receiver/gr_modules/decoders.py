@@ -16,8 +16,8 @@ from sats_receiver.systems import apt
 
 
 class Decoder(gr.gr.hier_block2):
-    def __init__(self, name, samp_rate, out_dir):
-        self.prefix = self.__class__.__name__
+    def __init__(self, name, sat_name, samp_rate, out_dir):
+        self.prefix = f'{self.__class__.__name__}: {sat_name}'
         self.log = logging.getLogger(self.prefix)
 
         super(Decoder, self).__init__(
@@ -27,6 +27,7 @@ class Decoder(gr.gr.hier_block2):
         )
 
         self.now = dt.datetime.fromtimestamp(0)
+        self.sat_name = sat_name
         self.samp_rate = samp_rate
         self.out_dir = out_dir
         self.tmp_file = out_dir / ('_'.join(name.lower().split()) + '.tmp')
@@ -35,7 +36,7 @@ class Decoder(gr.gr.hier_block2):
         self.tmp_file = self.out_dir / ('_'.join([self.t.strftime('%Y%m%d%H%M%S'),
                                                   *self.name().lower().split()]) + '.tmp')
 
-    def finalize(self, sat_name, executor):
+    def finalize(self, executor):
         pass
 
     @property
@@ -46,8 +47,8 @@ class Decoder(gr.gr.hier_block2):
 
 
 class RawDecoder(Decoder):
-    def __init__(self, samp_rate, out_dir):
-        super(RawDecoder, self).__init__('Raw Decoder', samp_rate, out_dir)
+    def __init__(self, sat_name, samp_rate, out_dir):
+        super(RawDecoder, self).__init__('Raw Decoder', sat_name, samp_rate, out_dir)
 
         self.ctf = gr.blocks.complex_to_float(1)
         self.wav_sink = gr.blocks.wavfile_sink(
@@ -69,19 +70,21 @@ class RawDecoder(Decoder):
 
         self.wav_sink.open(str(self.tmp_file))
 
-    def finalize(self, sat_name, executor):
+    def finalize(self, executor):
         self.wav_sink.close()
         if self.tmp_file.exists():
             return self.tmp_file.rename(self.out_dir / dt.datetime.fromtimestamp(self.tmp_file.stat().st_mtime).strftime('%Y-%m-%d_%H-%M-%S_RAW.wav'))
 
 
 class AptDecoder(Decoder):
-    def __init__(self, samp_rate, out_dir):
+    def __init__(self, sat_name, samp_rate, out_dir, sat_ephem_tle, observer_lonlat):
         name = 'APT Decoder'
-        super(AptDecoder, self).__init__(name, samp_rate, out_dir)
+        super(AptDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
 
         self.corr_file = out_dir / ('_'.join(name.lower().split()) + '.corr')
         self.peaks_file = out_dir / ('_'.join(name.lower().split()) + '.peaks')
+        self.sat_ephem_tle = sat_ephem_tle
+        self.observer_lonlat = observer_lonlat
 
         resamp_gcd = math.gcd(samp_rate, apt.Apt.WORK_RATE)
 
@@ -130,7 +133,7 @@ class AptDecoder(Decoder):
 
         self.peak_detector = gr.blocks.peak_detector2_fb(
             threshold_factor_rise=7,
-            look_ahead=apt.Apt.IMG_WIDTH * apt.Apt.WORK_RATE // apt.Apt.FINAL_RATE,
+            look_ahead=apt.Apt.FRAME_WIDTH * apt.Apt.WORK_RATE // apt.Apt.FINAL_RATE,
             alpha=0.001,
         )
         self.out_peaks_sink = gr.blocks.file_sink(gr.gr.sizeof_char, str(self.peaks_file), False)
@@ -176,35 +179,33 @@ class AptDecoder(Decoder):
         self.out_peaks_sink.open(str(self.peaks_file))
         self.out_peaks_sink.set_unbuffered(False)
 
-    def finalize(self, sat_name, executor):
+    def finalize(self, executor):
         self.out_file_sink.close()
         self.out_corr_sink.close()
         self.out_peaks_sink.close()
 
         for p in self.tmp_file, self.corr_file, self.peaks_file:
             if not p.exists():
-                self.log.warning('%s: missing components `%s`', sat_name, p)
+                self.log.warning('%s: missing components `%s`', p)
                 self.tmp_file.unlink(True)
                 self.corr_file.unlink(True)
                 self.peaks_file.unlink(True)
                 return
 
-        executor.execute(self._finalize, self.log, self.out_dir, sat_name,
-                         self.tmp_file, self.corr_file, self.peaks_file)
+        executor.execute(self._finalize, self.log, self.sat_name, self.sat_ephem_tle[1], self.observer_lonlat,
+                         self.tmp_file, self.corr_file, self.peaks_file, self.out_dir)
 
     @staticmethod
-    def _finalize(log, out_dir, sat_name, tmp_file, corr_file, peaks_file):
-        log.debug('%s: finalizing...', sat_name)
+    def _finalize(log, sat_name, sat_tle, observer_lonlat,
+                  tmp_file, corr_file, peaks_file, out_dir):
+        log.debug('finalizing...')
 
-        a = apt.Apt(sat_name, tmp_file, corr_file, peaks_file)
+        a = apt.Apt(sat_name, tmp_file, corr_file, peaks_file, sat_tle, observer_lonlat)
         if a.process():
-            log.info('%s: finish with error', sat_name)
+            log.info('finish with error')
         else:
-            res_fn = out_dir / a.end_time.strftime('%Y-%m-%d_%H-%M-%S.apt')
-            res_fn.write_bytes(a.data.tobytes())
-            os.utime(res_fn, (a.end_time.timestamp(), a.end_time.timestamp()))
-            log.info('%s: finish: %s (%s)',
-                     sat_name, res_fn, utils.numdisp(a.data.size * a.data.itemsize))
+            res_fn, sz = a.to_apt(out_dir)
+            log.info('finish: %s (%s)', res_fn, utils.numdisp(sz))
 
         tmp_file.unlink(True)
         corr_file.unlink(True)
@@ -212,8 +213,8 @@ class AptDecoder(Decoder):
 
 
 class RawStreamDecoder(Decoder):
-    def __init__(self, samp_rate, out_dir, name='RAW Stream Decoder'):
-        super(RawStreamDecoder, self).__init__(name, samp_rate, out_dir)
+    def __init__(self, sat_name, samp_rate, out_dir, name='RAW Stream Decoder'):
+        super(RawStreamDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
 
         self.ctf = gr.blocks.complex_to_float(1)
         self.rail = gr.analog.rail_ff(-1, 1)
@@ -239,7 +240,7 @@ class RawStreamDecoder(Decoder):
         self.out_file_sink.open(str(self.tmp_file))
         self.out_file_sink.set_unbuffered(False)
 
-    def finalize(self, sat_name, executor):
+    def finalize(self, executor):
         self.out_file_sink.close()
         if self.tmp_file.exists():
             return self.tmp_file.rename(self.out_dir / dt.datetime.fromtimestamp(self.tmp_file.stat().st_mtime).strftime('%Y-%m-%d_%H-%M-%S.s'))
@@ -252,5 +253,5 @@ class LrptDecoder(RawStreamDecoder):
     def start(self):
         super(LrptDecoder, self).start()
 
-    def finalize(self, sat_name, executor):
-        sf = super(LrptDecoder, self).finalize(sat_name, executor)
+    def finalize(self, executor):
+        sf = super(LrptDecoder, self).finalize(executor)

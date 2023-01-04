@@ -1,10 +1,12 @@
 import datetime as dt
-import math
-
-import dateutil.tz
 import enum
 import logging
+import math
+import os
+import pathlib
 
+import dateutil.tz
+import ephem
 import numpy as np
 import scipy as sp
 import scipy.signal
@@ -79,11 +81,12 @@ class AptFrame:
 
 class Apt:
     CARRIER_FREQ = 2400
-    IMG_WIDTH = 2080
+    FRAME_WIDTH = 2080
     PIX_WIDTH = 4
     FINAL_RATE = 4160
     WORK_RATE = FINAL_RATE * PIX_WIDTH
-    SAMPLES_PER_WORK_ROW = IMG_WIDTH * PIX_WIDTH
+    SAMPLES_PER_WORK_ROW = FRAME_WIDTH * PIX_WIDTH
+    LINE_DUR = dt.timedelta(milliseconds=500)
 
     SYNC_WIDTH = 39
     SPACE_WIDTH = 47
@@ -112,22 +115,32 @@ class Apt:
                              0, 0, 0, 0, 0, 0, 0], dtype=np.float32).repeat(BLOCK_HEIGHT)
 
     @classmethod
-    def from_synced_aptfile(cls, sat_name, aptf) -> 'Apt':
-        x = cls(sat_name, aptf, None, None)
-        x.data = np.fromfile(aptf, dtype=np.float32)
-        x.data = np.resize(x.data, (x.data.size // cls.IMG_WIDTH, cls.IMG_WIDTH))
+    def from_apt(cls, aptf: pathlib.Path) -> 'Apt':
+        """
+        APT file format:
+            * 3 lines of TLE data
+            * observer latlon, 2 x double, degrees
+            * end time UTC timestamp, double
+            * data
+        """
+
+        with aptf.open('rb') as f:
+            sat_name = f.readline().decode('ascii').rstrip()
+            l1 = f.readline().decode('ascii').rstrip()
+            l2 = f.readline().decode('ascii').rstrip()
+            sat_tle = sat_name, l1, l2
+            observer_lonlat = [*np.frombuffer(f.read(np.dtype(np.double).itemsize * 2), dtype=np.double)]
+            end_time = np.frombuffer(f.read(np.dtype(np.double).itemsize), dtype=np.double)[0]
+            data = np.fromfile(f, dtype=np.float32)
+
+        x = cls(sat_name, aptf, None, None, sat_tle, observer_lonlat)
+        x.data = np.resize(data, (data.size // cls.FRAME_WIDTH, cls.FRAME_WIDTH))
+        x.end_time = dt.datetime.fromtimestamp(end_time, dateutil.tz.tzutc())
         x.synced = True
+
         return x
 
-    @classmethod
-    def from_synced_apt(cls, sat_name, apt: np.ndarray, end_time: dt.datetime):
-        x = cls(sat_name, None, None, None)
-        x.data = np.resize(apt, (apt.size // cls.IMG_WIDTH, cls.IMG_WIDTH))
-        x.end_time = end_time
-        x.synced = True
-        return x
-
-    def __init__(self, sat_name, data_file, corr_file, peaks_file):
+    def __init__(self, sat_name, data_file, corr_file, peaks_file, sat_tle: tuple[str, str, str], observer_lonlat):
         self.prefix = f'{self.__class__.__name__}: {sat_name}'
         self.log = logging.getLogger(self.prefix)
 
@@ -138,6 +151,9 @@ class Apt:
         self.peak_coef = 0.4
         self.dev = 0.02
         self.synced = False
+        self.sat_ephem = ephem.readtle(*sat_tle)
+        self.sat_tle = sat_tle
+        self.observer_lonlat = observer_lonlat
 
         self.dist_dev = int(self.SAMPLES_PER_WORK_ROW * self.dev)
         self.dist_min = self.SAMPLES_PER_WORK_ROW - self.dist_dev
@@ -146,8 +162,30 @@ class Apt:
         t = 0
         if self.data_file and self.data_file.is_file():
             t = self.data_file.stat().st_mtime
-        self.end_time = dt.datetime.fromtimestamp(t, dateutil.tz.tzlocal())
-        self.data = np.empty((0, self.IMG_WIDTH))
+        self.end_time = dt.datetime.fromtimestamp(t, dateutil.tz.tzutc())
+        self.data = np.empty((0, self.FRAME_WIDTH))
+
+    def to_apt(self, out_dir: pathlib.Path):
+        """
+        APT file format:
+            * 3 lines of TLE data
+            * observer latlon, 2 x double, degrees
+            * end time UTC timestamp, double
+            * data
+        """
+
+        res_fn = out_dir / self.end_time.strftime(f'{self.sat_name}_%Y-%m-%d_%H-%M-%S,%f.apt')
+        sz = 0
+
+        with res_fn.open('wb') as f:
+            sz += f.write('\n'.join((*self.sat_tle, '')).encode('ascii'))
+            sz += f.write(np.array(self.observer_lonlat, dtype=np.double).tobytes())
+            sz += f.write(np.array(self.end_time.timestamp(), dtype=np.double).tobytes())
+            sz += f.write(self.data.tobytes())
+
+        os.utime(res_fn, (self.end_time.timestamp(), self.end_time.timestamp()))
+
+        return res_fn, sz
 
     def process(self):
         self.log.debug('process...')

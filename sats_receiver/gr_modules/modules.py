@@ -54,7 +54,7 @@ class RadioModule(gr.gr.hier_block2):
 
 
 class Satellite(gr.gr.hier_block2):
-    def __init__(self, config, main_tune, samp_rate, output_directory, executor):
+    def __init__(self, config, sat_ephem_tle, observer_lonlat, main_tune, samp_rate, output_directory, executor):
         n = config.get('name', '')
         self.prefix = f'{self.__class__.__name__}{n and f": {n}"}'
         self.log = logging.getLogger(self.prefix)
@@ -62,6 +62,8 @@ class Satellite(gr.gr.hier_block2):
         if not self._validate_config(config):
             raise ValueError(f'{self.prefix}: Invalid config!')
 
+        self.sat_ephem_tle = sat_ephem_tle
+        self.observer_lonlat = observer_lonlat
         self.executor = executor
         self.config = config
         self.output_directory = output_directory / self.name
@@ -69,7 +71,7 @@ class Satellite(gr.gr.hier_block2):
         self.events = [None, None, None]
 
         super(Satellite, self).__init__(
-            'Satellite:' + self.name,
+            self.prefix,
             gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
             gr.gr.io_signature(0, 0, 0)
         )
@@ -123,17 +125,17 @@ class Satellite(gr.gr.hier_block2):
             raise ValueError(f'{self.prefix}: Unknown demodulation `{self.mode}` for `{self.name}`')
 
         if self.decode == utils.Decode.APT.value:
-            self.decoder = decoders.AptDecoder(self.bandwidth, self.output_directory)
+            self.decoder = decoders.AptDecoder(self.name, self.bandwidth, self.output_directory, self.sat_ephem_tle, self.observer_lonlat)
 
         # elif self.decode == Decode.LRPT.value:
         #     # TODO
         #     # self.decoder =
 
         elif self.decode == utils.Decode.RSTREAM.value:
-            self.decoder = decoders.RawStreamDecoder(self.bandwidth, self.output_directory)
+            self.decoder = decoders.RawStreamDecoder(self.name, self.bandwidth, self.output_directory)
 
         elif self.decode == utils.Decode.RAW.value:
-            self.decoder = decoders.RawDecoder(self.bandwidth, self.output_directory)
+            self.decoder = decoders.RawDecoder(self.name, self.bandwidth, self.output_directory)
 
         else:
             raise ValueError(f'{self.prefix}: Unknown decoder `{self.decode}` for `{self.name}`')
@@ -179,7 +181,12 @@ class Satellite(gr.gr.hier_block2):
             self.log.info('STOP')
             self.start_event = self.stop_event = None
             self.radio.set_enabled(0)
-            self.decoder.finalize(self.name, self.executor)
+            self.decoder.finalize(self.executor)
+
+    def correct_doppler(self, observer):
+        if self.is_runned and self.doppler:
+            self.sat_ephem_tle[0].compute(observer)
+            self.set_freq_offset(utils.doppler_shift(self.frequency, self.sat_ephem_tle[0].range_velocity))
 
     @property
     def name(self):

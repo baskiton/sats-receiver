@@ -113,8 +113,13 @@ class SatsReceiver(gr.gr.top_block):
                     self.log.debug('Skip disabled sat `%s`', sat_name)
                     continue
 
+                sat_ephem_tle = self.up.tle.get(sat_name)
+                if sat_ephem_tle is None:
+                    self.log.info('Sat `%s` not found in TLE. Skip', sat_name)
+                    continue
+
                 try:
-                    sat = modules.Satellite(cfg, self.tune, self.samp_rate, self.output_directory, self.up.executor)
+                    sat = modules.Satellite(cfg, sat_ephem_tle, self.up.observer.lonlat, self.tune, self.samp_rate, self.output_directory, self.up.executor)
                 except ValueError as e:
                     self.log.warning('%s: %s. Skip', sat_name, e)
                     continue
@@ -267,10 +272,7 @@ class SatsReceiver(gr.gr.top_block):
     def action(self):
         if self.is_active and not self.start():
             for sat in self.satellites.values():
-                if sat.is_runned and sat.doppler:
-                    x = self.up.tle.get(sat.name)
-                    x.compute(self.up.observer.get_obj())
-                    sat.set_freq_offset(utils.doppler_shift(sat.frequency, x.range_velocity))
+                sat.correct_doppler(self.up.observer.get_obj())
         else:
             x = self.is_runned
 
@@ -286,7 +288,7 @@ class SatsReceiver(gr.gr.top_block):
     def calculate_pass(self, sat: modules.Satellite):
         sat.events = [None, None, None]
 
-        x = self.up.tle.get(sat.name)
+        x = self.up.tle.get_ephem(sat.name)
         if x:
             t = self.up.now
             tt = t + dt.timedelta(hours=24)
