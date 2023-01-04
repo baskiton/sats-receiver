@@ -296,7 +296,13 @@ class SatsReceiver(gr.gr.top_block):
 
             self.up.scheduler.cancel(*sat.events)
             while t <= tt:
-                rise_t, rise_az, culm_t, culm_alt, set_t, set_az = self.up.observer.next_pass(x, t)
+                try:
+                    rise_t, rise_az, culm_t, culm_alt, set_t, set_az = self.up.observer.next_pass(x, t)
+                except ValueError as e:
+                    # skip circumpolar/non-setting satellite
+                    self.log.error('Sat `%s` skip: %s', e)
+                    return
+
                 set_tt = set_t + dt.timedelta(seconds=5)
                 if culm_alt >= sat.min_elevation:
                     if set_t < rise_t:
