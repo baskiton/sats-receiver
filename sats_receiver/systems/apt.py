@@ -118,6 +118,9 @@ class Apt:
     WEDGE_SAMPLE = np.array([*np.interp([31, 63, 95, 127, 159, 191, 223, 255, 0], [0, 255], [-1, 1]),
                              0, 0, 0, 0, 0, 0, 0], dtype=np.float32).repeat(BLOCK_HEIGHT)
 
+    # TODO: anoter values???
+    NOAA_AVHRR_FOV = 110.74
+
     @classmethod
     def from_apt(cls, aptf: pathlib.Path) -> 'Apt':
         """
@@ -363,7 +366,7 @@ class Apt:
         self._x_offsets = np.empty(height, dtype=float)
         x_fovs = np.empty(height, dtype=float)
 
-        a = math.radians(110.74 / 2)
+        a = math.radians(self.NOAA_AVHRR_FOV / 2)
         b = math.pi / 2 - a
         sa = math.sin(a)
         for i in range(height):
