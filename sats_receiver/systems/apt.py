@@ -390,7 +390,12 @@ class Apt:
         self._draw = ImageDraw.Draw(overlay_img)
 
         for points, color in shapes.iter():
-            self._draw_lines(points, color)
+            if isinstance(points, dict):
+                if points['name'] == 'observer':
+                    points['lonlat'] = np.radians(self.observer_lonlat)
+                self._draw_fig(points, ss_factor)
+            else:
+                self._draw_lines(points, color)
 
         self.map_overlay = np.array(overlay_img.resize((self.IMAGE_WIDTH, height), Image.Resampling.LANCZOS), dtype=np.uint8)
 
@@ -425,6 +430,23 @@ class Apt:
             to_draw[i] = x + self._half_ss_width, y + self._half_ss_height
 
         self._draw.line(to_draw, fill=color, width=self._line_width)
+
+    def _draw_fig(self, fig: dict, ss_factor):
+        x, y = self._lonlat_to_rel_px(self._ref_x_res, fig['lonlat'])
+        x -= self._x_offsets[round(np.clip(y, 0, self._height - 1))]
+        x += self._half_ss_width
+        y += self._half_ss_height
+
+        col = fig['color']
+        sz = np.multiply(fig['size'], ss_factor)
+        if fig['type'] == '+':
+            lwidth, llen = sz
+            llen /= 2
+            self._draw.line(((x - llen, y), (x + llen, y)), fill=col, width=lwidth)
+            self._draw.line(((x, y - llen), (x, y + llen)), fill=col, width=lwidth)
+
+        elif fig['type'] == 'o':
+            self._draw.ellipse(((x - sz, y - sz), (x + sz, y + sz)), fill=col)
 
     def black_overlay(self):
         return self.map_overlay * np.array([0, 0, 0, 1], dtype=np.uint8)

@@ -139,19 +139,23 @@ class MapShapes:
         self.shapes = []
 
         for i, shf, col in sorted(config['shapes'], key=lambda x: x[0]):
-            alpha = 255
-            if isinstance(col, list):
-                if len(col) == 4:
-                    alpha = col[3]
-                col = tuple(col[:3]) + (alpha,)
-            elif isinstance(col, str):
-                col = ImageColor.getcolor(col, 'RGBA')
-            elif isinstance(col, int):
-                col = col, alpha
-            else:
-                raise TypeError('Invalid color value type')
+            self.shapes.append((shf, self._gen_color(col)))
 
-            self.shapes.append((shf, col))
+        for name, v in config.get('points', {}).items():
+            if name != 'observer':
+                v['lonlat'] = np.radians(v['lonlat'])
+            v['name'] = name
+            v['color'] = self._gen_color(v['color'])
+            if v['type'] == '+':
+                assert v['size'] != 2
+                v['size'] = [*map(int, v['size'])]
+            elif v['type'] == 'o':
+                v['size'] = int(v['size'])
+            else:
+                raise ValueError(f'Invalid point type: `{v["type"]}`')
+
+            order = int(v.get('order', len(self.shapes)))
+            self.shapes.insert(order, (v, v['color']))
 
     @property
     def shapes_dir(self) -> pathlib.Path:
@@ -163,6 +167,10 @@ class MapShapes:
 
     def iter(self) -> tuple[Iterable, Any]:
         for shf, color in self.shapes:
+            if isinstance(shf, dict):
+                yield shf, color
+                continue
+
             for i in shapefile.Reader(self.shapes_dir / shf).iterShapes():
                 pts = np.radians(i.points)
                 if len(i.parts) <= 1:
@@ -170,6 +178,22 @@ class MapShapes:
                 else:
                     for j, k in itertools.pairwise(i.parts):
                         yield pts[j:k], color
+
+    @staticmethod
+    def _gen_color(col):
+        alpha = 255
+        if isinstance(col, list):
+            if len(col) == 4:
+                alpha = col[3]
+            col = tuple(col[:3]) + (alpha,)
+        elif isinstance(col, str):
+            col = ImageColor.getcolor(col, 'RGBA')
+        elif isinstance(col, int):
+            col = col, alpha
+        else:
+            raise TypeError('Invalid color value type')
+
+        return col
 
 
 def numdisp(number, zero=None):
