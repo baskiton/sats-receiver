@@ -123,7 +123,10 @@ class ReceiverManager:
         self.executor.join()
 
     def update_config(self, init=False, force=False):
-        if not self._check_config():
+        needs = any(i.updated != RecUpdState.NO_NEED
+                    for i in self.receivers.values())
+
+        if not (self._check_config() or force or needs):
             return
 
         try:
@@ -132,41 +135,42 @@ class ReceiverManager:
             self.log.error('Error during load config: %s', e)
             return
 
-        if new_cfg == self.config:
+        if not (force or needs) and new_cfg == self.config:
             return
 
         if not self._validate_config(new_cfg):
             self.log.warning('invalid new config!')
             return
 
-        self.log.debug('reconf')
-        self.config = new_cfg
+        if new_cfg != self.config:
+            self.log.debug('reconf')
+            self.config = new_cfg
 
         if init:
             return 1
 
-        self.observer.update_config(new_cfg['observer'])
-        self.tle.update_config(new_cfg['tle'])
+        self.observer.update_config(self.config['observer'])
+        self.tle.update_config(self.config['tle'])
 
-        for cfg in new_cfg['receivers']:
-            x = self.receivers.get(cfg['name'])
-            if x:
-                if ((force or x.updated == RecUpdState.FORCE_NEED)
-                        or (not x.is_runned and x.updated != RecUpdState.NO_NEED)):
+        for cfg in self.config['receivers']:
+            receiver = self.receivers.get(cfg['name'])
+            if receiver:
+                if ((force or receiver.updated == RecUpdState.FORCE_NEED)
+                        or (not receiver.is_runned and receiver.updated != RecUpdState.NO_NEED)):
                     if not cfg.get('enabled', True):
-                        self.log.debug('%s: stop by disabling', x.name)
-                        x.stop()
-                        x.wait()
-                        self.receivers.pop(x.name)
+                        self.log.debug('%s: stop by disabling', receiver.name)
+                        receiver.stop()
+                        receiver.wait()
+                        self.receivers.pop(receiver.name)
                         continue
 
                     try:
-                        x.update_config(cfg, force)
+                        receiver.update_config(cfg, force)
                     except RuntimeError as e:
-                        x.stop()
-                        x.wait()
-                        self.receivers.pop(x.name)
-                        self.log.error('%s: cannot update config: %s. Stop', x.name, e)
+                        receiver.stop()
+                        receiver.wait()
+                        self.receivers.pop(receiver.name)
+                        self.log.error('%s: cannot update config: %s. Stop', receiver.name, e)
 
             else:
                 self._add_receiver(cfg)
@@ -174,9 +178,6 @@ class ReceiverManager:
         return 1
 
     def _check_config(self):
-        x = any(i.updated == RecUpdState.FORCE_NEED
-                for i in self.receivers.values())
-
         try:
             st = self.config_filename.stat()
         except FileNotFoundError:
@@ -192,11 +193,10 @@ class ReceiverManager:
                            or st.st_size != old.st_size
                            or st.st_mode != old.st_mode):
                 self.config_file_stat = st
-                x = 1
-                for i in self.receivers.values():
-                    i.updated = RecUpdState.UPD_NEED
+                for receiver in self.receivers.values():
+                    receiver.updated = RecUpdState.UPD_NEED
 
-        return x
+                return 1
 
     def _validate_config(self, config):
         return all(map(lambda x: x in config, [
@@ -214,14 +214,13 @@ class ReceiverManager:
         try:
             self.update_config()
             self.scheduler.action()
-            x = bool(self.observer.action(self.t))
-            x += bool(self.tle.action(self.now))
-            if x:
-                for i in self.receivers.values():
-                    i.updated = RecUpdState.FORCE_NEED
+            force = self.observer.action(self.t) or 0
+            force += self.tle.action(self.now) or 0
 
-            for rn, r in self.receivers.items():
-                r.action()
+            for receiver in self.receivers.values():
+                if force:
+                    receiver.updated = RecUpdState.UPD_NEED
+                receiver.action()
         except Exception as e:
             self.log.exception('%s. Exit', e)
             self.stop()

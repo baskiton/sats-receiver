@@ -47,7 +47,7 @@ class SatsReceiver(gr.gr.top_block):
             raise ValueError(f'{self.prefix}: Invalid config!')
 
     def update_config(self, config, force=False):
-        if force or self.updated == RecUpdState.FORCE_NEED or self.config != config:
+        if force or self.updated != RecUpdState.NO_NEED or self.config != config:
             if not self._validate_config(config):
                 self.log.warning('invalid new config!')
                 return
