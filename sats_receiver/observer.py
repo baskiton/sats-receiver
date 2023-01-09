@@ -118,6 +118,7 @@ class Observer:
         self.set_date(t)
         if self.with_weather and t >= self.t_next and self.fetch_weather():
             self.t_next = self.last_weather_time + dt.timedelta(hours=self.update_period, minutes=1)
+            return 1
 
     def next_pass(self, body: ephem.EarthSatellite, start_time=None):
         """

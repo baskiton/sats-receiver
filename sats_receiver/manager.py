@@ -214,8 +214,9 @@ class ReceiverManager:
         try:
             self.update_config()
             self.scheduler.action()
-            self.observer.action(self.t)
-            if self.tle.action(self.now):
+            x = bool(self.observer.action(self.t))
+            x += bool(self.tle.action(self.now))
+            if x:
                 for i in self.receivers.values():
                     i.updated = RecUpdState.FORCE_NEED
 
