@@ -214,13 +214,18 @@ class ReceiverManager:
         try:
             self.update_config()
             self.scheduler.action()
-            force = self.observer.action(self.t) or 0
-            force += self.tle.action(self.now) or 0
+            recalc = self.observer.action(self.t)
+            need_upd = self.tle.action(self.now)
 
             for receiver in self.receivers.values():
-                if force:
+                if recalc:
+                    receiver.recalculate_pass()
+
+                if need_upd:
                     receiver.updated = RecUpdState.UPD_NEED
+
                 receiver.action()
+
         except Exception as e:
             self.log.exception('%s. Exit', e)
             self.stop()

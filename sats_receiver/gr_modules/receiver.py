@@ -286,15 +286,12 @@ class SatsReceiver(gr.gr.top_block):
                     self.log.debug('turn off bias-t error: %s', e)
 
     def calculate_pass(self, sat: modules.Satellite):
-        sat.events = [None, None, None]
-
         x = self.up.tle.get_ephem(sat.name)
         if x:
             t = self.up.now
             tt = t + dt.timedelta(hours=24)
             ltz = dateutil.tz.tzlocal()
 
-            self.up.scheduler.cancel(*sat.events)
             while t <= tt:
                 try:
                     rise_t, rise_az, culm_t, culm_alt, set_t, set_az = self.up.observer.next_pass(x, t)
@@ -308,7 +305,7 @@ class SatsReceiver(gr.gr.top_block):
                     if set_t < rise_t:
                         rise_t = t
                     sat.events = [
-                        self.up.scheduler.plan(rise_t, sat.start),
+                        None if sat.is_runned else self.up.scheduler.plan(rise_t, sat.start),
                         self.up.scheduler.plan(set_t, sat.stop),
                         self.up.scheduler.plan(set_tt, self.calculate_pass, sat)
                     ]
@@ -324,3 +321,9 @@ class SatsReceiver(gr.gr.top_block):
             return 1
 
         self.log.info('Sat `%s` not found in TLE. Skip', sat.name)
+
+    def recalculate_pass(self):
+        for sat in self.satellites.values():
+            self.up.scheduler.cancel(*sat.events)
+            sat.events = [None, None, None]
+            self.calculate_pass(sat)
