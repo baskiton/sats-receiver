@@ -33,6 +33,13 @@
                             "bandwidth": 45760,
                             "mode": "QUAD",
                             "decode": "APT"
+                        },
+                        {
+                            "enabled": true,
+                            "freq": 137350000,
+                            "freq_correction": -150,
+                            "bandwidth": 40000,
+                            "mode": "RAW"
                         }
                     ]
                 },
@@ -48,6 +55,13 @@
                             "bandwidth": 45760,
                             "mode": "QUAD",
                             "decode": "APT"
+                        },
+                        {
+                            "enabled": true,
+                            "freq": 137350000,
+                            "freq_correction": 50,
+                            "bandwidth": 40000,
+                            "mode": "RAW"
                         }
                     ]
                 },
@@ -63,6 +77,13 @@
                             "bandwidth": 45760,
                             "mode": "QUAD",
                             "decode": "APT"
+                        },
+                        {
+                            "enabled": true,
+                            "freq": 137770000,
+                            "freq_correction": 300,
+                            "bandwidth": 40000,
+                            "mode": "RAW"
                         }
                     ]
                 },
