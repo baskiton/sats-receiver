@@ -25,41 +25,65 @@
                     "name": "NOAA-15",
                     "enabled": true,
                     "min_elevation": 15.0,
-                    "frequency": 137621000,
-                    "bandwidth": 45760,
-                    "mode": "QUAD",
-                    "decode": "APT"
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 137620000,
+                            "freq_correction": 1000,
+                            "bandwidth": 45760,
+                            "mode": "QUAD",
+                            "decode": "APT"
+                        }
+                    ]
                 },
                 {
                     "name": "NOAA-18",
                     "enabled": true,
                     "min_elevation": 15.0,
-                    "frequency": 137913000,
-                    "bandwidth": 45760,
-                    "mode": "QUAD",
-                    "decode": "APT"
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 137912500,
+                            "freq_correction": 500,
+                            "bandwidth": 45760,
+                            "mode": "QUAD",
+                            "decode": "APT"
+                        }
+                    ]
                 },
                 {
                     "name": "NOAA-19",
                     "enabled": true,
                     "min_elevation": 15.0,
-                    "frequency": 137100500,
-                    "bandwidth": 45760,
-                    "mode": "QUAD",
-                    "decode": "APT"
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 137100000,
+                            "freq_correction": 500,
+                            "bandwidth": 45760,
+                            "mode": "QUAD",
+                            "decode": "APT"
+                        }
+                    ]
                 },
                 {
                     "name": "METEOR-M2",
                     "enabled": true,
                     "min_elevation": 15.0,
-                    "frequency": 137100000,
-                    "bandwidth": 120000,
-                    "mode": "QPSK",
-                    "decode": "RSTREAM",
-                    "qpsk_baudrate": 72000,
-                    "qpsk_excess_bw": 0.35,
-                    "qpsk_ntaps": 33,
-                    "qpsk_costas_bw": 0.005
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 137100000,
+                            "freq_correction": 0,
+                            "bandwidth": 120000,
+                            "mode": "QPSK",
+                            "decode": "RSTREAM",
+                            "qpsk_baudrate": 72000,
+                            "qpsk_excess_bw": 0.35,
+                            "qpsk_ntaps": 33,
+                            "qpsk_costas_bw": 0.005
+                        }
+                    ]
                 }
             ]
         }
