@@ -52,7 +52,7 @@ class SatsReceiver(gr.gr.top_block):
                 self.log.warning('invalid new config!')
                 return
 
-            if self.is_runned and config.get('enabled', True):
+            if self.is_runned and not config.get('enabled', True):
                 self.log.debug('stop by disabling')
                 self.stop()
                 self.wait()
@@ -81,6 +81,8 @@ class SatsReceiver(gr.gr.top_block):
                 self.signal_src.set_frequency_correction(0, 0)
                 self.signal_src.set_gain_mode(0, False)
                 self.signal_src.set_gain(0, 'TUNER', self.gain)
+            else:
+                self.set_biast(0)
 
             exist_sats = set(self.satellites.keys())
             new_cfg_sats = {i['name']: i for i in self.sats}
@@ -199,12 +201,7 @@ class SatsReceiver(gr.gr.top_block):
             self.log.info('START tune=%s samp_rate=%s gain=%s biast=%s',
                           self.tune, self.samp_rate, self.gain, self.biast)
 
-            if not LIBRTLSDR and self.source == 'rtlsdr':
-                try:
-                    librtlsdr.set_bt(self.biast, self.serial)
-                except librtlsdr.LibRtlSdrError as e:
-                    if self.biast:
-                        self.log.info('turn on bias-t error: %s', e)
+            self.set_biast(self.biast)
 
             try:
                 self.signal_src = gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
@@ -214,12 +211,7 @@ class SatsReceiver(gr.gr.top_block):
 
                 self.stop()
                 self.wait()
-
-                if not LIBRTLSDR and self.source == 'rtlsdr':
-                    try:
-                        librtlsdr.set_bt(0, self.serial)
-                    except librtlsdr.LibRtlSdrError:
-                        pass
+                self.set_biast(0, True)
 
                 t = self.up.now + dt.timedelta(minutes=5)
                 for sat in self.satellites.values():
@@ -273,17 +265,10 @@ class SatsReceiver(gr.gr.top_block):
         if self.is_active and not self.start():
             for sat in self.satellites.values():
                 sat.correct_doppler(self.up.observer.get_obj())
-        else:
-            x = self.is_runned
-
+        elif self.is_runned:
             self.stop(False)
             self.wait()
-
-            if x and not LIBRTLSDR and self.source == 'rtlsdr':
-                try:
-                    librtlsdr.set_bt(0, self.serial)
-                except librtlsdr.LibRtlSdrError as e:
-                    self.log.debug('turn off bias-t error: %s', e)
+            self.set_biast(0)
 
     def calculate_pass(self, sat: modules.Satellite):
         x = self.up.tle.get_ephem(sat.name)
@@ -327,3 +312,11 @@ class SatsReceiver(gr.gr.top_block):
             self.up.scheduler.cancel(*sat.events)
             sat.events = [None, None, None]
             self.calculate_pass(sat)
+
+    def set_biast(self, v, silent=False):
+        if not LIBRTLSDR and self.source == 'rtlsdr':
+            try:
+                librtlsdr.set_bt(v, self.serial)
+            except librtlsdr.LibRtlSdrError as e:
+                if not silent:
+                    self.log.info('change bias-t error: %s', e)
