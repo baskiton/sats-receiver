@@ -12,11 +12,6 @@ from sats_receiver.observer import Observer
 from sats_receiver.tle import Tle
 from sats_receiver.utils import Scheduler, SysUsage
 
-# Rate Ranges:
-#     137...138 MHz: 1.024
-#     144...146 MHz: 2.16
-#     435...438 MHz: 3.2
-
 
 class Executor(mp.Process):
     def __init__(self, sysu_intv=SysUsage.DEFAULT_INTV):
@@ -66,7 +61,7 @@ class Executor(mp.Process):
 
 
 class ReceiverManager:
-    def __init__(self, config_filename: pathlib.Path, sysu_intv=SysUsage.DEFAULT_INTV):
+    def __init__(self, config_filename: pathlib.Path, sysu_intv=SysUsage.DEFAULT_INTV, executor_cls=Executor):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
@@ -86,7 +81,7 @@ class ReceiverManager:
         self.observer = Observer(self.config['observer'])
         self.tle = Tle(self.config['tle'])
         self.scheduler = Scheduler()
-        self.executor = Executor(sysu_intv)
+        self.executor = executor_cls(sysu_intv)
         self.executor.start()
         atexit.register(lambda x: (x.stop(), x.join()), self.executor)
 
