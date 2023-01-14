@@ -1,6 +1,8 @@
 import logging
 import math
 
+from typing import Union, Optional
+
 import gnuradio as gr
 import gnuradio.analog
 import gnuradio.blocks
@@ -53,34 +55,55 @@ class RadioModule(gr.gr.hier_block2):
         self.freqshifter.set_phase_inc(2 * math.pi * (self.main_tune - new_freq) / self.samp_rate)
 
 
-class Satellite(gr.gr.hier_block2):
-    def __init__(self, config, sat_ephem_tle, observer_lonlat, main_tune, samp_rate, output_directory, executor):
-        n = config.get('name', '')
-        self.prefix = f'{self.__class__.__name__}{n and f": {n}"}'
-        self.log = logging.getLogger(self.prefix)
+class SatRecorder(gr.gr.hier_block2):
+    @staticmethod
+    def _validate_config(config) -> bool:
+        return (
+            all(map(lambda x: x in config,
+                    [
+                        # 'enabled',          # optional
+                        'freq',
+                        # 'freq_correction',  # optional
+                        'bandwidth',
+                        'mode',
+                        # 'decode',           # optional
+
+                        # 'qpsk_baudrate',    # only in QPSK demode
+                        # 'qpsk_excess_bw',   # optional
+                        # 'qpsk_ntaps',       # optional
+                        # 'qpsk_costas_bw',   # optional
+                    ]))
+            and (config['mode'] != utils.Mode.QPSK or 'qpsk_baudrate' in config)
+        )
+
+    def __init__(self, up, config, main_tune, samp_rate):
+        f = config.get('freq')
+        self.prefix = f'{self.__class__.__name__}: {up.name}: {f and f": {utils.numdisp(f)}Hz"}'
 
         if not self._validate_config(config):
             raise ValueError(f'{self.prefix}: Invalid config!')
 
-        self.sat_ephem_tle = sat_ephem_tle
-        self.observer_lonlat = observer_lonlat
-        self.executor = executor
-        self.config = config
-        self.output_directory = output_directory / self.name
-        self.output_directory.mkdir(parents=True, exist_ok=True)
-        self.events = [None, None, None]
-
-        super(Satellite, self).__init__(
+        super(SatRecorder, self).__init__(
             self.prefix,
             gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
             gr.gr.io_signature(0, 0, 0)
         )
 
+        self.config = config
         self.radio = RadioModule(main_tune, samp_rate, self.bandwidth, self.frequency)
         self.demodulator = None
         self.post_demod = gr.blocks.float_to_complex()
 
-        if self.mode == utils.Mode.AM.value:
+        try:
+            self.mode == self.decode
+        except ValueError as e:
+            if 'Decode' in e:
+                x = 'decoder', self.decode
+            else:
+                x = 'demodulation', self.mode
+            raise ValueError(f'{self.prefix}: Unknown {x[0]} `{x[1]}` for `{up.name}`')
+
+        if self.mode == utils.Mode.AM:
             self.demodulator = gr.analog.am_demod_cf(
                 channel_rate=self.bandwidth,
                 audio_decim=1,
@@ -88,7 +111,7 @@ class Satellite(gr.gr.hier_block2):
                 audio_stop=5500,
             )
 
-        elif self.mode == utils.Mode.FM.value:
+        elif self.mode == utils.Mode.FM:
             self.demodulator = gr.analog.fm_demod_cf(
                 channel_rate=self.bandwidth,
                 audio_decim=1,
@@ -99,13 +122,13 @@ class Satellite(gr.gr.hier_block2):
                 tau=0,
             )
 
-        elif self.mode == utils.Mode.WFM.value:
+        elif self.mode == utils.Mode.WFM:
             self.demodulator = gr.analog.wfm_rcv(
                 quad_rate=self.bandwidth,
                 audio_decimation=1,
             )
 
-        elif self.mode == utils.Mode.WFM_STEREO.value:
+        elif self.mode == utils.Mode.WFM_STEREO:
             if self.bandwidth < 76800:
                 raise ValueError(f'{self.prefix}: param `bandwidth` for WFM Stereo must be at least 76800, got {self.bandwidth} instead')
             self.demodulator = gr.analog.wfm_rcv_pll(
@@ -115,30 +138,24 @@ class Satellite(gr.gr.hier_block2):
             )
             self.connect((self.demodulator, 1), (self.post_demod, 1))
 
-        elif self.mode == utils.Mode.QUAD.value:
+        elif self.mode == utils.Mode.QUAD:
             self.demodulator = gr.analog.quadrature_demod_cf(1)
 
-        elif self.mode == utils.Mode.QPSK.value:
+        elif self.mode == utils.Mode.QPSK:
             self.demodulator = demodulators.QpskDemod(self.bandwidth, self.qpsk_baudrate, self.qpsk_excess_bw, self.qpsk_ntaps, self.qpsk_costas_bw)
 
-        elif self.mode != utils.Mode.RAW.value:
-            raise ValueError(f'{self.prefix}: Unknown demodulation `{self.mode}` for `{self.name}`')
+        if self.decode == utils.Decode.APT:
+            self.decoder = decoders.AptDecoder(up.name, self.bandwidth, up.output_directory, up.sat_ephem_tle, up.observer_lonlat)
 
-        if self.decode == utils.Decode.APT.value:
-            self.decoder = decoders.AptDecoder(self.name, self.bandwidth, self.output_directory, self.sat_ephem_tle, self.observer_lonlat)
-
-        # elif self.decode == Decode.LRPT.value:
+        # elif self.decode == Decode.LRPT:
         #     # TODO
         #     # self.decoder =
 
-        elif self.decode == utils.Decode.RSTREAM.value:
-            self.decoder = decoders.RawStreamDecoder(self.name, self.bandwidth, self.output_directory)
+        elif self.decode == utils.Decode.RSTREAM:
+            self.decoder = decoders.RawStreamDecoder(up.name, self.bandwidth, up.output_directory)
 
-        elif self.decode == utils.Decode.RAW.value:
-            self.decoder = decoders.RawDecoder(self.name, self.bandwidth, self.output_directory)
-
-        else:
-            raise ValueError(f'{self.prefix}: Unknown decoder `{self.decode}` for `{self.name}`')
+        elif self.decode == utils.Decode.RAW:
+            self.decoder = decoders.RawDecoder(up.name, self.bandwidth, up.output_directory)
 
         self.connect(
             self,
@@ -147,118 +164,180 @@ class Satellite(gr.gr.hier_block2):
             self.decoder,
         )
 
-    def _validate_config(self, config):
-        return (all(map(lambda x: x in config, [
-                    'name',
-                    # 'enabled',  # optional
-                    # 'min_elevation',    # optional
-                    'frequency',
-                    'bandwidth',
-                    'mode',
-                    # 'decode',   # optional
-                    # 'doppler',  # optional
-                    # 'qpsk_baudrate',    # only in QPSK demode
-                    # 'qpsk_excess_bw',   # optional
-                    # 'qpsk_ntaps',       # optional
-                    # 'qpsk_costas_bw',   # optional
-                    ]))
-                and (config['mode'] != utils.Mode.QPSK or 'qpsk_baudrate' in config))
+    def set_freq_offset(self, new_freq):
+        self.radio.set_freq_offset(new_freq)
 
     @property
-    def is_runned(self):
+    def is_runned(self) -> bool:
         return self.radio.enabled
 
-    def start(self):
-        if self.enabled and not self.is_runned:
-            self.log.info('START doppler=%s mode=%s decode=%s', self.doppler, self.mode, self.decode)
-            self.output_directory.mkdir(parents=True, exist_ok=True)
-            self.start_event = None
-            self.decoder.start()
-            self.radio.set_enabled(1)
-
-    def stop(self):
-        if self.is_runned:
-            self.log.info('STOP')
-            self.start_event = self.stop_event = None
-            self.radio.set_enabled(0)
-            self.decoder.finalize(self.executor)
-
-    def correct_doppler(self, observer):
-        if self.is_runned and self.doppler:
-            self.sat_ephem_tle[0].compute(observer)
-            self.set_freq_offset(utils.doppler_shift(self.frequency, self.sat_ephem_tle[0].range_velocity))
-
     @property
-    def name(self):
-        return self.config['name']
-
-    @property
-    def enabled(self):
+    def enabled(self) -> bool:
         return self.config.get('enabled', True)
 
     @property
-    def min_elevation(self):
-        return self.config.get('min_elevation', 0.0)
+    def freq(self) -> Union[int, float]:
+        return self.config['freq']
 
     @property
-    def frequency(self):
-        return self.config['frequency']
+    def freq_correction(self) -> Union[int, float]:
+        return self.config.get('freq_correction', 0)
 
     @property
-    def bandwidth(self):
+    def frequency(self) -> Union[int, float]:
+        return self.freq + self.freq_correction
+
+    @property
+    def bandwidth(self) -> Union[int, float]:
         return self.config['bandwidth']
 
     @property
-    def mode(self):
-        return self.config['mode']
+    def mode(self) -> utils.Mode:
+        return utils.Mode(self.config['mode'])
 
     @property
-    def decode(self):
-        return self.config.get('decode', 'RAW')
+    def decode(self) -> utils.Decode:
+        return utils.Decode(self.config.get('decode', 'RAW'))
 
     @property
-    def doppler(self):
-        return self.config.get('doppler', True)
-
-    @property
-    def qpsk_baudrate(self):
+    def qpsk_baudrate(self) -> Union[int, float]:
         return self.config['qpsk_baudrate']
 
     @property
-    def qpsk_excess_bw(self):
+    def qpsk_excess_bw(self) -> Union[int, float]:
         return self.config.get('qpsk_excess_bw')
 
     @property
-    def qpsk_ntaps(self):
+    def qpsk_ntaps(self) -> int:
         return self.config.get('qpsk_ntaps')
 
     @property
     def qpsk_costas_bw(self):
         return self.config.get('qpsk_costas_bw')
 
+
+class Satellite(gr.gr.hier_block2):
+    @staticmethod
+    def _validate_config(config) -> bool:
+        return (
+            all(map(lambda x: x in config,
+                    [
+                        'name',
+                        # 'enabled',        # optional
+                        # 'min_elevation',  # optional
+                        'frequencies',
+                        # 'doppler',          # optional
+                    ]))
+            and config['frequencies']
+        )
+
+    def __init__(self, config, sat_ephem_tle, observer_lonlat, main_tune, samp_rate, output_directory, executor):
+        n = config.get('name', '')
+        self.prefix = f'{self.__class__.__name__}{n and f": {n}"}'
+        self.log = logging.getLogger(self.prefix)
+
+        if not self._validate_config(config):
+            raise ValueError(f'{self.prefix}: Invalid config!')
+
+        super(Satellite, self).__init__(
+            self.prefix,
+            gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
+            gr.gr.io_signature(0, 0, 0)
+        )
+
+        self.sat_ephem_tle = sat_ephem_tle
+        self.observer_lonlat = observer_lonlat
+        self.executor = executor
+        self.config = config
+        self.output_directory = output_directory / self.name
+        self.output_directory.mkdir(parents=True, exist_ok=True)
+        self.events: list[Optional[utils.Event]] = [None, None, None]
+        self.recorders = []
+
+        for cfg in self.frequencies:
+            try:
+                r = SatRecorder(self, cfg, main_tune, samp_rate)
+                if r.enabled:
+                    self.connect(self, r)
+                    self.recorders.append(r)
+            except ValueError as e:
+                self.log.warning('Skip freq `%s`: %s', cfg.get('freq', 'Unknown'), e)
+
     @property
-    def start_event(self):
+    def is_runned(self) -> bool:
+        return any(r.is_runned for r in self.recorders)
+
+    def start(self):
+        if self.enabled and not self.is_runned:
+            self.log.info('START doppler=%s mode=%s decode=%s',
+                          self.doppler,
+                          [r.mode.value for r in self.recorders],
+                          [r.decode.value for r in self.recorders])
+            self.output_directory.mkdir(parents=True, exist_ok=True)
+            self.start_event = None
+
+            for r in self.recorders:
+                r.decoder.start()
+                r.radio.set_enabled(1)
+
+    def stop(self):
+        if self.is_runned:
+            self.log.info('STOP')
+            self.start_event = self.stop_event = None
+
+            for r in self.recorders:
+                if r.is_runned:
+                    r.radio.set_enabled(0)
+                    r.decoder.finalize(self.executor)
+
+    def correct_doppler(self, observer):
+        if self.is_runned and self.doppler:
+            self.sat_ephem_tle[0].compute(observer)
+
+            for r in self.recorders:
+                if r.is_runned:
+                    r.set_freq_offset(utils.doppler_shift(r.frequency, self.sat_ephem_tle[0].range_velocity))
+
+    @property
+    def name(self) -> str:
+        return self.config['name']
+
+    @property
+    def enabled(self) -> bool:
+        return self.config.get('enabled', True) and self.recorders
+
+    @property
+    def min_elevation(self) -> Union[int, float]:
+        return self.config.get('min_elevation', 0.0)
+
+    @property
+    def frequencies(self) -> dict:
+        return self.config['frequencies']
+
+    @property
+    def doppler(self) -> bool:
+        return self.config.get('doppler', True)
+
+    @property
+    def start_event(self) -> utils.Event:
         return self.events[0]
 
     @start_event.setter
-    def start_event(self, val):
+    def start_event(self, val: utils.Event):
         self.events[0] = val
 
     @property
-    def stop_event(self):
+    def stop_event(self) -> utils.Event:
         return self.events[1]
 
     @stop_event.setter
-    def stop_event(self, val):
+    def stop_event(self, val: utils.Event):
         self.events[1] = val
 
     @property
-    def recalc_event(self):
+    def recalc_event(self) -> utils.Event:
         return self.events[2]
 
     @recalc_event.setter
-    def recalc_event(self, val):
+    def recalc_event(self, val: utils.Event):
         self.events[2] = val
-
-    def set_freq_offset(self, new_freq):
-        self.radio.set_freq_offset(new_freq)
