@@ -255,9 +255,13 @@ class Satellite(gr.gr.hier_block2):
         self.recorders = []
 
         for cfg in self.frequencies:
-            r = SatRecorder(self, cfg, main_tune, samp_rate)
-            self.connect(self, r)
-            self.recorders.append(r)
+            try:
+                r = SatRecorder(self, cfg, main_tune, samp_rate)
+                if r.enabled:
+                    self.connect(self, r)
+                    self.recorders.append(r)
+            except ValueError as e:
+                self.log.warning('Skip freq `%s`: %s', cfg.get('freq', 'Unknown'), e)
 
     @property
     def is_runned(self) -> bool:
@@ -267,15 +271,14 @@ class Satellite(gr.gr.hier_block2):
         if self.enabled and not self.is_runned:
             self.log.info('START doppler=%s mode=%s decode=%s',
                           self.doppler,
-                          [r.mode.value for r in self.recorders if r.enabled],
-                          [r.decode.value for r in self.recorders if r.enabled])
+                          [r.mode.value for r in self.recorders],
+                          [r.decode.value for r in self.recorders])
             self.output_directory.mkdir(parents=True, exist_ok=True)
             self.start_event = None
 
             for r in self.recorders:
-                if r.enabled:
-                    r.decoder.start()
-                    r.radio.set_enabled(1)
+                r.decoder.start()
+                r.radio.set_enabled(1)
 
     def stop(self):
         if self.is_runned:
@@ -301,8 +304,7 @@ class Satellite(gr.gr.hier_block2):
 
     @property
     def enabled(self) -> bool:
-        return (self.config.get('enabled', True)
-                and any(r.enabled for r in self.recorders))
+        return self.config.get('enabled', True) and self.recorders
 
     @property
     def min_elevation(self) -> Union[int, float]:

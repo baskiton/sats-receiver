@@ -9,7 +9,6 @@ import gnuradio.blocks
 import gnuradio.gr
 import gnuradio.soapy
 
-from sats_receiver import utils
 from sats_receiver.gr_modules import modules
 
 try:
