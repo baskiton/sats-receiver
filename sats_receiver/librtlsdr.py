@@ -1,4 +1,4 @@
-from ctypes import *
+from ctypes import CDLL, c_char, c_char_p, c_int, c_uint32, c_void_p, POINTER
 
 _lib = CDLL('librtlsdr.so.0')
 rtlsdr_dev_p = c_void_p
