@@ -126,7 +126,7 @@ class Apt:
         """
         APT file format:
             * 3 lines of TLE data
-            * observer latlon, 2 x double, degrees
+            * observer lonlat, 2 x double, degrees
             * end time UTC timestamp, double
             * data
         """
@@ -177,7 +177,7 @@ class Apt:
         """
         APT file format:
             * 3 lines of TLE data
-            * observer latlon, 2 x double, degrees
+            * observer lonlat, 2 x double, degrees
             * end time UTC timestamp, double
             * data
         """

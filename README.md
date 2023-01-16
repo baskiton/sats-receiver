@@ -12,6 +12,9 @@ Satellites data receiver based on GNURadio
       * [frequencies](#frequencies)
         * [modulations](#modulations)
         * [decoders](#decoders)
+* [Map Shapes](#Map-Shapes)
+  * [shapes](#shapes)
+  * [points](#points)
 
 ### Requirements
 The program has only been tested on Linux. Work on Windows is not guaranteed!
@@ -129,6 +132,41 @@ Each frequency object contain:
 
 #### decoders
 * `RAW` Saved to 2-channel float32 WAV file with `bandwidth` sample rate
-* `RSTREAM` Raw Stream - binary int8
-* `APT` sats_receiver APT binary file format
+* `RSTREAM` Raw Stream - binary int8. Suitable for further processing, for example, in SatDump
+* `APT` sats_receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)
 * ~~`LRPT`~~ Not implemented yet
+
+
+### Map Shapes
+Map shapes config file `map_shapes.json` can be found at the root of this repository.
+Shapefiles can be downloaded from [Natural Earth](https://www.naturalearthdata.com/downloads/)
+
+| Field      | Type             | Description                                                          |
+|:-----------|:-----------------|:---------------------------------------------------------------------|
+| shapes_dir | String           | Path to directory contains shapes file                               |
+| shapes     | Array of Array   | List of shapes data (see [shapes](#shapes))                          |
+| line_width | Number           | _Optional._ Overlay lines width, pixels. `1` by default              |
+| points     | Object of Object | _Optional._ Additional points to draw on map (see [points](#points)) |
+
+
+#### shapes
+Each shape contain:
+
+| Offset | Field     | Type                       | Description                                                                                                        |
+|:-------|:----------|:---------------------------|:-------------------------------------------------------------------------------------------------------------------|
+| 0      | order     | Number                     | Num in order of drawing. The more, the later it will be drawn.                                                     |
+| 1      | shapefile | String                     | Filename of shapefile in shapes dir. Can be separates file or ZIP archive                                          |
+| 2      | color     | String or Array of Integer | Color. Can be string representing (`red` e.g.), web hex (`#abcdef` e.g.) or 3-4-Array 0-255 (`[0, 127, 255]` e.g.) |
+
+#### points
+Each point object has name.  
+If name is `observer`, then lonlat field is filled with lonlat from apt-file.  
+Each point object contain:
+
+| Field  | Type                        | Description                                                                                                                    |
+|:-------|:----------------------------|:-------------------------------------------------------------------------------------------------------------------------------|
+| color  | String or Array of Integer  | Color. Can be string representing (`red` e.g.), web hex (`#abcdef` e.g.) or 3-4-Array 0-255 (`[0, 127, 255]` e.g.)             |
+| type   | String                      | Type of marker view. Can be `+`, `o`                                                                                           |
+| size   | Integer or Array of Integer | If `type` is `+` then Array with line width and line length, pixels. If `type` is `o` then Integer as radius of circle, pixels |
+| lonlat | Array of Number             | _Optional. **Only for non-observer name.**_ 2-Array of point longitude and latitude, degrees                                   |
+| order  | Number                      | _Optional._ Same as in `shapes`. Default to last                                                                               |
