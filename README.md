@@ -10,8 +10,8 @@ Satellites data receiver based on GNURadio
   * [receivers](#receivers)
     * [sats](#sats)
       * [frequencies](#frequencies)
-        * [modulations](#Modulations)
-        * [decoders](#Decoders)
+        * [modulations](#modulations)
+        * [decoders](#decoders)
 
 ### Requirements
 The program has only been tested on Linux. Work on Windows is not guaranteed!
@@ -110,15 +110,15 @@ Each frequency object contain:
 | bandwidth       | Number  | Received signal bandwidth, Hz                                                     |
 | enabled         | Boolean | _Optional._ Enable/Disable this frequency. `true` by default                      |
 | freq_correction | Boolean | _Optional._ Correction for basic frequency, Hz. `0` by default                    |
-| mode            | String  | _Optional._ Modulation option (see [modulations](#Modulations)). `RAW` by default |
-| decode          | String  | _Optional._ Decoder option (see [decoders](#Decoders)). `RAW` by default          |
+| mode            | String  | _Optional._ Modulation option (see [modulations](#modulations)). `RAW` by default |
+| decode          | String  | _Optional._ Decoder option (see [decoders](#decoders)). `RAW` by default          |
 | qpsk_baudrate   | Number  | _Required only for **QPSK** mode._ QPSK Baudrate, bps                             |
 | qpsk_excess_bw  | Number  | _Optional. Only for **QPSK** mode._ QPSK Excess bandwidth. `0.35` by default      |
 | qpsk_ntaps      | Integer | _Optional. Only for **QPSK** mode._ QPSK number of taps. `33` by default          |
 | qpsk_costas_bw  | Number  | _Optional. Only for **QPSK** mode._ QPSK Costas bandwidth. `0.005` by default     |
 
 
-#### Modulations
+#### modulations
 * `RAW`
 * `AM`
 * `FM`
@@ -127,7 +127,7 @@ Each frequency object contain:
 * `QUAD`
 * `QPSK`
 
-#### Decoders
+#### decoders
 * `RAW` Saved to 2-channel float32 WAV file with `bandwidth` sample rate
 * `RSTREAM` Raw Stream - binary int8
 * `APT` sats_receiver APT binary file format
