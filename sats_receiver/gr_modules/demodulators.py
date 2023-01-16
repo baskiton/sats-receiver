@@ -26,7 +26,7 @@ class QpskDemod(gr.gr.hier_block2):
         self.samp_rate = samp_rate
         self.baudrate = baudrate
         self.excess_bw = excess_bw
-        self.ntaps = ntaps
+        self.ntaps = int(ntaps)
 
         self.rrc = gr.filter.fir_filter_ccf(
             1,

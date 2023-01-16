@@ -195,11 +195,11 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def mode(self) -> utils.Mode:
-        return utils.Mode(self.config['mode'])
+        return utils.Mode(self.config.get('mode')) or utils.Mode.RAW
 
     @property
     def decode(self) -> utils.Decode:
-        return utils.Decode(self.config.get('decode', 'RAW'))
+        return utils.Decode(self.config.get('decode')) or utils.Decode.RAW
 
     @property
     def qpsk_baudrate(self) -> Union[int, float]:
@@ -211,7 +211,7 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def qpsk_ntaps(self) -> int:
-        return self.config.get('qpsk_ntaps')
+        return int(self.config.get('qpsk_ntaps'))
 
     @property
     def qpsk_costas_bw(self):

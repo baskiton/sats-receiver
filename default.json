@@ -25,6 +25,7 @@
                     "name": "NOAA-15",
                     "enabled": true,
                     "min_elevation": 15.0,
+                    "doppler": true,
                     "frequencies": [
                         {
                             "enabled": true,
@@ -47,6 +48,7 @@
                     "name": "NOAA-18",
                     "enabled": true,
                     "min_elevation": 15.0,
+                    "doppler": true,
                     "frequencies": [
                         {
                             "enabled": true,
@@ -69,6 +71,7 @@
                     "name": "NOAA-19",
                     "enabled": true,
                     "min_elevation": 15.0,
+                    "doppler": true,
                     "frequencies": [
                         {
                             "enabled": true,
@@ -91,6 +94,7 @@
                     "name": "METEOR-M2",
                     "enabled": true,
                     "min_elevation": 15.0,
+                    "doppler": true,
                     "frequencies": [
                         {
                             "enabled": true,
