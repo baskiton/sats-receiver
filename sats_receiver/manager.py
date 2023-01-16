@@ -47,9 +47,12 @@ class Executor(mp.Process):
 
             if callable(fn):
                 try:
-                    fn(*args, **kwargs)
+                    x = fn(*args, **kwargs)
                 except Exception:
                     self.log.exception('%s with args=%s kwargs=%s', fn, args, kwargs)
+
+                if x and isinstance(x, tuple) and len(x) == 4:
+                    sat_name, fin_key, res_filename, end_time = x
 
         self.log.debug('finish')
 

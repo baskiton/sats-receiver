@@ -1,6 +1,8 @@
+import datetime as dt
 import logging
 import math
 
+from hashlib import sha256
 from typing import Union, Optional
 
 import gnuradio as gr
@@ -284,11 +286,12 @@ class Satellite(gr.gr.hier_block2):
         if self.is_runned:
             self.log.info('STOP')
             self.start_event = self.stop_event = None
+            fin_key = sha256((self.name + str(dt.datetime.now())).encode()).hexdigest()
 
             for r in self.recorders:
                 if r.is_runned:
                     r.radio.set_enabled(0)
-                    r.decoder.finalize(self.executor)
+                    r.decoder.finalize(self.executor, fin_key)
 
     def correct_doppler(self, observer):
         if self.is_runned and self.doppler:

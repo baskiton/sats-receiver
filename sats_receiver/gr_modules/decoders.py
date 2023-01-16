@@ -40,7 +40,7 @@ class Decoder(gr.gr.hier_block2):
                                                   *self.name().lower().split()]) + '.tmp')
         self.base_kw.update(tmp_file=self.tmp_file)
 
-    def finalize(self, executor):
+    def finalize(self, executor, fin_key):
         pass
 
     @property
@@ -74,13 +74,13 @@ class RawDecoder(Decoder):
 
         self.wav_sink.open(str(self.tmp_file))
 
-    def finalize(self, executor):
+    def finalize(self, executor, fin_key):
         self.wav_sink.close()
         if self.tmp_file.exists():
-            executor.execute(self._raw_finalize, **self.base_kw)
+            executor.execute(self._raw_finalize, **self.base_kw, fin_key=fin_key)
 
     @staticmethod
-    def _raw_finalize(log, sat_name, out_dir, tmp_file) -> Optional[tuple[str, str, dt.datetime]]:
+    def _raw_finalize(log, sat_name, out_dir, tmp_file, fin_key) -> Optional[tuple[str, str, str, dt.datetime]]:
         log.debug('finalizing...')
 
         d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
@@ -88,7 +88,7 @@ class RawDecoder(Decoder):
         st = res_fn.stat()
         log.info('finish: %s (%s)', res_fn, utils.numdisp(st.st_size))
 
-        return sat_name, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        return sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 
 
 class AptDecoder(Decoder):
@@ -196,7 +196,7 @@ class AptDecoder(Decoder):
         self.out_peaks_sink.open(str(self.peaks_file))
         self.out_peaks_sink.set_unbuffered(False)
 
-    def finalize(self, executor):
+    def finalize(self, executor, fin_key):
         self.out_file_sink.close()
         self.out_corr_sink.close()
         self.out_peaks_sink.close()
@@ -209,11 +209,11 @@ class AptDecoder(Decoder):
                 self.peaks_file.unlink(True)
                 return
 
-        executor.execute(self._apt_finalize, **self.base_kw)
+        executor.execute(self._apt_finalize, **self.base_kw, fin_key=fin_key)
 
     @staticmethod
     def _apt_finalize(log, sat_name, sat_tle, observer_lonlat,
-                      tmp_file, corr_file, peaks_file, out_dir) -> Optional[tuple[str, str, dt.datetime]]:
+                      tmp_file, corr_file, peaks_file, out_dir, fin_key) -> Optional[tuple[str, str, str, dt.datetime]]:
         log.debug('finalizing...')
 
         a = apt.Apt(sat_name, tmp_file, corr_file, peaks_file, sat_tle, observer_lonlat)
@@ -229,7 +229,7 @@ class AptDecoder(Decoder):
             res_fn, sz = a.to_apt(out_dir)
             log.info('finish: %s (%s)', res_fn, utils.numdisp(sz))
 
-            return sat_name, res_fn, a.end_time
+            return sat_name, fin_key, res_fn, a.end_time
 
 
 class RawStreamDecoder(Decoder):
@@ -260,13 +260,13 @@ class RawStreamDecoder(Decoder):
         self.out_file_sink.open(str(self.tmp_file))
         self.out_file_sink.set_unbuffered(False)
 
-    def finalize(self, executor):
+    def finalize(self, executor, fin_key):
         self.out_file_sink.close()
         if self.tmp_file.exists():
-            executor.execute(self._raw_stream_finalize, **self.base_kw)
+            executor.execute(self._raw_stream_finalize, **self.base_kw, fin_key=fin_key)
 
     @staticmethod
-    def _raw_stream_finalize(log, sat_name, out_dir, tmp_file) -> Optional[tuple[str, str, dt.datetime]]:
+    def _raw_stream_finalize(log, sat_name, out_dir, tmp_file, fin_key) -> Optional[tuple[str, str, str, dt.datetime]]:
         log.debug('finalizing...')
 
         d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
@@ -274,7 +274,7 @@ class RawStreamDecoder(Decoder):
         st = res_fn.stat()
         log.info('finish: %s (%s)', res_fn, utils.numdisp(st.st_size))
 
-        return sat_name, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        return sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 
 
 class LrptDecoder(RawStreamDecoder):
@@ -285,5 +285,5 @@ class LrptDecoder(RawStreamDecoder):
     def start(self):
         super(LrptDecoder, self).start()
 
-    def finalize(self, executor):
-        super(LrptDecoder, self).finalize(executor)
+    def finalize(self, executor, fin_key):
+        super(LrptDecoder, self).finalize(executor, fin_key)
