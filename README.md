@@ -1,6 +1,7 @@
 # Sats Receiver
 Satellites data receiver based on GNURadio
 
+<!-- TOC -->
 * [Requirements](#Requirements)
 * [Installation](#Installation)
 * [Usage](#Usage)
@@ -15,6 +16,7 @@ Satellites data receiver based on GNURadio
 * [Map Shapes](#Map-Shapes)
   * [shapes](#shapes)
   * [points](#points)
+<!-- TOC -->
 
 ### Requirements
 The program has only been tested on Linux. Work on Windows is not guaranteed!
