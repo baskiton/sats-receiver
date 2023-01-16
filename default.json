@@ -12,6 +12,7 @@
     "receivers": [
         {
             "name": "137:1 MHz",
+            "enabled": true,
             "source": "rtlsdr",
             "serial": "00000001",
             "biast": false,
@@ -22,39 +23,88 @@
             "sats": [
                 {
                     "name": "NOAA-15",
+                    "enabled": true,
                     "min_elevation": 15.0,
-                    "frequency": 137621000,
-                    "bandwidth": 45760,
-                    "mode": "QUAD",
-                    "decode": "APT"
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 137620000,
+                            "freq_correction": 1000,
+                            "bandwidth": 45760,
+                            "mode": "QUAD",
+                            "decode": "APT"
+                        },
+                        {
+                            "enabled": true,
+                            "freq": 137350000,
+                            "freq_correction": -150,
+                            "bandwidth": 40000,
+                            "mode": "RAW"
+                        }
+                    ]
                 },
                 {
                     "name": "NOAA-18",
+                    "enabled": true,
                     "min_elevation": 15.0,
-                    "frequency": 137913000,
-                    "bandwidth": 45760,
-                    "mode": "QUAD",
-                    "decode": "APT"
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 137912500,
+                            "freq_correction": 500,
+                            "bandwidth": 45760,
+                            "mode": "QUAD",
+                            "decode": "APT"
+                        },
+                        {
+                            "enabled": true,
+                            "freq": 137350000,
+                            "freq_correction": 50,
+                            "bandwidth": 40000,
+                            "mode": "RAW"
+                        }
+                    ]
                 },
                 {
                     "name": "NOAA-19",
+                    "enabled": true,
                     "min_elevation": 15.0,
-                    "frequency": 137100500,
-                    "bandwidth": 45760,
-                    "mode": "QUAD",
-                    "decode": "APT"
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 137100000,
+                            "freq_correction": 500,
+                            "bandwidth": 45760,
+                            "mode": "QUAD",
+                            "decode": "APT"
+                        },
+                        {
+                            "enabled": true,
+                            "freq": 137770000,
+                            "freq_correction": 300,
+                            "bandwidth": 40000,
+                            "mode": "RAW"
+                        }
+                    ]
                 },
                 {
                     "name": "METEOR-M2",
+                    "enabled": true,
                     "min_elevation": 15.0,
-                    "frequency": 137100000,
-                    "bandwidth": 120000,
-                    "mode": "QPSK",
-                    "decode": "RSTREAM",
-                    "qpsk_baudrate": 72000,
-                    "qpsk_excess_bw": 0.35,
-                    "qpsk_ntaps": 33,
-                    "qpsk_costas_bw": 0.005
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 137100000,
+                            "freq_correction": 0,
+                            "bandwidth": 120000,
+                            "mode": "QPSK",
+                            "decode": "RSTREAM",
+                            "qpsk_baudrate": 72000,
+                            "qpsk_excess_bw": 0.35,
+                            "qpsk_ntaps": 33,
+                            "qpsk_costas_bw": 0.005
+                        }
+                    ]
                 }
             ]
         }

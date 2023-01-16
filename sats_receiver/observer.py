@@ -10,6 +10,9 @@ import ephem
 
 class Observer:
     def __init__(self, config):
+        self.prefix = self.__class__.__name__
+        self.log = logging.getLogger(self.prefix)
+
         self.config = {}
         self.last_weather_time = dt.datetime.fromtimestamp(0, dt.timezone.utc)
         self.update_period = 1  # hours
@@ -17,7 +20,7 @@ class Observer:
         self._observer = ephem.Observer()
 
         if not self.update_config(config):
-            raise ValueError('Observer: Invalid config!')
+            raise ValueError(f'{self.prefix}: Invalid config!')
 
     @property
     def with_weather(self):
@@ -27,19 +30,35 @@ class Observer:
     def fetch_elev(self):
         return self.config['elevation'] is None
 
+    @property
+    def lon(self):
+        return self.config['longitude']
+
+    @property
+    def lat(self):
+        return self.config['latitude']
+
+    @property
+    def elev(self):
+        return self.config['elevation'] or 0
+
+    @property
+    def lonlat(self):
+        return self.lon, self.lat
+
     def update_config(self, config):
         if self.config != config:
             if not self._validate_config(config):
-                logging.warning('Observer: invalid new config!')
+                self.log.warning('invalid new config!')
                 return
 
-            logging.debug('Observer: reconf')
+            self.log.debug('reconf')
             self.config = config
 
             self._observer = ephem.Observer()
-            self._observer.lat = str(config['latitude'])
-            self._observer.lon = str(config['longitude'])
-            self._observer.elev = config['elevation'] or 0
+            self._observer.lat = str(self.lat)
+            self._observer.lon = str(self.lon)
+            self._observer.elev = self.elev
             self._observer.compute_pressure()
 
             return 1
@@ -70,7 +89,7 @@ class Observer:
             msg = f'Weather not fetched!\n{e}'
             if e.code == 400:
                 msg = f'{msg}:\n"{e.url}"'
-            logging.error('Observer: %s', msg)
+            self.log.error('%s', msg)
             return
 
         self.last_weather_time = dt.datetime.fromisoformat(j['current_weather']['time']).replace(tzinfo=dt.timezone.utc)
@@ -91,7 +110,7 @@ class Observer:
         else:
             self._observer.pressure = press
 
-        logging.info('Observer: weather updated')
+        self.log.info('weather updated: %s°C %shPa', self._observer.temp, self._observer.pressure)
 
         return 1
 
@@ -99,6 +118,7 @@ class Observer:
         self.set_date(t)
         if self.with_weather and t >= self.t_next and self.fetch_weather():
             self.t_next = self.last_weather_time + dt.timedelta(hours=self.update_period, minutes=1)
+            return 1
 
     def next_pass(self, body: ephem.EarthSatellite, start_time=None):
         """

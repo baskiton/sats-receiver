@@ -1,0 +1,18 @@
+{
+    "shapes_dir": "~/sats_receiver/map_shapes",
+    "line_width": 1,
+    "shapes": [
+        [1, "ne_10m_admin_0_countries.zip", "yellow"],
+        [2, "ne_50m_lakes.zip", "#9eff9e"],
+        [3, "ne_10m_coastline.zip", [158, 255, 158]],
+        [4, "ne_10m_graticules_all.zip/ne_10m_graticules_10", "red"]
+    ],
+    "points": {
+        "observer": {
+            "order": 5,
+            "color": "yellow",
+            "type": "+",
+            "size": [3, 21]
+        }
+    }
+}

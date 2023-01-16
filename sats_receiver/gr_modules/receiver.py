@@ -1,5 +1,6 @@
 import datetime as dt
 import dateutil.tz
+import enum
 import logging
 import pathlib
 
@@ -8,7 +9,6 @@ import gnuradio.blocks
 import gnuradio.gr
 import gnuradio.soapy
 
-from sats_receiver import utils
 from sats_receiver.gr_modules import modules
 
 try:
@@ -18,32 +18,48 @@ except OSError as e:
     LIBRTLSDR = str(e)
 
 
+class RecUpdState(enum.IntEnum):
+    UPD_NEED = enum.auto()
+    FORCE_NEED = enum.auto()
+    NO_NEED = enum.auto()
+
+
 class SatsReceiver(gr.gr.top_block):
     def __init__(self, up, config):
+        n = config.get('name', '')
+        self.prefix = f'Receiver{n and f": {n}"}'
+        self.log = logging.getLogger(self.prefix)
+
         super(SatsReceiver, self).__init__('Sats Receiver', catch_exceptions=True)
 
         self.up = up
         self.config = {}
         self.satellites: dict[str, modules.Satellite] = {}
         self.is_runned = False
+        self.updated = RecUpdState.UPD_NEED
 
         self.signal_src = gr.blocks.null_source(gr.gr.sizeof_gr_complex)
         self.blocks_correctiq = gr.blocks.correctiq()
         self.src_null_sink = gr.blocks.null_sink(gr.gr.sizeof_gr_complex)
 
         if not self.update_config(config):
-            raise ValueError('Receiver: %s: Invalid config!', self.name)
+            raise ValueError(f'{self.prefix}: Invalid config!')
 
     def update_config(self, config, force=False):
-        if force or self.config != config:
+        if force or self.updated != RecUpdState.NO_NEED or self.config != config:
             if not self._validate_config(config):
-                logging.warning('Receiver: %s: invalid new config!', self.name)
+                self.log.warning('invalid new config!')
                 return
+
+            if self.is_runned and not config.get('enabled', True):
+                self.log.debug('stop by disabling')
+                self.stop()
+                self.wait()
 
             if (self.is_runned
                     and (self.source != config['source']
                          or self.serial != config.get('serial', ''))):
-                logging.warning('Receiver: %s: Could not change receiver on running state!', self.name)
+                self.log.warning('Could not change receiver on running state!')
                 return
 
             try:
@@ -56,7 +72,7 @@ class SatsReceiver(gr.gr.top_block):
             if old_src != self.source or old_serial != self.serial:
                 gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
                                 'fc32', 1, '', '', [''], [''])
-                logging.info('Receiver: %s: New source found', self.name)
+                self.log.info('New source found')
 
             if self.is_runned:
                 self.signal_src.set_sample_rate(0, self.samp_rate)
@@ -64,6 +80,8 @@ class SatsReceiver(gr.gr.top_block):
                 self.signal_src.set_frequency_correction(0, 0)
                 self.signal_src.set_gain_mode(0, False)
                 self.signal_src.set_gain(0, 'TUNER', self.gain)
+            else:
+                self.set_biast(0)
 
             exist_sats = set(self.satellites.keys())
             new_cfg_sats = {i['name']: i for i in self.sats}
@@ -91,10 +109,20 @@ class SatsReceiver(gr.gr.top_block):
                 del self.satellites[sat_name]
 
             for sat_name in to_create_sats:
+                cfg = new_cfg_sats[sat_name]
+                if not cfg.get('enabled', True):
+                    self.log.debug('Skip disabled sat `%s`', sat_name)
+                    continue
+
+                sat_ephem_tle = self.up.tle.get(sat_name)
+                if sat_ephem_tle is None:
+                    self.log.info('Sat `%s` not found in TLE. Skip', sat_name)
+                    continue
+
                 try:
-                    sat = modules.Satellite(new_cfg_sats[sat_name], self.tune, self.samp_rate, self.output_directory, self.up.executor)
+                    sat = modules.Satellite(cfg, sat_ephem_tle, self.up.observer.lonlat, self.tune, self.samp_rate, self.output_directory, self.up.executor)
                 except ValueError as e:
-                    logging.warning('Receiver: %s: %s: %s. Skip', self.name, sat_name, e)
+                    self.log.warning('%s: %s. Skip', sat_name, e)
                     continue
 
                 if self.calculate_pass(sat):
@@ -105,11 +133,14 @@ class SatsReceiver(gr.gr.top_block):
             if to_remove_sats or to_create_sats:
                 self.unlock()
 
+            self.updated = RecUpdState.NO_NEED
+
             return 1
 
     def _validate_config(self, config):
         return all(map(lambda x: x in config, [
             'name',
+            # 'enabled',  # optional
             'source',
             # 'serial',   # optional
             # 'biast',    # optional
@@ -123,6 +154,10 @@ class SatsReceiver(gr.gr.top_block):
     @property
     def name(self):
         return self.config['name']
+
+    @property
+    def enabled(self):
+        return self.config.get('enabled', True)
 
     @property
     def source(self):
@@ -161,35 +196,27 @@ class SatsReceiver(gr.gr.top_block):
         return any(x.is_runned for x in self.satellites.values())
 
     def start(self, max_noutput_items=10000000):
-        if not self.is_runned:
-            logging.info('Receiver: %s: START tune=%s samp_rate=%s gain=%s biast=%s',
-                         self.name, self.tune, self.samp_rate, self.gain, self.biast)
+        if self.enabled and not self.is_runned:
+            self.log.info('START tune=%s samp_rate=%s gain=%s biast=%s',
+                          self.tune, self.samp_rate, self.gain, self.biast)
 
-            if not LIBRTLSDR and self.source == 'rtlsdr':
-                try:
-                    librtlsdr.set_bt(self.biast, self.serial)
-                except librtlsdr.LibRtlSdrError as e:
-                    if self.biast:
-                        logging.info('Receiver: %s: turn on bias-t error: %s', self.name, e)
+            self.set_biast(self.biast)
 
             try:
                 self.signal_src = gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
                                                   'fc32', 1, '', '', [''], [''])
             except RuntimeError as e:
-                logging.error('Receiver: %s: cannot start: %s', self.name, e)
+                self.log.error('cannot start: %s', e)
 
                 self.stop()
                 self.wait()
-
-                if not LIBRTLSDR and self.source == 'rtlsdr':
-                    try:
-                        librtlsdr.set_bt(0, self.serial)
-                    except librtlsdr.LibRtlSdrError:
-                        pass
+                self.set_biast(0, True)
 
                 t = self.up.now + dt.timedelta(minutes=5)
                 for sat in self.satellites.values():
-                    self.up.scheduler.plan(t, self.calculate_pass, sat)
+                    self.up.scheduler.cancel(*sat.events)
+                    if sat.enabled:
+                        self.up.scheduler.plan(t, self.calculate_pass, sat)
 
                 return 1
 
@@ -213,10 +240,9 @@ class SatsReceiver(gr.gr.top_block):
 
     def stop(self, sched_clear=True):
         if self.is_runned:
-            logging.info('Receiver: %s: STOP', self.name)
+            self.log.info('STOP')
 
             super(SatsReceiver, self).stop()
-            self.is_runned = False
 
             self.disconnect(
                 self.signal_src,
@@ -225,60 +251,71 @@ class SatsReceiver(gr.gr.top_block):
             )
             self.signal_src = gr.blocks.null_source(gr.gr.sizeof_gr_complex)
 
-            for sat in self.satellites.values():
-                if sched_clear:
-                    self.up.scheduler.cancel(*sat.events)
-                sat.stop()
+        for sat in self.satellites.values():
+            if sched_clear:
+                self.up.scheduler.cancel(*sat.events)
+            sat.stop()
+            if self.is_runned:
                 self.disconnect(self.blocks_correctiq, sat)
+
+        self.is_runned = False
 
     def action(self):
         if self.is_active and not self.start():
             for sat in self.satellites.values():
-                if sat.is_runned and sat.doppler:
-                    x = self.up.tle.get(sat.name)
-                    x.compute(self.up.observer.get_obj())
-                    sat.set_freq_offset(utils.doppler_shift(sat.frequency, x.range_velocity))
-        else:
-            x = self.is_runned
-
+                sat.correct_doppler(self.up.observer.get_obj())
+        elif self.is_runned:
             self.stop(False)
             self.wait()
-
-            if x and not LIBRTLSDR and self.source == 'rtlsdr':
-                try:
-                    librtlsdr.set_bt(0, self.serial)
-                except librtlsdr.LibRtlSdrError as e:
-                    logging.debug('Receiver: %s: turn off bias-t error: %s', self.name, e)
+            self.set_biast(0)
 
     def calculate_pass(self, sat: modules.Satellite):
-        sat.events = [None, None, None]
-
-        x = self.up.tle.get(sat.name)
+        x = self.up.tle.get_ephem(sat.name)
         if x:
             t = self.up.now
             tt = t + dt.timedelta(hours=24)
             ltz = dateutil.tz.tzlocal()
 
             while t <= tt:
-                rise_t, rise_az, culm_t, culm_alt, set_t, set_az = self.up.observer.next_pass(x, t)
+                try:
+                    rise_t, rise_az, culm_t, culm_alt, set_t, set_az = self.up.observer.next_pass(x, t)
+                except ValueError as e:
+                    # skip circumpolar/non-setting satellite
+                    self.log.error('Sat `%s` skip: %s', e)
+                    return
+
                 set_tt = set_t + dt.timedelta(seconds=5)
                 if culm_alt >= sat.min_elevation:
                     if set_t < rise_t:
                         rise_t = t
                     sat.events = [
-                        self.up.scheduler.plan(rise_t, sat.start),
+                        None if sat.is_runned else self.up.scheduler.plan(rise_t, sat.start),
                         self.up.scheduler.plan(set_t, sat.stop),
                         self.up.scheduler.plan(set_tt, self.calculate_pass, sat)
                     ]
-                    logging.info('Receiver: %s: Sat `%s` planned on %s <-> %s', self.name, sat.name, rise_t.astimezone(ltz), set_t.astimezone(ltz))
+                    self.log.info('Sat `%s` planned on %s <-> %s', sat.name, rise_t.astimezone(ltz), set_t.astimezone(ltz))
                     break
 
                 t = set_tt
 
             if t > tt:
-                logging.info('Receiver: %s: Sat `%s`: No passes found for the next 24 hours', self.name, sat.name)
+                self.log.info('Sat `%s`: No passes found for the next 24 hours', sat.name)
                 self.up.scheduler.plan(tt, self.calculate_pass, sat)
 
             return 1
 
-        logging.info('Receiver: %s: Sat `%s` not found in TLE. Skip', self.name, sat.name)
+        self.log.info('Sat `%s` not found in TLE. Skip', sat.name)
+
+    def recalculate_pass(self):
+        for sat in self.satellites.values():
+            self.up.scheduler.cancel(*sat.events)
+            sat.events = [None, None, None]
+            self.calculate_pass(sat)
+
+    def set_biast(self, v, silent=False):
+        if not LIBRTLSDR and self.source == 'rtlsdr':
+            try:
+                librtlsdr.set_bt(v, self.serial)
+            except librtlsdr.LibRtlSdrError as e:
+                if not silent:
+                    self.log.info('change bias-t error: %s', e)

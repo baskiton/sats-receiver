@@ -8,6 +8,28 @@ class LibRtlSdrError(RuntimeError):
     pass
 
 
+class LibUsbError(RuntimeError):
+    CODES = {
+        0: 'Success (no error)',
+        -1: 'Input/output error',
+        -2: 'Invalid parameter',
+        -3: 'Access denied (insufficient permissions)',
+        -4: 'No such device (it may have been disconnected)',
+        -5: 'Entity not found',
+        -6: 'Resource busy',
+        -7: 'Operation timed out',
+        -8: 'Overflow',
+        -9: 'Pipe error',
+        -10: 'System call interrupted (perhaps due to signal)',
+        -11: 'Insufficient memory',
+        -12: 'Operation not supported or unimplemented on this platform',
+        -99: 'Other error',
+    }
+
+    def __init__(self, err_code):
+        super(LibUsbError, self).__init__(f'[{err_code}] {self.CODES.get(err_code, -99)}')
+
+
 _f = _lib.rtlsdr_open
 _f.argtypes = POINTER(rtlsdr_dev_p), c_uint32
 _f.restype = c_int
@@ -55,7 +77,7 @@ def rtlsdr_get_device_usb_strings(index: int) -> tuple[str, str, str]:
 
     r = _lib.rtlsdr_get_device_usb_strings(index, manufact, product, serial)
     if r:
-        raise LibRtlSdrError(f'LibUSB error #{r}')
+        raise LibUsbError(r)
 
     return manufact.value.decode('utf8'), product.value.decode('utf8'), serial.value.decode('utf8')
 
@@ -65,16 +87,19 @@ _f.argtypes = POINTER(c_char),
 _f.restype = c_int
 def rtlsdr_get_index_by_serial(serial: str) -> int:
     r = _lib.rtlsdr_get_index_by_serial(serial.encode('utf8'))
-    if r < 0:
-        m = ''
-        if r == -1:
-            m = 'Null serial'
-        elif r == -1:
-            m = 'No devices'
-        elif r == -3:
-            m = 'Device not found'
-        raise LibRtlSdrError(m)
-    return r
+    if r >= 0:
+        return r
+
+    if r == -1:
+        m = 'Null serial'
+    elif r == -2:
+        m = 'No devices'
+    elif r == -3:
+        m = 'Device not found'
+    else:   # unreachable
+        m = f'Unknown {r}'
+
+    raise LibRtlSdrError(m)
 
 
 def get_serials() -> str:
