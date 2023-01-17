@@ -90,6 +90,7 @@ def rtlsdr_get_index_by_serial(serial: str) -> int:
     if r >= 0:
         return r
 
+    # values below gettings from library source code
     if r == -1:
         m = 'Null serial'
     elif r == -2:
@@ -108,6 +109,13 @@ def get_serials() -> str:
 
 
 def set_bt(bt: int, serial: str = None, pin=0):
+    """
+    Set Bias-T state
+
+    :param bt: Bias-t value (1 - enable, 0 - disable)
+    :param serial: Serial Number of the device that needs to enable bias-t
+    :param pin: GPIO pin to change bias-t state. 0 by default
+    """
     i = serial and rtlsdr_get_index_by_serial(serial) or 0
     dev = rtlsdr_open(i)
     rtlsdr_set_bias_tee_gpio(dev, pin, bt)

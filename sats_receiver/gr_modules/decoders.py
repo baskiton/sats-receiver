@@ -1,10 +1,12 @@
 import datetime as dt
 import logging
 import math
+import pathlib
 
-from typing import Optional
+from typing import Optional, Union
 
 import dateutil.tz
+import ephem
 import gnuradio as gr
 import gnuradio.analog
 import gnuradio.blocks
@@ -18,7 +20,11 @@ from sats_receiver.systems import apt
 
 
 class Decoder(gr.gr.hier_block2):
-    def __init__(self, name, sat_name, samp_rate, out_dir):
+    def __init__(self,
+                 name: str,
+                 sat_name: str,
+                 samp_rate: Union[int, float],
+                 out_dir: pathlib.Path):
         self.prefix = f'{self.__class__.__name__}: {sat_name}'
         self.log = logging.getLogger(self.prefix)
 
@@ -40,18 +46,21 @@ class Decoder(gr.gr.hier_block2):
                                                   *self.name().lower().split()]) + '.tmp')
         self.base_kw.update(tmp_file=self.tmp_file)
 
-    def finalize(self, executor, fin_key):
+    def finalize(self, executor, fin_key: str):
         pass
 
     @property
-    def t(self):
+    def t(self) -> dt.datetime:
         t = dt.datetime.now()
         self.now = t
         return t
 
 
 class RawDecoder(Decoder):
-    def __init__(self, sat_name, samp_rate, out_dir):
+    def __init__(self,
+                 sat_name: str,
+                 samp_rate: Union[int, float],
+                 out_dir: pathlib.Path):
         super(RawDecoder, self).__init__('Raw Decoder', sat_name, samp_rate, out_dir)
 
         self.ctf = gr.blocks.complex_to_float(1)
@@ -74,7 +83,7 @@ class RawDecoder(Decoder):
 
         self.wav_sink.open(str(self.tmp_file))
 
-    def finalize(self, executor, fin_key):
+    def finalize(self, executor, fin_key: str):
         self.wav_sink.close()
         if self.tmp_file.exists():
             executor.execute(self._raw_finalize, **self.base_kw, fin_key=fin_key)
@@ -92,7 +101,12 @@ class RawDecoder(Decoder):
 
 
 class AptDecoder(Decoder):
-    def __init__(self, sat_name, samp_rate, out_dir, sat_ephem_tle, observer_lonlat):
+    def __init__(self,
+                 sat_name: str,
+                 samp_rate: Union[int, float],
+                 out_dir: pathlib.Path,
+                 sat_ephem_tle: Optional[tuple[ephem.EarthSatellite, tuple[str, str, str]]],
+                 observer_lonlat: tuple[float, float]):
         name = 'APT Decoder'
         super(AptDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
 
@@ -196,7 +210,7 @@ class AptDecoder(Decoder):
         self.out_peaks_sink.open(str(self.peaks_file))
         self.out_peaks_sink.set_unbuffered(False)
 
-    def finalize(self, executor, fin_key):
+    def finalize(self, executor, fin_key: str):
         self.out_file_sink.close()
         self.out_corr_sink.close()
         self.out_peaks_sink.close()
@@ -212,8 +226,15 @@ class AptDecoder(Decoder):
         executor.execute(self._apt_finalize, **self.base_kw, fin_key=fin_key)
 
     @staticmethod
-    def _apt_finalize(log, sat_name, sat_tle, observer_lonlat,
-                      tmp_file, corr_file, peaks_file, out_dir, fin_key) -> Optional[tuple[str, str, str, dt.datetime]]:
+    def _apt_finalize(log: logging.Logger,
+                      sat_name: str,
+                      sat_tle: tuple[str, str, str],
+                      observer_lonlat: tuple[float, float],
+                      tmp_file: pathlib.Path,
+                      corr_file: pathlib.Path,
+                      peaks_file: pathlib.Path,
+                      out_dir: pathlib.Path,
+                      fin_key: str) -> Optional[tuple[str, str, pathlib.Path, dt.datetime]]:
         log.debug('finalizing...')
 
         a = apt.Apt(sat_name, tmp_file, corr_file, peaks_file, sat_tle, observer_lonlat)
@@ -233,7 +254,11 @@ class AptDecoder(Decoder):
 
 
 class RawStreamDecoder(Decoder):
-    def __init__(self, sat_name, samp_rate, out_dir, name='RAW Stream Decoder'):
+    def __init__(self,
+                 sat_name: str,
+                 samp_rate: Union[int, float],
+                 out_dir: pathlib.Path,
+                 name='RAW Stream Decoder'):
         super(RawStreamDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
 
         self.ctf = gr.blocks.complex_to_float(1)
@@ -260,13 +285,17 @@ class RawStreamDecoder(Decoder):
         self.out_file_sink.open(str(self.tmp_file))
         self.out_file_sink.set_unbuffered(False)
 
-    def finalize(self, executor, fin_key):
+    def finalize(self, executor, fin_key: str):
         self.out_file_sink.close()
         if self.tmp_file.exists():
             executor.execute(self._raw_stream_finalize, **self.base_kw, fin_key=fin_key)
 
     @staticmethod
-    def _raw_stream_finalize(log, sat_name, out_dir, tmp_file, fin_key) -> Optional[tuple[str, str, str, dt.datetime]]:
+    def _raw_stream_finalize(log: logging.Logger,
+                             sat_name: str,
+                             out_dir: pathlib.Path,
+                             tmp_file: pathlib.Path,
+                             fin_key: str) -> Optional[tuple[str, str, pathlib.Path, dt.datetime]]:
         log.debug('finalizing...')
 
         d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
@@ -278,12 +307,15 @@ class RawStreamDecoder(Decoder):
 
 
 class LrptDecoder(RawStreamDecoder):
-    def __init__(self, sat_name, samp_rate, out_dir):
+    def __init__(self,
+                 sat_name: str,
+                 samp_rate: Union[int, float],
+                 out_dir: pathlib.Path):
         raise NotImplementedError()
         super(LrptDecoder, self).__init__(sat_name, samp_rate, out_dir, name='LRPT Decoder')
 
     def start(self):
         super(LrptDecoder, self).start()
 
-    def finalize(self, executor, fin_key):
+    def finalize(self, executor, fin_key: str):
         super(LrptDecoder, self).finalize(executor, fin_key)

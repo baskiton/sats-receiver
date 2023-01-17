@@ -4,6 +4,8 @@ import enum
 import logging
 import pathlib
 
+from typing import Mapping, Union
+
 import gnuradio as gr
 import gnuradio.blocks
 import gnuradio.gr
@@ -25,7 +27,7 @@ class RecUpdState(enum.IntEnum):
 
 
 class SatsReceiver(gr.gr.top_block):
-    def __init__(self, up, config):
+    def __init__(self, up, config: Mapping):
         n = config.get('name', '')
         self.prefix = f'Receiver{n and f": {n}"}'
         self.log = logging.getLogger(self.prefix)
@@ -45,7 +47,13 @@ class SatsReceiver(gr.gr.top_block):
         if not self.update_config(config):
             raise ValueError(f'{self.prefix}: Invalid config!')
 
-    def update_config(self, config, force=False):
+    def update_config(self, config: Mapping, force=False):
+        """
+        :param config: new config
+        :param force: True if you need to force update
+        :return: True if config update success
+        """
+
         if force or self.updated != RecUpdState.NO_NEED or self.config != config:
             if not self._validate_config(config):
                 self.log.warning('invalid new config!')
@@ -137,7 +145,8 @@ class SatsReceiver(gr.gr.top_block):
 
             return 1
 
-    def _validate_config(self, config):
+    @staticmethod
+    def _validate_config(config: Mapping) -> bool:
         return all(map(lambda x: x in config, [
             'name',
             # 'enabled',  # optional
@@ -152,47 +161,63 @@ class SatsReceiver(gr.gr.top_block):
         ]))
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.config['name']
 
     @property
-    def enabled(self):
+    def enabled(self) -> bool:
         return self.config.get('enabled', True)
 
     @property
-    def source(self):
+    def source(self) -> str:
         return self.config['source']
 
     @property
-    def serial(self):
+    def serial(self) -> str:
         return self.config.get('serial', '')
 
     @property
-    def biast(self):
+    def biast(self) -> bool:
         return self.config.get('biast', False)
 
     @property
-    def gain(self):
+    def gain(self) -> Union[int, float]:
+        """
+        Receiver gain, db
+        """
+
         return self.config.get('gain', 0)
 
     @property
-    def tune(self):
+    def tune(self) -> Union[int, float]:
+        """
+        Receiver tune frequency, Hz
+        """
+
         return self.config['tune']
 
     @property
-    def samp_rate(self):
+    def samp_rate(self) -> Union[int, float]:
+        """
+        Receiver samplerate, Hz
+        """
+
         return self.config['samp_rate']
 
     @property
-    def output_directory(self):
+    def output_directory(self) -> pathlib.Path:
         return pathlib.Path(self.config['output_directory']).expanduser()
 
     @property
-    def sats(self):
+    def sats(self) -> list[Mapping]:
         return self.config['sats']
 
     @property
-    def is_active(self):
+    def is_active(self) -> bool:
+        """
+        True when at least one satellite recorder is running
+        """
+
         return any(x.is_runned for x in self.satellites.values())
 
     def start(self, max_noutput_items=10000000):
@@ -239,6 +264,11 @@ class SatsReceiver(gr.gr.top_block):
             self.is_runned = True
 
     def stop(self, sched_clear=True):
+        """
+        Stop the flowgraph
+
+        :param sched_clear: clear scheduled tasks
+        """
         if self.is_runned:
             self.log.info('STOP')
 
@@ -270,6 +300,12 @@ class SatsReceiver(gr.gr.top_block):
             self.set_biast(0)
 
     def calculate_pass(self, sat: modules.Satellite):
+        """
+        Calculate satellite pass
+
+        :return: True when calculate success
+        """
+
         x = self.up.tle.get_ephem(sat.name)
         if x:
             t = self.up.now

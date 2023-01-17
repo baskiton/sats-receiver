@@ -1,10 +1,12 @@
 import datetime as dt
 import logging
 import math
+import pathlib
 
 from hashlib import sha256
-from typing import Union, Optional
+from typing import Mapping, Optional, Union
 
+import ephem
 import gnuradio as gr
 import gnuradio.analog
 import gnuradio.blocks
@@ -16,7 +18,11 @@ from sats_receiver.gr_modules import decoders, demodulators
 
 
 class RadioModule(gr.gr.hier_block2):
-    def __init__(self, main_tune, samp_rate, bandwidth, frequency):
+    def __init__(self,
+                 main_tune: Union[int, float],
+                 samp_rate: Union[int, float],
+                 bandwidth: Union[int, float],
+                 frequency: Union[int, float]):
         super(RadioModule, self).__init__(
             'Radio Module',
             gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
@@ -53,13 +59,13 @@ class RadioModule(gr.gr.hier_block2):
         self.enabled = enabled
         self.blocks_copy.set_enabled(enabled)
 
-    def set_freq_offset(self, new_freq):
+    def set_freq_offset(self, new_freq: Union[int, float]):
         self.freqshifter.set_phase_inc(2 * math.pi * (self.main_tune - new_freq) / self.samp_rate)
 
 
 class SatRecorder(gr.gr.hier_block2):
     @staticmethod
-    def _validate_config(config) -> bool:
+    def _validate_config(config: Mapping) -> bool:
         return (
             all(map(lambda x: x in config,
                     [
@@ -78,7 +84,11 @@ class SatRecorder(gr.gr.hier_block2):
             and (config['mode'] != utils.Mode.QPSK or 'qpsk_baudrate' in config)
         )
 
-    def __init__(self, up, config, main_tune, samp_rate):
+    def __init__(self,
+                 up: 'Satellite',
+                 config: Mapping,
+                 main_tune: Union[int, float],
+                 samp_rate: Union[int, float]):
         f = config.get('freq')
         self.prefix = f'{self.__class__.__name__}: {up.name}: {f and f": {utils.numdisp(f)}Hz"}'
 
@@ -99,7 +109,7 @@ class SatRecorder(gr.gr.hier_block2):
         try:
             self.mode == self.decode
         except ValueError as e:
-            if 'Decode' in e:
+            if 'Decode' in str(e):
                 x = 'decoder', self.decode
             else:
                 x = 'demodulation', self.mode
@@ -166,7 +176,7 @@ class SatRecorder(gr.gr.hier_block2):
             self.decoder,
         )
 
-    def set_freq_offset(self, new_freq):
+    def set_freq_offset(self, new_freq: Union[int, float]):
         self.radio.set_freq_offset(new_freq)
 
     @property
@@ -195,11 +205,11 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def mode(self) -> utils.Mode:
-        return utils.Mode(self.config.get('mode')) or utils.Mode.RAW
+        return utils.Mode(self.config.get('mode', utils.Mode.RAW.value))
 
     @property
     def decode(self) -> utils.Decode:
-        return utils.Decode(self.config.get('decode')) or utils.Decode.RAW
+        return utils.Decode(self.config.get('decode', utils.Decode.RAW.value)) or utils.Decode.RAW
 
     @property
     def qpsk_baudrate(self) -> Union[int, float]:
@@ -220,7 +230,7 @@ class SatRecorder(gr.gr.hier_block2):
 
 class Satellite(gr.gr.hier_block2):
     @staticmethod
-    def _validate_config(config) -> bool:
+    def _validate_config(config: Mapping) -> bool:
         return (
             all(map(lambda x: x in config,
                     [
@@ -233,7 +243,14 @@ class Satellite(gr.gr.hier_block2):
             and config['frequencies']
         )
 
-    def __init__(self, config, sat_ephem_tle, observer_lonlat, main_tune, samp_rate, output_directory, executor):
+    def __init__(self,
+                 config: Mapping,
+                 sat_ephem_tle: Optional[tuple[ephem.EarthSatellite, tuple[str, str, str]]],
+                 observer_lonlat: tuple[Union[int, float], Union[int, float]],
+                 main_tune: Union[int, float],
+                 samp_rate: Union[int, float],
+                 output_directory: pathlib.Path,
+                 executor):
         n = config.get('name', '')
         self.prefix = f'{self.__class__.__name__}{n and f": {n}"}'
         self.log = logging.getLogger(self.prefix)
@@ -293,7 +310,7 @@ class Satellite(gr.gr.hier_block2):
                     r.radio.set_enabled(0)
                     r.decoder.finalize(self.executor, fin_key)
 
-    def correct_doppler(self, observer):
+    def correct_doppler(self, observer: ephem.Observer):
         if self.is_runned and self.doppler:
             self.sat_ephem_tle[0].compute(observer)
 
@@ -314,7 +331,7 @@ class Satellite(gr.gr.hier_block2):
         return self.config.get('min_elevation', 0.0)
 
     @property
-    def frequencies(self) -> dict:
+    def frequencies(self) -> Mapping:
         return self.config['frequencies']
 
     @property
