@@ -1,10 +1,10 @@
 # Sats Receiver
-[![PyPI](https://img.shields.io/pypi/v/sats_receiver?logo=python&logoColor=white)][pypi_proj]
-[![PyPI - Downloads](https://img.shields.io/pypi/dm/sats_receiver?logo=python&logoColor=white)][pypi_proj]
-[![PyPI - License](https://img.shields.io/pypi/l/sats_receiver?logo=open-source-initiative&logoColor=white)](https://github.com/baskiton/sats-receiver/blob/main/LICENSE)
-[![upload](https://img.shields.io/github/actions/workflow/status/baskiton/sats_receiver/pypi-upload.yml?label=upload&logo=github)](https://github.com/baskiton/sats-receiver/actions/workflows/pypi-upload.yml)
+[![PyPI](https://img.shields.io/pypi/v/sats-receiver?logo=python&logoColor=white)][pypi_proj]
+[![PyPI - Downloads](https://img.shields.io/pypi/dm/sats-receiver?logo=python&logoColor=white)][pypi_proj]
+[![PyPI - License](https://img.shields.io/pypi/l/sats-receiver?logo=open-source-initiative&logoColor=white)](https://github.com/baskiton/sats-receiver/blob/main/LICENSE)
+[![upload](https://img.shields.io/github/actions/workflow/status/baskiton/sats-receiver/pypi-upload.yml?label=upload&logo=github)](https://github.com/baskiton/sats-receiver/actions/workflows/pypi-upload.yml)
 
-[pypi_proj]: https://pypi.org/project/sats_receiver/
+[pypi_proj]: https://pypi.org/project/sats-receiver/
 
 Satellites data receiver based on GNURadio
 
@@ -54,7 +54,7 @@ The program has only been tested on Linux. Work on Windows is not guaranteed!
   `cd sats-receiver`  
   `pip install -r requirements.txt`  
 * from pip  
-  `pip install sats_receiver`  
+  `pip install sats-receiver`  
 
 ### Usage
 `python3 -m sats_receiver [-h, --help] [--log LOG] [--sysu SYSU] config`  
