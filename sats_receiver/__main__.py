@@ -22,9 +22,9 @@ def setup_logging(log_lvl):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('config', type=pathlib.Path)
-    ap.add_argument('--log', default='INFO', type=(lambda x: getattr(logging, x.upper(), None)))
-    ap.add_argument('--sysu', default=3600, type=int)
+    ap.add_argument('config', type=pathlib.Path, help='Config file path')
+    ap.add_argument('--log', default='INFO', type=(lambda x: getattr(logging, x.upper(), None)), help='Logging level, INFO default')
+    ap.add_argument('--sysu', default=3600, type=int, help='System Usages info timeout in seconds, 1 hour default')
     args = ap.parse_args()
 
     for d in LOGSDIR, TLEDIR, RECDIR:

@@ -5,6 +5,8 @@ import math
 import os
 import pathlib
 
+from typing import Union
+
 import dateutil.tz
 import ephem
 import numpy as np
@@ -52,7 +54,7 @@ class AptTelemetry:
         self.channel_a_name = self._channel_name(AptChannel.A)
         self.channel_b_name = self._channel_name(AptChannel.B)
 
-    def wedge_value(self, num: AptWedgeNum, chan: AptChannel = None):
+    def wedge_value(self, num: AptWedgeNum, chan: AptChannel = None) -> float:
         if chan is None:
             return (self.ch_a[num] + self.ch_b[num]) / 2
         if chan == AptChannel.A:
@@ -126,7 +128,7 @@ class Apt:
         """
         APT file format:
             * 3 lines of TLE data
-            * observer latlon, 2 x double, degrees
+            * observer lonlat, 2 x double, degrees
             * end time UTC timestamp, double
             * data
         """
@@ -147,7 +149,13 @@ class Apt:
 
         return x
 
-    def __init__(self, sat_name, data_file, corr_file, peaks_file, sat_tle: tuple[str, str, str], observer_lonlat):
+    def __init__(self,
+                 sat_name: str,
+                 data_file: pathlib.Path,
+                 corr_file: Union[pathlib.Path, None],
+                 peaks_file: Union[pathlib.Path, None],
+                 sat_tle: tuple[str, str, str],
+                 observer_lonlat: tuple[float, float]):
         self.prefix = f'{self.__class__.__name__}: {sat_name}'
         self.log = logging.getLogger(self.prefix)
 
@@ -173,13 +181,14 @@ class Apt:
         self.data = np.empty((0, self.FRAME_WIDTH))
         self.map_overlay = np.empty((0, self.IMAGE_WIDTH, 4))
 
-    def to_apt(self, out_dir: pathlib.Path):
+    def to_apt(self, out_dir: pathlib.Path) -> tuple[pathlib.Path, int]:
         """
         APT file format:
             * 3 lines of TLE data
-            * observer latlon, 2 x double, degrees
+            * observer lonlat, 2 x double, degrees
             * end time UTC timestamp, double
             * data
+        :return: result file path and size
         """
 
         res_fn = out_dir / self.end_time.strftime(f'{self.sat_name}_%Y-%m-%d_%H-%M-%S,%f.apt')
@@ -196,6 +205,10 @@ class Apt:
         return res_fn, sz
 
     def process(self):
+        """
+        Run apr data process
+        :return: True if process terminated with error
+        """
         self.log.debug('process...')
 
         if not self.synced:

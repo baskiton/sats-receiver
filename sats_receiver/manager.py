@@ -7,6 +7,8 @@ import pathlib
 import time
 import queue
 
+from typing import Mapping
+
 from sats_receiver.gr_modules.receiver import RecUpdState, SatsReceiver
 from sats_receiver.observer import Observer
 from sats_receiver.tle import Tle
@@ -91,7 +93,7 @@ class ReceiverManager:
         for cfg in self.config['receivers']:
             self._add_receiver(cfg)
 
-    def _add_receiver(self, cfg):
+    def _add_receiver(self, cfg: Mapping):
         if cfg.get('enabled', True):
             try:
                 rec = SatsReceiver(self, cfg)
@@ -102,7 +104,11 @@ class ReceiverManager:
             self.log.debug('Skip disabled receiver `%s`', cfg['name'])
 
     @property
-    def t(self):
+    def t(self) -> dt.datetime:
+        """
+        Set and return current time
+        """
+
         self.now = dt.datetime.now(dt.timezone.utc)
         return self.now
 
@@ -121,6 +127,12 @@ class ReceiverManager:
         self.executor.join()
 
     def update_config(self, init=False, force=False):
+        """
+        :param init: True when called from __init__
+        :param force: True if you need to force update
+        :return: True if config update success
+        """
+
         needs = any(i.updated != RecUpdState.NO_NEED
                     for i in self.receivers.values())
 
@@ -196,7 +208,8 @@ class ReceiverManager:
 
                 return 1
 
-    def _validate_config(self, config):
+    @staticmethod
+    def _validate_config(config: Mapping) -> bool:
         return all(map(lambda x: x in config, [
             'observer',
             'tle',

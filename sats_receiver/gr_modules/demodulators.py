@@ -1,6 +1,8 @@
 import logging
 import math
 
+from typing import Union
+
 import gnuradio as gr
 import gnuradio.analog
 import gnuradio.digital
@@ -9,7 +11,12 @@ import gnuradio.gr
 
 
 class QpskDemod(gr.gr.hier_block2):
-    def __init__(self, samp_rate, baudrate, excess_bw=None, ntaps=None, costas_bw=None):
+    def __init__(self,
+                 samp_rate: Union[int, float],
+                 baudrate: Union[int, float],
+                 excess_bw: Union[int, float] = None,
+                 ntaps: int = None,
+                 costas_bw: Union[int, float] = None):
         super(QpskDemod, self).__init__(
             'QPSK Demodulator',
             gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
@@ -26,7 +33,7 @@ class QpskDemod(gr.gr.hier_block2):
         self.samp_rate = samp_rate
         self.baudrate = baudrate
         self.excess_bw = excess_bw
-        self.ntaps = ntaps
+        self.ntaps = int(ntaps)
 
         self.rrc = gr.filter.fir_filter_ccf(
             1,

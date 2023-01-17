@@ -6,7 +6,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from typing import Optional
+from typing import Mapping, Optional, Union
 
 import ephem
 
@@ -14,7 +14,7 @@ from sats_receiver import TLEDIR
 
 
 class Tle:
-    def __init__(self, config):
+    def __init__(self, config: Mapping):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
@@ -63,7 +63,11 @@ class Tle:
 
         return 1
 
-    def update_config(self, config):
+    def update_config(self, config: Mapping):
+        """
+        :return: True if config update success
+        """
+
         if config != self.config:
             if not self._validate_config(config):
                 self.log.warning('invalid new config!')
@@ -88,32 +92,51 @@ class Tle:
 
             return 1
 
-    def _validate_config(self, config):
+    @staticmethod
+    def _validate_config(config: Mapping) -> bool:
         return all(map(lambda x: x in config, [
             'url',
             'update_period',
         ]))
 
     @property
-    def url(self):
+    def url(self) -> str:
         return self.config['url']
 
     @property
-    def update_period(self):
+    def update_period(self) -> Union[int, float]:
+        """
+        Period of TLE update, days
+        """
+
         return self.config['update_period']
 
-    def action(self, t):
+    def action(self, t: dt.datetime):
         if t >= self.t_next and self.fetch_tle():
             self.t_next = self.last_update_tle + dt.timedelta(days=self.update_period)
             return 1
 
-    def get(self, name) -> Optional[tuple[ephem.EarthSatellite, tuple[str, str, str]]]:
+    def get(self, name: str) -> Optional[tuple[ephem.EarthSatellite, tuple[str, str, str]]]:
+        """
+        Get TLE info by satellite name or NORAD number
+
+        :return: Tuple of EarthSatellite object and 3 lines of TLE. Or None
+        """
+
         return self.objects.get(name, None)
 
-    def get_ephem(self, name) -> Optional[ephem.EarthSatellite]:
+    def get_ephem(self, name: str) -> Optional[ephem.EarthSatellite]:
+        """
+        Get TLE object by satellite name or NORAD number
+        """
+
         x = self.objects.get(name, None)
         return x and x[0]
 
-    def get_tle(self, name) -> Optional[tuple[str, str, str]]:
+    def get_tle(self, name: str) -> Optional[tuple[str, str, str]]:
+        """
+        Get raw TLE lines by satellite name or NORAD number
+        """
+
         x = self.objects.get(name, None)
         return x and x[1]

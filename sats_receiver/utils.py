@@ -241,11 +241,23 @@ def sec(t, res=2):
     return ('%.*f' % (res, t)).rstrip('0').rstrip('.') + 's'
 
 
-def doppler_shift(freq, vel):
+def doppler_shift(freq: Union[int, float], vel: Union[int, float]):
+    """
+    Calculate Doppler shift by relative velocity
+
+    :param freq: base signal frequency
+    :param vel: relative velocity, m/s
+    :return: Result frequency with doppler shift. NOTE: if vel is negative, result match for UPLINK, else for DOWNLINK
+    """
+
     return freq * ephem.c / (ephem.c + vel)
 
 
 def azimuth(a_lonlat: tuple[float, float], b_lonlat: tuple[float, float]) -> float:
+    """
+    Calculate azimuth between two points
+    """
+
     lon_a, lat_a = a_lonlat
     lon_b, lat_b = b_lonlat
     delta_lon = lon_b - lon_a
