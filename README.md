@@ -2,6 +2,7 @@
 Satellites data receiver based on GNURadio
 
 <!-- TOC -->
+* [About](#About)
 * [Requirements](#Requirements)
 * [Installation](#Installation)
 * [Usage](#Usage)
@@ -17,6 +18,19 @@ Satellites data receiver based on GNURadio
   * [shapes](#shapes)
   * [points](#points)
 <!-- TOC -->
+
+### About
+This program is written to automate the process of receiving signals from
+various orbiting satellites on your SDR. The basis for digital signal
+processing is GNU Radio - a free software development toolkit that provides
+signal processing blocks to implement software-defined radios and
+signal-processing systems. [[wikipedia](https://en.wikipedia.org/wiki/GNU_Radio)]  
+For example, this program is perfect for receiving weather
+satellites like NOAA (image below).  
+If you have ideas or knowledge on how to improve this project, feel free to submit issues or pull requests.
+
+![](doc/NOAA-19_2023-01-12_04-24-35,752471_map.png "NOAA-19")
+
 
 ### Requirements
 The program has only been tested on Linux. Work on Windows is not guaranteed!
