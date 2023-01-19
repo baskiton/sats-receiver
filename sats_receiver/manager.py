@@ -5,7 +5,6 @@ import logging
 import multiprocessing as mp
 import pathlib
 import time
-import queue
 
 from typing import Mapping
 
@@ -23,7 +22,11 @@ class Executor(mp.Process):
         super().__init__(daemon=False)
 
         self.sysu_intv = sysu_intv
-        self.q = mp.Queue()
+        self.rd, self.wr = mp.Pipe(False)
+
+    def start(self) -> None:
+        super(Executor, self).start()
+        self.rd.close()
 
     def run(self):
         self.log.debug('start')
@@ -34,9 +37,16 @@ class Executor(mp.Process):
             sysu.collect()
 
             try:
-                x = self.q.get(timeout=1)
-            except queue.Empty:
+                x = self.rd.poll(1)
+            except InterruptedError:
+                x = 1
+            except:
                 continue
+
+            if not x:
+                continue
+
+            x = self.rd.recv()
 
             if x == '.':
                 break
@@ -59,10 +69,13 @@ class Executor(mp.Process):
         self.log.debug('finish')
 
     def execute(self, fn, *args, **kwargs):
-        self.q.put((fn, args, kwargs))
+        self.wr.send((fn, args, kwargs))
 
     def stop(self):
-        self.q.put('.')
+        if self.wr:
+            self.wr.send('.')
+            self.wr.close()
+            self.wr = 0
 
 
 class ReceiverManager:
@@ -71,7 +84,7 @@ class ReceiverManager:
         self.log = logging.getLogger(self.prefix)
 
         self.sysu = SysUsage(self.prefix, sysu_intv)
-        self.config_filename = config_filename
+        self.config_filename = config_filename.expanduser().absolute()
         self.config_file_stat = None
         self.config = {}
 

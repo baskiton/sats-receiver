@@ -12,6 +12,8 @@ Satellites data receiver based on GNURadio
 * [About](#About)
 * [Requirements](#Requirements)
 * [Installation](#Installation)
+  * [Linux](#Linux)
+  * [Windows](#Windows)
 * [Usage](#Usage)
 * [Configure](#Configure)
   * [observer](#observer)
@@ -25,6 +27,8 @@ Satellites data receiver based on GNURadio
   * [shapes](#shapes)
   * [points](#points)
 <!-- TOC -->
+
+
 
 ### About
 This program is written to automate the process of receiving signals from
@@ -46,31 +50,47 @@ The program has only been tested on Linux. Work on Windows is not guaranteed!
 * librtlsdr (if you use RTL-SDR)
 
 ### Installation
-* if you need a virtual environment, you need to create it with the `--system-site-packages` option:  
-  `python3 -m venv --system-site-packages venv`  
-  `source venv/bin/activate`  
-* from source  
-  `git clone https://github.com/baskiton/sats-receiver.git`  
-  `cd sats-receiver`  
-  `pip install -r requirements.txt`  
-* from pip  
-  `pip install sats-receiver`  
+First [install gnuradio](https://wiki.gnuradio.org/index.php?title=InstallingGR)
+
+#### Linux
+  If you need a virtual environment (recommended), you need to create it
+  with the `--system-site-packages` option
+  ```
+  python3 -m venv --system-site-packages venv
+  source venv/bin/activate
+  pip install sats-receiver
+  ```
+
+#### Windows
+  After install `radioconda`, launch a terminal by running "Conda Prompt"
+  in the "radioconda" directory in the Start menu and type
+  ```
+  pip install sats-receiver
+  ```
 
 ### Usage
-`python3 -m sats_receiver [-h, --help] [--log LOG] [--sysu SYSU] config`  
-`sats_receiver [-h, --help] [--log LOG] [--sysu SYSU] config`  
+* in Linux if a virtual environment has been created:  
+  `source venv/bin/activate`
+* in Windows launch "Conda Prompt" terminal
+
+`python -m sats_receiver [-h, --help] [--log LOG] [--sysu SYSU] config`  
 * `config` Config file path. See [Configure](#Configure)
 * `-h, --help` Help message
 * `--log LOG` Logging level, INFO default
-* `--sysu SYSU` System Usages info timeout in seconds, 1 hour default
+* `--sysu SYSU` System Usages debug info timeout in seconds, 1 hour default
 
-Program home directory is `~/sats_receiver`
-Logfile saved to program home directory (~/sats_receiver/logs)
-Tle files stored to program home directory (~/sats_receiver/tle)
+For example, simple command line to launch program:  
+`python -m sats_receiver /path/to/config.json`  
+You can copy the `default.json` config file from the root of the repository to a
+location of your choice
+
+Program home directory is `~/sats_receiver`  
+Logfile saved to program home directory (~/sats_receiver/logs)  
+Tle files stored to program home directory (~/sats_receiver/tle)  
 
 ### Configure
 The configuration file is in JSON format.  
-You can copy the default.json file from the root of the repository to a
+You can copy the `default.json` file from the root of the repository to a
 location of your choice and edit it.
 
 | Field     | Type            | Description                                                |

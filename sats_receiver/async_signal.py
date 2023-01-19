@@ -1,9 +1,6 @@
-import errno
-import fcntl
+import multiprocessing as mp
 import os
-import select
 import signal
-import time
 
 
 SIG = {}
@@ -27,9 +24,10 @@ class AsyncSignal:
             try:
                 sig = int(s)
             except ValueError:
-                sig = SIG[s]
+                sig = SIG.get(s, -1)
 
-            assert 0 < sig < 256 and sig in SIG
+            if not (0 < sig < 256 and sig in SIG):
+                continue
 
             old = signal.signal(sig, self._handler)
             if old is None:
@@ -38,16 +36,14 @@ class AsyncSignal:
 
         if self.olds:
             self.pid = os.getpid()
-            self.rd, self.wr = os.pipe()
-            self._tune(self.rd)
-            self._tune(self.wr)
+            self.rd, self.wr = mp.Pipe(False)
 
     def close(self):
         if self.olds:
             for sig, old in self.olds.items():
                 signal.signal(sig, old)
-            os.close(self.rd)
-            os.close(self.wr)
+            self.rd.close()
+            self.wr.close()
         self.olds = None
 
     def __enter__(self):
@@ -56,39 +52,20 @@ class AsyncSignal:
     def __exit__(self, exc_type, exc_value, traceback):
         self.close()
 
-    def _tune(self, fd):
-        fcntl.fcntl(fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) | os.O_NONBLOCK)
-        fcntl.fcntl(fd, fcntl.F_SETFD, fcntl.fcntl(fd, fcntl.F_GETFD) | fcntl.FD_CLOEXEC)
-
     def _handler(self, signum, frame):
         if os.getpid() != self.pid:
             os.kill(self.pid, signum)
         else:
-            try:
-                os.write(self.wr, chr(signum).encode())
-            except ValueError:
-                pass
+            self.wr.send(signum)
 
     def wait(self, t=None):
-        if t and t > 0:
-            till = time.monotonic() + t
-
-        while 1:
-            try:
-                select.select((self.rd,), (), (), t)
-                break
-            except select.error as e:
-                if e[0] == errno.EINTR:
-                    if t and t > 0:
-                        t = till - time.monotonic()
-                        if t <= 0:
-                            break
-                    continue
-                if e[0] == errno.EBADF:
-                    return
-                raise
-
         try:
-            return SIG[ord(os.read(self.rd, 1))]
-        except:
-            return
+            x = self.rd.poll(t)
+        except InterruptedError:
+            x = 1
+
+        if x:
+            try:
+                return SIG[self.rd.recv()]
+            except:
+                return

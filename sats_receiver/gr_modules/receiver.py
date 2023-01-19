@@ -349,7 +349,7 @@ class SatsReceiver(gr.gr.top_block):
             self.calculate_pass(sat)
 
     def set_biast(self, v, silent=False):
-        if not LIBRTLSDR and self.source == 'rtlsdr':
+        if self.source == 'rtlsdr' and not LIBRTLSDR:
             try:
                 librtlsdr.set_bt(v, self.serial)
             except librtlsdr.LibRtlSdrError as e:

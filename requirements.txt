@@ -1,6 +1,7 @@
 ephem
 numpy
 Pillow
+psutil
 pyshp
 python-dateutil
 scipy

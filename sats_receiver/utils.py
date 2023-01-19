@@ -7,7 +7,6 @@ import itertools
 import logging
 import math
 import pathlib
-import resource
 import sys
 import threading
 import time
@@ -16,6 +15,7 @@ from typing import Any, Callable, Iterable, Union
 
 import ephem
 import numpy as np
+import psutil
 import shapefile
 
 from PIL import ImageColor
@@ -102,8 +102,8 @@ class SysUsage:
     def __init__(self, ctx: str, intv : Union[int, float] = DEFAULT_INTV):
         self.prefix = f'{self.__class__.__name__}: {ctx}'
         self.log = logging.getLogger(self.prefix)
+        self.proc = psutil.Process()
 
-        super(SysUsage, self).__init__()
         gc.set_debug(gc.DEBUG_UNCOLLECTABLE)
         self.now = 0
         self.intv = intv
@@ -114,12 +114,16 @@ class SysUsage:
         if self.t >= self.next:
             self.next = self.now + self.intv
             gc.collect()
-            ru = resource.getrusage(resource.RUSAGE_SELF)
+
+            with self.proc.oneshot():
+                mi = self.proc.memory_info()
+                ct = self.proc.cpu_times()
+
             self.log.debug('%s rss %s utime %s stime %s',
                            numdisp(sum(sys.getsizeof(i) for i in gc.get_objects())),
-                           numdisp(ru.ru_maxrss << 10),
-                           sec(ru.ru_utime),
-                           sec(ru.ru_stime))
+                           numdisp(mi.rss),
+                           sec(ct.user),
+                           sec(ct.system))
 
     @property
     def t(self) -> float:
