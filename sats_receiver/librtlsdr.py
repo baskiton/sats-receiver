@@ -1,7 +1,12 @@
+import sys
+
 from ctypes import CDLL, c_char, c_char_p, c_int, c_uint32, c_void_p, POINTER
 
-_lib = CDLL('librtlsdr.so.0')
-rtlsdr_dev_p = c_void_p
+
+if sys.platform == 'win32':
+    _lib = CDLL('rtlsdr')
+else:
+    _lib = CDLL('librtlsdr.so.0')
 
 
 class LibRtlSdrError(RuntimeError):
@@ -29,6 +34,8 @@ class LibUsbError(RuntimeError):
     def __init__(self, err_code):
         super(LibUsbError, self).__init__(f'[{err_code}] {self.CODES.get(err_code, -99)}')
 
+
+rtlsdr_dev_p = c_void_p
 
 _f = _lib.rtlsdr_open
 _f.argtypes = POINTER(rtlsdr_dev_p), c_uint32
