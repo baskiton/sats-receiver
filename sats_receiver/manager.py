@@ -84,7 +84,7 @@ class ReceiverManager:
         self.log = logging.getLogger(self.prefix)
 
         self.sysu = SysUsage(self.prefix, sysu_intv)
-        self.config_filename = config_filename
+        self.config_filename = config_filename.expanduser().absolute()
         self.config_file_stat = None
         self.config = {}
 
