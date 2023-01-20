@@ -12,6 +12,7 @@ import gnuradio.gr
 import gnuradio.soapy
 
 from sats_receiver.gr_modules import modules
+from sats_receiver.utils import num_disp
 
 try:
     from sats_receiver import librtlsdr
@@ -222,8 +223,8 @@ class SatsReceiver(gr.gr.top_block):
 
     def start(self, max_noutput_items=10000000):
         if self.enabled and not self.is_runned:
-            self.log.info('START tune=%s samp_rate=%s gain=%s biast=%s',
-                          self.tune, self.samp_rate, self.gain, self.biast)
+            self.log.info('START tune=%sHz samp_rate=%sHz gain=%s biast=%s',
+                          num_disp(self.tune, 3), num_disp(self.samp_rate, 3), self.gain, self.biast)
 
             self.set_biast(self.biast)
 

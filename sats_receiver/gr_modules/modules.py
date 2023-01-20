@@ -90,7 +90,7 @@ class SatRecorder(gr.gr.hier_block2):
                  main_tune: Union[int, float],
                  samp_rate: Union[int, float]):
         f = config.get('freq')
-        self.prefix = f'{self.__class__.__name__}: {up.name}: {f and f": {utils.numdisp(f)}Hz"}'
+        self.prefix = f'{self.__class__.__name__}: {up.name}: {f and f": {utils.num_disp(f)}Hz"}'
 
         if not self._validate_config(config):
             raise ValueError(f'{self.prefix}: Invalid config!')

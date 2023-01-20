@@ -190,12 +190,12 @@ Each frequency object contain:
 Map shapes config file `map_shapes.json` can be found at the root of this repository.
 Shapefiles can be downloaded from [Natural Earth](https://www.naturalearthdata.com/downloads/)
 
-| Field      | Type             | Description                                                          |
-|:-----------|:-----------------|:---------------------------------------------------------------------|
-| shapes_dir | String           | Path to directory contains shapes file                               |
-| shapes     | Array of Array   | List of shapes data (see [shapes](#shapes))                          |
-| line_width | Number           | _Optional._ Overlay lines width, pixels. `1` by default              |
-| points     | Object of Object | _Optional._ Additional points to draw on map (see [points](#points)) |
+| Field      | Type             | Description                                                                        |
+|:-----------|:-----------------|:-----------------------------------------------------------------------------------|
+| shapes     | Array of Array   | _Optional._ List of shapes data (see [shapes](#shapes))                            |
+| shapes_dir | String           | _Optional. Only when `shapes` specified._ Path to directory contains shapes file   |
+| points     | Object of Object | _Optional._ Additional points to draw on map (see [points](#points))               |
+| line_width | Number           | _Optional._ Overlay lines width, pixels. `1` by default                            |
 
 
 #### shapes
