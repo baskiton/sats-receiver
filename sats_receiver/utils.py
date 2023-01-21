@@ -1,13 +1,16 @@
 import collections
 import datetime as dt
 import enum
+import errno
 import gc
 import heapq
 import itertools
 import logging
 import math
+import os
 import pathlib
 import sys
+import tempfile
 import threading
 import time
 
@@ -266,3 +269,32 @@ def azimuth(a_lonlat: tuple[float, float], b_lonlat: tuple[float, float]) -> flo
     lon_b, lat_b = b_lonlat
     delta_lon = lon_b - lon_a
     return math.atan2(math.sin(delta_lon), math.cos(lat_a) * math.tan(lat_b) - math.sin(lat_a) * math.cos(delta_lon))
+
+
+def mktmp(dir: pathlib.Path = None, prefix: str = None, suffix='.tmp') -> pathlib.Path:
+    f = tempfile.NamedTemporaryFile(dir=dir, prefix=prefix, suffix=suffix, delete=False)
+    f.close()
+    return pathlib.Path(f.name)
+
+
+def close(*ff) -> None:
+    for f in ff:
+        try:
+            if hasattr(f, 'close'):
+                f.close()
+            elif f is not None and f >= 0:
+                os.close(f)
+        except OSError:
+            pass
+
+
+def unlink(*pp: pathlib.Path) -> None:
+    for p in pp:
+        try:
+            p.unlink(True)
+        except OSError as e:
+            if e.errno == errno.EISDIR:
+                try:
+                    p.rmdir()
+                except:
+                    pass

@@ -73,14 +73,14 @@ First [install gnuradio](https://wiki.gnuradio.org/index.php?title=InstallingGR)
   `source venv/bin/activate`
 * in Windows launch "Conda Prompt" terminal
 
-`python -m sats_receiver [-h, --help] [--log LOG] [--sysu SYSU] config`  
+`python -u -m sats_receiver [-h, --help] [--log LOG] [--sysu SYSU] config`  
 * `config` Config file path. See [Configure](#Configure)
 * `-h, --help` Help message
 * `--log LOG` Logging level, INFO default
 * `--sysu SYSU` System Usages debug info timeout in seconds, 1 hour default
 
 For example, simple command line to launch program:  
-`python -m sats_receiver /path/to/config.json`  
+`python -u -m sats_receiver /path/to/config.json`  
 You can copy the `default.json` config file from the root of the repository to a
 location of your choice
 

@@ -38,7 +38,7 @@ class Decoder(gr.gr.hier_block2):
         self.sat_name = sat_name
         self.samp_rate = samp_rate
         self.out_dir = out_dir
-        self.tmp_file = out_dir / ('_'.join(name.lower().split()) + '.tmp')
+        self.tmp_file = utils.mktmp(prefix='_'.join(name.lower().split()))
         self.base_kw = dict(log=self.log, sat_name=sat_name, out_dir=out_dir)
 
     def start(self):
@@ -73,7 +73,7 @@ class RawDecoder(Decoder):
             False
         )
         self.wav_sink.close()
-        self.tmp_file.unlink(True)
+        utils.unlink(self.tmp_file)
 
         self.connect(self, self.ctf, self.wav_sink)
         self.connect((self.ctf, 1), (self.wav_sink, 1))
@@ -110,8 +110,9 @@ class AptDecoder(Decoder):
         name = 'APT Decoder'
         super(AptDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
 
-        self.corr_file = out_dir / ('_'.join(name.lower().split()) + '.corr')
-        self.peaks_file = out_dir / ('_'.join(name.lower().split()) + '.peaks')
+        pfx = '_'.join(name.lower().split())
+        self.corr_file = utils.mktmp(dir=out_dir, prefix=pfx, suffix='.corr')
+        self.peaks_file = utils.mktmp(dir=out_dir, prefix=pfx, suffix='.peaks')
         self.sat_ephem_tle = sat_ephem_tle
         self.observer_lonlat = observer_lonlat
         self.base_kw.update(sat_tle=self.sat_ephem_tle[1], observer_lonlat=self.observer_lonlat)
@@ -154,21 +155,13 @@ class AptDecoder(Decoder):
         self.ctf_corr = gr.blocks.complex_to_float()
 
         self.out_file_sink = gr.blocks.file_sink(gr.gr.sizeof_float, str(self.tmp_file), False)
-        self.out_file_sink.close()
-        self.tmp_file.unlink(True)
-
         self.out_corr_sink = gr.blocks.file_sink(gr.gr.sizeof_float, str(self.corr_file), False)
-        self.out_corr_sink.close()
-        self.corr_file.unlink(True)
-
         self.peak_detector = gr.blocks.peak_detector2_fb(
             threshold_factor_rise=7,
             look_ahead=apt.Apt.FRAME_WIDTH * apt.Apt.WORK_RATE // apt.Apt.FINAL_RATE,
             alpha=0.001,
         )
         self.out_peaks_sink = gr.blocks.file_sink(gr.gr.sizeof_char, str(self.peaks_file), False)
-        self.out_peaks_sink.close()
-        self.peaks_file.unlink(True)
 
         self.connect(
             self,
@@ -193,6 +186,9 @@ class AptDecoder(Decoder):
             self.out_peaks_sink,
         )
 
+        utils.close(self.out_file_sink, self.out_corr_sink, self.out_peaks_sink)
+        utils.unlink(self.tmp_file, self.corr_file, self.peaks_file)
+
     def start(self):
         super(AptDecoder, self).start()
         self.corr_file = self.out_dir / ('_'.join([self.now.strftime('%Y%m%d%H%M%S'),
@@ -211,16 +207,16 @@ class AptDecoder(Decoder):
         self.out_peaks_sink.set_unbuffered(False)
 
     def finalize(self, executor, fin_key: str):
-        self.out_file_sink.close()
-        self.out_corr_sink.close()
-        self.out_peaks_sink.close()
+        self.out_file_sink.do_update()
+        self.out_corr_sink.do_update()
+        self.out_peaks_sink.do_update()
+
+        utils.close(self.out_file_sink, self.out_corr_sink, self.out_peaks_sink)
 
         for p in self.tmp_file, self.corr_file, self.peaks_file:
             if not p.exists():
                 self.log.warning('%s: missing components `%s`', p)
-                self.tmp_file.unlink(True)
-                self.corr_file.unlink(True)
-                self.peaks_file.unlink(True)
+                utils.unlink(self.tmp_file, self.corr_file, self.peaks_file)
                 return
 
         executor.execute(self._apt_finalize, **self.base_kw, fin_key=fin_key)
@@ -240,9 +236,7 @@ class AptDecoder(Decoder):
         a = apt.Apt(sat_name, tmp_file, corr_file, peaks_file, sat_tle, observer_lonlat)
         x = a.process()
 
-        tmp_file.unlink(True)
-        corr_file.unlink(True)
-        peaks_file.unlink(True)
+        utils.unlink(tmp_file, corr_file, peaks_file)
 
         if x:
             log.info('finish with error')
@@ -269,7 +263,7 @@ class RawStreamDecoder(Decoder):
 
         self.out_file_sink = gr.blocks.file_sink(gr.gr.sizeof_char, str(self.tmp_file), False)
         self.out_file_sink.close()
-        self.tmp_file.unlink(True)
+        utils.unlink(self.tmp_file)
 
         self.connect(
             self,
@@ -286,6 +280,7 @@ class RawStreamDecoder(Decoder):
         self.out_file_sink.set_unbuffered(False)
 
     def finalize(self, executor, fin_key: str):
+        self.out_file_sink.do_update()
         self.out_file_sink.close()
         if self.tmp_file.exists():
             executor.execute(self._raw_stream_finalize, **self.base_kw, fin_key=fin_key)
