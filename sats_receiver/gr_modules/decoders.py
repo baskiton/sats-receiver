@@ -95,7 +95,7 @@ class RawDecoder(Decoder):
         d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
         res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S_RAW.wav'))
         st = res_fn.stat()
-        log.info('finish: %s (%s)', res_fn, utils.numdisp(st.st_size))
+        log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
 
         return sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 
@@ -242,7 +242,7 @@ class AptDecoder(Decoder):
             log.info('finish with error')
         else:
             res_fn, sz = a.to_apt(out_dir)
-            log.info('finish: %s (%s)', res_fn, utils.numdisp(sz))
+            log.info('finish: %s (%s)', res_fn, utils.numbi_disp(sz))
 
             return sat_name, fin_key, res_fn, a.end_time
 
@@ -296,7 +296,7 @@ class RawStreamDecoder(Decoder):
         d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
         res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S_RAW.s'))
         st = res_fn.stat()
-        log.info('finish: %s (%s)', res_fn, utils.numdisp(st.st_size))
+        log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
 
         return sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 

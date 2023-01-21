@@ -14,7 +14,7 @@ import tempfile
 import threading
 import time
 
-from typing import Any, Callable, Iterable, Union
+from typing import Any, Callable, Iterable, Mapping, Union
 
 import ephem
 import numpy as np
@@ -48,6 +48,12 @@ Event = collections.namedtuple('Event', 't, prior, seq, fn, a, kw')
 
 
 class Scheduler:
+    """
+    The scheduler idea is taken from the python stdlib
+    and adapted to my needs
+    https://github.com/python/cpython/blob/main/Lib/sched.py
+    """
+
     def __init__(self):
         self._queue = []
         self._lock = threading.RLock()
@@ -60,13 +66,16 @@ class Scheduler:
         return event
 
     def cancel(self, *evt: Event):
-        for e in evt:
-            try:
-                with self._lock:
+        if not evt:
+            return
+
+        with self._lock:
+            for e in evt:
+                try:
                     self._queue.remove(e)
                     heapq.heapify(self._queue)
-            except ValueError:
-                pass
+                except ValueError:
+                    pass
 
     def clear(self):
         with self._lock:
@@ -94,9 +103,9 @@ class Scheduler:
 
             if delay:
                 return t - now
-            else:
-                fn(*a, **kw)
-                time.sleep(0)
+
+            fn(*a, **kw)
+            # time.sleep(0)
 
 
 class SysUsage:
@@ -123,8 +132,8 @@ class SysUsage:
                 ct = self.proc.cpu_times()
 
             self.log.debug('%s rss %s utime %s stime %s',
-                           numdisp(sum(sys.getsizeof(i) for i in gc.get_objects())),
-                           numdisp(mi.rss),
+                           numbi_disp(sum(sys.getsizeof(i) for i in gc.get_objects())),
+                           numbi_disp(mi.rss),
                            sec(ct.user),
                            sec(ct.system))
 
@@ -135,17 +144,11 @@ class SysUsage:
 
 
 class MapShapes:
-    BORDERS = 'BORDERS'
-    LAKES = 'LAKES'
-    RIVERS = 'RIVERS'
-    COASTLINE = 'COASTLINE'
-    GRATICULES = 'GRATICULES'
-
-    def __init__(self, config: dict):
+    def __init__(self, config: Mapping):
         self.config = config
         self.shapes = []
 
-        for i, shf, col in sorted(config['shapes'], key=lambda x: x[0]):
+        for i, shf, col in sorted(config.get('shapes', []), key=lambda x: x[0]):
             self.shapes.append((shf, self._gen_color(col)))
 
         for name, v in config.get('points', {}).items():
@@ -154,7 +157,7 @@ class MapShapes:
             v['name'] = name
             v['color'] = self._gen_color(v['color'])
             if v['type'] == '+':
-                assert v['size'] != 2
+                assert len(v['size']) == 2
                 v['size'] = [*map(int, v['size'])]
             elif v['type'] == 'o':
                 v['size'] = int(v['size'])
@@ -172,9 +175,9 @@ class MapShapes:
     def line_width(self) -> int:
         return self.config.get('line_width', 1)
 
-    def iter(self) -> tuple[Iterable, Any]:
+    def iter(self) -> tuple[Union[Iterable, Mapping], tuple]:
         for shf, color in self.shapes:
-            if isinstance(shf, dict):
+            if isinstance(shf, Mapping):
                 yield shf, color
                 continue
 
@@ -187,9 +190,9 @@ class MapShapes:
                         yield pts[j:k], color
 
     @staticmethod
-    def _gen_color(col):
+    def _gen_color(col) -> Iterable[int]:
         alpha = 255
-        if isinstance(col, list):
+        if isinstance(col, (tuple, list)):
             if len(col) == 4:
                 alpha = col[3]
             col = tuple(col[:3]) + (alpha,)
@@ -203,7 +206,11 @@ class MapShapes:
         return col
 
 
-def numdisp(number, zero=None):
+def numbi_disp(number, zero=None):
+    """
+    Actual for data sizes in bytes
+    """
+
     try:
         number = len(number)
     except TypeError:
@@ -230,18 +237,28 @@ def numdisp(number, zero=None):
         # the next power of 1024. Get top two significant digits
         # (so 1023 would come out .99K, for example)
         intq = (intq * 25) >> 8   # 100/1024
-        e_stuff = ".%2d%s" % (intq, rgch_size[i + 1])
+        e_stuff = '.%2d%s' % (intq, rgch_size[i + 1])
     elif intq < 10 and i:
         # If less than 10 and not small units, then get some decimal
         # places (e.g. 1.2M)
         intq = (oldq * 5) >> 9    # 10/1024
-        tempstr = "%02d" % intq
-        e_stuff = "%s.%s%s" % (tempstr[0], tempstr[1], rgch_size[i])
+        tempstr = '%02d' % intq
+        e_stuff = '%s.%s%s' % (tempstr[0], tempstr[1], rgch_size[i])
     else:
         # Simple case. Just do it.
-        e_stuff = "%d%s" % (intq, rgch_size[i])
+        e_stuff = '%d%s' % (intq, rgch_size[i])
 
     return e_stuff
+
+
+def num_disp(num, res=2):
+    mag = 0
+
+    while abs(num) >= 1000:
+        mag += 1
+        num /= 1000
+
+    return f"{num:.{res}f}".rstrip('0').rstrip('.') + ('', 'k', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')[mag]
 
 
 def sec(t, res=2):
@@ -260,15 +277,28 @@ def doppler_shift(freq: Union[int, float], vel: Union[int, float]):
     return freq * ephem.c / (ephem.c + vel)
 
 
-def azimuth(a_lonlat: tuple[float, float], b_lonlat: tuple[float, float]) -> float:
+def azimuth(a_lonlat: [float, float], b_lonlat: [float, float]) -> float:
     """
     Calculate azimuth between two points
+    :param a_lonlat: Point A lonlat, radians
+    :param b_lonlat: Point B lonlat, radians
+    :return: azimuth in radians
     """
 
     lon_a, lat_a = a_lonlat
     lon_b, lat_b = b_lonlat
-    delta_lon = lon_b - lon_a
-    return math.atan2(math.sin(delta_lon), math.cos(lat_a) * math.tan(lat_b) - math.sin(lat_a) * math.cos(delta_lon))
+
+    if lon_b - lon_a < -math.pi:
+        delta_lon = math.tau + lon_b - lon_a
+    elif lon_b - lon_a > math.pi:
+        delta_lon = lon_b - lon_a - math.tau
+    else:   # abs(lon_b - lon_a) <= math.pi
+        delta_lon = lon_b - lon_a
+
+    return math.atan2(
+        math.sin(delta_lon),
+        math.cos(lat_a) * math.tan(lat_b) - math.sin(lat_a) * math.cos(delta_lon)
+    )
 
 
 def mktmp(dir: pathlib.Path = None, prefix: str = None, suffix='.tmp') -> pathlib.Path:

@@ -1,10 +1,16 @@
 # Sats Receiver
 [![PyPI](https://img.shields.io/pypi/v/sats-receiver?logo=python&logoColor=white)][pypi_proj]
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/sats-receiver?logo=python&logoColor=white)][pypi_proj]
-[![PyPI - License](https://img.shields.io/pypi/l/sats-receiver?logo=open-source-initiative&logoColor=white)](https://github.com/baskiton/sats-receiver/blob/main/LICENSE)
-[![upload](https://img.shields.io/github/actions/workflow/status/baskiton/sats-receiver/pypi-upload.yml?label=upload&logo=github)](https://github.com/baskiton/sats-receiver/actions/workflows/pypi-upload.yml)
+[![PyPI - License](https://img.shields.io/pypi/l/sats-receiver?logo=open-source-initiative&logoColor=white)][license]  
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/baskiton/sats-receiver/tests.yml?label=tests&logo=github)][tests]
+[![Codecov branch](https://img.shields.io/codecov/c/gh/baskiton/sats-receiver/dev?logo=codecov)][codecov]
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/baskiton/sats-receiver/pypi-upload.yml?label=upload&logo=github)][upload]
 
 [pypi_proj]: https://pypi.org/project/sats-receiver/
+[license]: https://github.com/baskiton/sats-receiver/blob/main/LICENSE
+[tests]: https://github.com/baskiton/sats-receiver/actions/workflows/tests.yml
+[codecov]: https://app.codecov.io/gh/baskiton/sats-receiver
+[upload]: https://github.com/baskiton/sats-receiver/actions/workflows/pypi-upload.yml
 
 Satellites data receiver based on GNURadio
 
@@ -184,12 +190,12 @@ Each frequency object contain:
 Map shapes config file `map_shapes.json` can be found at the root of this repository.
 Shapefiles can be downloaded from [Natural Earth](https://www.naturalearthdata.com/downloads/)
 
-| Field      | Type             | Description                                                          |
-|:-----------|:-----------------|:---------------------------------------------------------------------|
-| shapes_dir | String           | Path to directory contains shapes file                               |
-| shapes     | Array of Array   | List of shapes data (see [shapes](#shapes))                          |
-| line_width | Number           | _Optional._ Overlay lines width, pixels. `1` by default              |
-| points     | Object of Object | _Optional._ Additional points to draw on map (see [points](#points)) |
+| Field      | Type             | Description                                                                        |
+|:-----------|:-----------------|:-----------------------------------------------------------------------------------|
+| shapes     | Array of Array   | _Optional._ List of shapes data (see [shapes](#shapes))                            |
+| shapes_dir | String           | _Optional. Only when `shapes` specified._ Path to directory contains shapes file   |
+| points     | Object of Object | _Optional._ Additional points to draw on map (see [points](#points))               |
+| line_width | Number           | _Optional._ Overlay lines width, pixels. `1` by default                            |
 
 
 #### shapes
