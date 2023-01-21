@@ -65,7 +65,7 @@ jobs:
 
       - name: Run tests and collect coverage
         continue-on-error: true
-        run: coverage run --omit=tests/* -m unittest discover -v
+        run: coverage run --omit=tests/* --source=sats_receiver -m unittest discover -v
 
       - name: Generate report
         continue-on-error: true
