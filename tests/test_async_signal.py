@@ -1,10 +1,11 @@
 import signal
-import unittest as ut
+
+from unittest import TestCase
 
 from sats_receiver.async_signal import AsyncSignal
 
 
-class TestAsyncSignal(ut.TestCase):
+class TestAsyncSignal(TestCase):
     def test_wait_sigint(self):
         signame = 'SIGINT'
         with AsyncSignal() as asig:

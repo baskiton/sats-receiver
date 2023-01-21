@@ -2,11 +2,11 @@ import datetime as dt
 import pathlib
 import time
 import threading
-import unittest as ut
 import queue
 
 from typing import Mapping
 from test import support
+from unittest import TestCase
 
 import numpy as np
 
@@ -40,7 +40,12 @@ class SchedThread(threading.Thread):
         self._q.put_nowait(1)
 
 
-class TestScheduler(ut.TestCase):
+class TestScheduler(TestCase):
+    """
+    Test case examples are taken from the python repository
+    https://github.com/python/cpython/blob/main/Lib/test/test_sched.py
+    """
+
     def setUp(self):
         self._sch = utils.Scheduler()
         self._now = dt.datetime.now(dt.timezone.utc)
@@ -229,7 +234,7 @@ class TestScheduler(ut.TestCase):
         self.assertGreater(t + dt.timedelta(seconds=1), self._l[0])
 
 
-class TestUtils(ut.TestCase):
+class TestUtils(TestCase):
     def test_sysu_collect_debug_log(self):
         sysu = utils.SysUsage('Test', 0)
         with self.assertLogs(level='DEBUG'):

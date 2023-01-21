@@ -48,6 +48,12 @@ Event = collections.namedtuple('Event', 't, prior, seq, fn, a, kw')
 
 
 class Scheduler:
+    """
+    The scheduler idea is taken from the python stdlib
+    and adapted to my needs
+    https://github.com/python/cpython/blob/main/Lib/sched.py
+    """
+
     def __init__(self):
         self._queue = []
         self._lock = threading.RLock()
