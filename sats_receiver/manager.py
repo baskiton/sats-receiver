@@ -2,6 +2,7 @@ import atexit
 import datetime as dt
 import json
 import logging
+import logging.handlers
 import multiprocessing as mp
 import pathlib
 import time
@@ -15,26 +16,47 @@ from sats_receiver.utils import Scheduler, SysUsage
 
 
 class Executor(mp.Process):
-    def __init__(self, sysu_intv=SysUsage.DEFAULT_INTV):
-        self.prefix = self.__class__.__name__
-        self.log = logging.getLogger(self.prefix)
+    def __init__(self, q: mp.Queue, sysu_intv=SysUsage.DEFAULT_INTV):
+        super().__init__(daemon=False, name=self.__class__.__name__)
 
-        super().__init__(daemon=False)
-
+        self.q = q
         self.sysu_intv = sysu_intv
         self.rd, self.wr = mp.Pipe(False)
+
+    def _setup_process(self):
+        qh = logging.handlers.QueueHandler(self.q)
+        logger = logging.getLogger()
+        logger.handlers.clear()
+        logger.setLevel(mp.get_logger().level)
+        logger.addHandler(qh)
+        # logging.basicConfig(level=mp.get_logger().level, handlers=[qh])
+        self.log = logging.getLogger(self.name)
+        self.sysu = SysUsage(self.name, self.sysu_intv)
 
     def start(self) -> None:
         super(Executor, self).start()
         self.rd.close()
 
     def run(self):
+        self._setup_process()
+
         self.log.debug('start')
 
-        sysu = SysUsage(self.prefix, self.sysu_intv)
+        try:
+            self.action()
+        except:
+            self.log.exception('Exception:')
+        finally:
+            try:
+                self.stop()
+            except:
+                self.log.exception('stop Exception:')
 
+        self.log.debug('finish')
+
+    def action(self):
         while 1:
-            sysu.collect()
+            self.sysu.collect()
 
             try:
                 x = self.rd.poll(1)
@@ -66,8 +88,6 @@ class Executor(mp.Process):
                 if x and isinstance(x, tuple) and len(x) == 4:
                     sat_name, fin_key, res_filename, end_time = x
 
-        self.log.debug('finish')
-
     def execute(self, fn, *args, **kwargs):
         self.wr.send((fn, args, kwargs))
 
@@ -79,7 +99,7 @@ class Executor(mp.Process):
 
 
 class ReceiverManager:
-    def __init__(self, config_filename: pathlib.Path, sysu_intv=SysUsage.DEFAULT_INTV, executor_cls=Executor):
+    def __init__(self, q: mp.Queue, config_filename: pathlib.Path, sysu_intv=SysUsage.DEFAULT_INTV, executor_cls=Executor):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
@@ -99,7 +119,7 @@ class ReceiverManager:
         self.observer = Observer(self.config['observer'])
         self.tle = Tle(self.config['tle'])
         self.scheduler = Scheduler()
-        self.executor = executor_cls(sysu_intv)
+        self.executor = executor_cls(q, sysu_intv)
         self.executor.start()
         atexit.register(lambda x: (x.stop(), x.join()), self.executor)
 
