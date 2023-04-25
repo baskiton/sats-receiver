@@ -169,7 +169,7 @@ class MapShapes:
 
     @property
     def shapes_dir(self) -> pathlib.Path:
-        return pathlib.Path(self.config['shapes_dir'])
+        return pathlib.Path(self.config['shapes_dir']).expanduser()
 
     @property
     def line_width(self) -> int:
