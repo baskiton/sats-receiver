@@ -91,8 +91,8 @@ You can copy the `default.json` config file from the root of the repository to a
 location of your choice
 
 Program home directory is `~/sats_receiver`  
-Logfile saved to program home directory (~/sats_receiver/logs)  
-Tle files stored to program home directory (~/sats_receiver/tle)  
+Logfile saved to program home directory (`~/sats_receiver/logs`)  
+Tle files stored to program home directory (`~/sats_receiver/tle`)  
 
 ### Configure
 The configuration file is in JSON format.  
