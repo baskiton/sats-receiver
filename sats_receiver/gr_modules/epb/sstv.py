@@ -73,12 +73,7 @@ class SstvEpb(gr.gr.sync_block):
         return True
 
     def finalize(self):
-        images = []
-        for i in self.sstv_done:
-            x = i.get_image()
-            if x:
-                images.append(x)
-
+        rr = self.sstv_done
         self.sstv_done = []
 
-        return images
+        return rr

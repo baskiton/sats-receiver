@@ -32,6 +32,10 @@ def setup_logging(q: mp.Queue, log_lvl: int):
     qhl.start()
     atexit.register(qhl.stop)
 
+    # PIL logging level
+    pil_logger = logging.getLogger('PIL')
+    pil_logger.setLevel(logging.DEBUG + 2)
+
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()

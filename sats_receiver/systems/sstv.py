@@ -61,9 +61,11 @@ class Sstv:
                                           prefix='_'.join(self.name.lower().split()),
                                           suffix='.tmp')
         self.img_data_file.truncate(self.img_data_max_size)
+        self.img_data_fp = pathlib.Path(self.img_data_file.name)
 
     def stop(self):
         utils.close(self.img_data_file)
+        self.img_data_file = None
 
     def feed(self, data: np.ndarray) -> int:
         self.img_data_file.write(data.tobytes())
@@ -75,9 +77,8 @@ class Sstv:
     def image_process(self):
         self.log.debug('image process...')
 
-        fp = pathlib.Path(self.img_data_file.name)
-        data = np.fromfile(fp.name, dtype=np.float32, count=self.img_data_max_size)
-        data.resize(self.img_data_max_size)     # resize in-place with zero-filling
+        data = np.fromfile(self.img_data_fp, dtype=np.float32, count=self.img_data_max_size)
+        data.resize(self.img_data_max_size, refcheck=False)     # resize in-place with zero-filling
 
         data = self._sync_process(data) if self.do_sync else self._no_sync_process(data)
         data = (data - SstvRecognizer._1500) / (SstvRecognizer._2300 - SstvRecognizer._1500)
@@ -87,12 +88,13 @@ class Sstv:
         if self.MODE != 'RGB':
             img = img.convert('RGB')
 
+        self.log.debug('add EXIF')
         self.img = utils.img_add_exif(
             img,
-            d=dt.datetime.fromtimestamp(fp.stat().st_mtime, dateutil.tz.tzutc()),
+            d=dt.datetime.fromtimestamp(self.img_data_fp.stat().st_mtime, dateutil.tz.tzutc()),
             comment=self.name,
         )
-        utils.unlink(fp)
+        utils.unlink(self.img_data_fp)
 
         self.log.debug('image process done')
 

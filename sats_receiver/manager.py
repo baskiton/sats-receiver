@@ -16,7 +16,7 @@ from sats_receiver.utils import Scheduler, SysUsage
 
 
 class Executor(mp.Process):
-    def __init__(self, q: mp.Queue, sysu_intv=SysUsage.DEFAULT_INTV):
+    def __init__(self, q: mp.Queue = None, sysu_intv=SysUsage.DEFAULT_INTV):
         super().__init__(daemon=False, name=self.__class__.__name__)
 
         self.q = q
@@ -24,12 +24,13 @@ class Executor(mp.Process):
         self.rd, self.wr = mp.Pipe(False)
 
     def _setup_process(self):
-        qh = logging.handlers.QueueHandler(self.q)
         logger = logging.getLogger()
         logger.handlers.clear()
         logger.setLevel(mp.get_logger().level)
-        logger.addHandler(qh)
-        # logging.basicConfig(level=mp.get_logger().level, handlers=[qh])
+        if self.q is not None:
+            qh = logging.handlers.QueueHandler(self.q)
+            logger.addHandler(qh)
+            # logging.basicConfig(level=mp.get_logger().level, handlers=[qh])
         self.log = logging.getLogger(self.name)
         self.sysu = SysUsage(self.name, self.sysu_intv)
 
@@ -84,6 +85,7 @@ class Executor(mp.Process):
                     x = fn(*args, **kwargs)
                 except Exception:
                     self.log.exception('%s with args=%s kwargs=%s', fn, args, kwargs)
+                    continue
 
                 if x and isinstance(x, tuple):
                     if len(x) == 4:
@@ -92,7 +94,8 @@ class Executor(mp.Process):
                         sat_name, fin_key, fn_dt = x
 
     def execute(self, fn, *args, **kwargs):
-        self.wr.send((fn, args, kwargs))
+        if self.wr:
+            self.wr.send((fn, args, kwargs))
 
     def stop(self):
         if self.wr:

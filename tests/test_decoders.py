@@ -65,6 +65,7 @@ class DecoderExecutor(Executor):
                     x = fn(*args, **kwargs)
                 except Exception:
                     self.log.exception('%s with args=%s kwargs=%s', fn, args, kwargs)
+                    continue
 
                 if x and isinstance(x, tuple):
                     if len(x) == 4:

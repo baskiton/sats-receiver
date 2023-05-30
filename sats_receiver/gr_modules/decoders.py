@@ -385,7 +385,8 @@ class SstvDecoder(Decoder):
             (self.sstv_epb, self.sstv_epb.PEAKS_IN),
         )
 
-        self.base_kw.update(epb=self.sstv_epb, observer=observer)
+        latlonalt = str(observer.lat), str(observer.lon), observer.elev
+        self.base_kw.update(observer_latlonalt=latlonalt)
 
     def start(self):
         # super(SstvDecoder, self).start()
@@ -393,25 +394,32 @@ class SstvDecoder(Decoder):
 
     def finalize(self, executor, fin_key: str):
         self.sstv_epb.stop()
-        executor.execute(self._sstv_finalize, **self.base_kw, fin_key=fin_key)
+        sstv_rr: list[sstv.SstvRecognizer] = self.sstv_epb.finalize()
+        executor.execute(self._sstv_finalize, **self.base_kw, sstv_rr=sstv_rr, fin_key=fin_key)
 
     @staticmethod
     def _sstv_finalize(log: logging.Logger,
                        sat_name: str,
                        out_dir: pathlib.Path,
-                       epb: sstv_epb.SstvEpb,
-                       observer: Observer,
+                       observer_latlonalt: tuple[str, str, Union[int, float]],
+                       sstv_rr: list[sstv.SstvRecognizer],
                        fin_key: str) -> tuple[str, str, list[tuple[pathlib.Path, dt.datetime]]]:
         log.debug('finalizing...')
 
+        observer = ephem.Observer()
+        observer.lat, observer.lon, observer.elev = observer_latlonalt
         fn_dt = []
         sz_sum = 0
-        for img in epb.finalize():
-            img = utils.img_add_exif(img, observer=observer.get_obj())
+        for i in sstv_rr:
+            img = i.get_image()
+            if not img:
+                continue
+
+            log.debug('add GPSInfo EXIF')
+            img = utils.img_add_exif(img, observer=observer)
             exif = img.getexif()
 
             sstv_mode = exif.get_ifd(ExifTags.IFD.Exif).get(ExifTags.Base.UserComment, 'SSTV')
-            dt.datetime.strptime(exif.get(ExifTags.Base.DateTime, 'SSTV'), '%Y:%m:%d %H:%M:%S')
             end_time = exif.get(ExifTags.Base.DateTime)
             end_time = (dt.datetime.strptime(end_time, '%Y:%m:%d %H:%M:%S')
                         if end_time
