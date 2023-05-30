@@ -84,7 +84,7 @@ class DecoderTopBlock(gr.gr.top_block):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
-        super(DecoderTopBlock, self).__init__('DecoderTopBlock', catch_exceptions=True)
+        super(DecoderTopBlock, self).__init__('DecoderTopBlock', catch_exceptions=False)
 
         self.executor = DecoderExecutor(ret_wr)
         self.executor.start()

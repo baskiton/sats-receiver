@@ -13,38 +13,34 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os:
-          - ubuntu-latest
-          - macos-latest
-          - windows-latest
-
-        python-version:
-          - "3.9"
-          - "3.10"
-          - "3.11"
+  unittests:
+    runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Python ${{ matrix.python-version }} on ${{ matrix.os }}
-        uses: actions/setup-python@v3
-        with:
-          python-version: ${{ matrix.python-version }}
+      - name: Install GNURadio
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnuradio
+          mkdir -p $HOME/.gnuradio/prefs
+          sudo chown -R $(id -u):$(id -g) $HOME/.gnuradio/
+          echo "gr::vmcircbuf_sysv_shm_factory" > $HOME/.gnuradio/prefs/vmcircbuf_default_factory
+
+      - name: Install pipenv
+        run: |
+          curl https://raw.githubusercontent.com/pypa/pipenv/master/get-pipenv.py | python3
+          export PIPENV_VENV_IN_PROJECT=1
+          pipenv --site-packages
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r test_requirements.txt
+          pipenv install -r requirements.txt
+          pipenv install -r test_requirements.txt
 
       - name: Run tests
-        run: |
-          python -m unittest discover -v
+        run: pipenv run python -m unittest discover -v
+
 
   coverage:
     runs-on: ubuntu-latest
@@ -52,27 +48,35 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up Python 3.10
-        uses: actions/setup-python@v3
-        with:
-          python-version: "3.10"
+      - name: Install GNURadio
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnuradio
+          mkdir -p $HOME/.gnuradio/prefs
+          sudo chown -R $(id -u):$(id -g) $HOME/.gnuradio/
+          echo "gr::vmcircbuf_sysv_shm_factory" > $HOME/.gnuradio/prefs/vmcircbuf_default_factory
+
+      - name: Install pipenv
+        run: |
+          curl https://raw.githubusercontent.com/pypa/pipenv/master/get-pipenv.py | python3
+          export PIPENV_VENV_IN_PROJECT=1
+          pipenv --site-packages
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r test_requirements.txt
+          pipenv install -r requirements.txt
+          pipenv install -r test_requirements.txt
 
       - name: Run tests and collect coverage
         continue-on-error: true
-        run: coverage run --omit=tests/* --source=sats_receiver -m unittest discover -v
+        run: pipenv run coverage run --omit=tests/* --source=sats_receiver -m unittest discover -v
 
       - name: Generate report
         continue-on-error: true
-        run: coverage xml
+        run: pipenv run coverage xml
 
       - name: Show report
         continue-on-error: true
-        run: coverage report -m
+        run: pipenv run coverage report -m
 
       - uses: codecov/codecov-action@v3
