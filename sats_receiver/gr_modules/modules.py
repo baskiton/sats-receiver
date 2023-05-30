@@ -15,6 +15,7 @@ import gnuradio.gr
 
 from sats_receiver import utils
 from sats_receiver.gr_modules import decoders, demodulators
+from sats_receiver.observer import Observer
 
 
 class RadioModule(gr.gr.hier_block2):
@@ -80,6 +81,9 @@ class SatRecorder(gr.gr.hier_block2):
                         # 'qpsk_excess_bw',   # optional
                         # 'qpsk_ntaps',       # optional
                         # 'qpsk_costas_bw',   # optional
+
+                        # 'sstv_wsr',         # optional, only in SSTV decode
+                        # 'sstv_sync',        # optional, only in SSTV decode
                     ]))
             and (config['mode'] != utils.Mode.QPSK or 'qpsk_baudrate' in config)
         )
@@ -157,7 +161,7 @@ class SatRecorder(gr.gr.hier_block2):
             self.demodulator = demodulators.QpskDemod(self.bandwidth, self.qpsk_baudrate, self.qpsk_excess_bw, self.qpsk_ntaps, self.qpsk_costas_bw)
 
         if self.decode == utils.Decode.APT:
-            self.decoder = decoders.AptDecoder(up.name, self.bandwidth, up.output_directory, up.sat_ephem_tle, up.observer_lonlat)
+            self.decoder = decoders.AptDecoder(up.name, self.bandwidth, up.output_directory, up.sat_ephem_tle, up.observer.lonlat)
 
         # elif self.decode == Decode.LRPT:
         #     # TODO
@@ -168,6 +172,9 @@ class SatRecorder(gr.gr.hier_block2):
 
         elif self.decode == utils.Decode.RAW:
             self.decoder = decoders.RawDecoder(up.name, self.bandwidth, up.output_directory)
+
+        elif self.decode == utils.Decode.SSTV:
+            self.decoder = decoders.SstvDecoder(up.name, self.bandwidth, up.output_directory, up.observer, self.sstv_sync, self.sstv_wsr)
 
         self.connect(
             self,
@@ -209,7 +216,7 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def decode(self) -> utils.Decode:
-        return utils.Decode(self.config.get('decode', utils.Decode.RAW.value)) or utils.Decode.RAW
+        return utils.Decode(self.config.get('decode', utils.Decode.RAW.value))
 
     @property
     def qpsk_baudrate(self) -> Union[int, float]:
@@ -217,15 +224,23 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def qpsk_excess_bw(self) -> Union[int, float]:
-        return self.config.get('qpsk_excess_bw')
+        return self.config.get('qpsk_excess_bw', 0.35)
 
     @property
     def qpsk_ntaps(self) -> int:
-        return int(self.config.get('qpsk_ntaps'))
+        return int(self.config.get('qpsk_ntaps'), 33)
 
     @property
-    def qpsk_costas_bw(self):
-        return self.config.get('qpsk_costas_bw')
+    def qpsk_costas_bw(self) -> Union[int, float]:
+        return self.config.get('qpsk_costas_bw', 0.005)
+
+    @property
+    def sstv_wsr(self) -> Union[int, float]:
+        return self.config.get('sstv_wsr', 16000)
+
+    @property
+    def sstv_sync(self) -> bool:
+        return self.config.get('sstv_sync', True)
 
 
 class Satellite(gr.gr.hier_block2):
@@ -246,7 +261,7 @@ class Satellite(gr.gr.hier_block2):
     def __init__(self,
                  config: Mapping,
                  sat_ephem_tle: Optional[tuple[ephem.EarthSatellite, tuple[str, str, str]]],
-                 observer_lonlat: tuple[Union[int, float], Union[int, float]],
+                 observer: Observer,
                  main_tune: Union[int, float],
                  samp_rate: Union[int, float],
                  output_directory: pathlib.Path,
@@ -265,7 +280,7 @@ class Satellite(gr.gr.hier_block2):
         )
 
         self.sat_ephem_tle = sat_ephem_tle
-        self.observer_lonlat = observer_lonlat
+        self.observer = observer
         self.executor = executor
         self.config = config
         self.output_directory = output_directory / self.name

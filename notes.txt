@@ -10,3 +10,9 @@ APT:
     https://github.com/pietern/apt137
 
     https://noaa-apt.mbernardi.com.ar/how-it-works.html
+
+SSTV:
+    https://en.wikipedia.org/wiki/Slow-scan_television
+    https://vu2nsb.com/cw-digital-radio/slow-scan-tv-sstv/
+    http://www.sstv-handbook.com/download/sstv_04.pdf
+    http://www.sstv-handbook.com/download/sstv_05.pdf

@@ -85,8 +85,11 @@ class Executor(mp.Process):
                 except Exception:
                     self.log.exception('%s with args=%s kwargs=%s', fn, args, kwargs)
 
-                if x and isinstance(x, tuple) and len(x) == 4:
-                    sat_name, fin_key, res_filename, end_time = x
+                if x and isinstance(x, tuple):
+                    if len(x) == 4:
+                        sat_name, fin_key, res_filename, end_time = x
+                    elif len(x) == 3:
+                        sat_name, fin_key, fn_dt = x
 
     def execute(self, fn, *args, **kwargs):
         self.wr.send((fn, args, kwargs))

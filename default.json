@@ -92,7 +92,7 @@
                 },
                 {
                     "name": "METEOR-M2",
-                    "enabled": true,
+                    "enabled": false,
                     "min_elevation": 15.0,
                     "doppler": true,
                     "frequencies": [
@@ -107,6 +107,37 @@
                             "qpsk_excess_bw": 0.35,
                             "qpsk_ntaps": 33,
                             "qpsk_costas_bw": 0.005
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "145:1 MHz",
+            "enabled": false,
+            "source": "rtlsdr",
+            "serial": "00000001",
+            "biast": false,
+            "gain": 38.6,
+            "tune": 145500000,
+            "samp_rate": 1024000,
+            "output_directory": "~/sats_receiver/records",
+            "sats": [
+                {
+                    "name": "ISS",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 145800000,
+                            "freq_correction": 1000,
+                            "bandwidth": 16000,
+                            "mode": "QUAD",
+                            "decode": "SSTV",
+                            "sstv_wsr": 16000,
+                            "sstv_sync": true
                         }
                     ]
                 }

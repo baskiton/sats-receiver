@@ -21,7 +21,7 @@ import numpy as np
 import psutil
 import shapefile
 
-from PIL import ImageColor
+from PIL import Image, ImageColor, ImageOps, ExifTags
 
 
 THIRD_PI = math.pi / 3
@@ -42,6 +42,7 @@ class Decode(enum.Enum):
     RSTREAM = 'RSTREAM'
     APT = 'APT'
     LRPT = 'LRPT'
+    SSTV = 'SSTV'
 
 
 Event = collections.namedtuple('Event', 't, prior, seq, fn, a, kw')
@@ -307,6 +308,15 @@ def mktmp(dir: pathlib.Path = None, prefix: str = None, suffix='.tmp') -> pathli
     return pathlib.Path(f.name)
 
 
+def mktmp2(mode='w+b', buffering=-1, dir: pathlib.Path = None, prefix: str = None, suffix='.tmp'):
+    return tempfile.NamedTemporaryFile(mode=mode,
+                                       buffering=buffering,
+                                       dir=dir,
+                                       prefix=prefix,
+                                       suffix=suffix,
+                                       delete=False)
+
+
 def close(*ff) -> None:
     for f in ff:
         try:
@@ -328,3 +338,41 @@ def unlink(*pp: pathlib.Path) -> None:
                     p.rmdir()
                 except:
                     pass
+
+
+def img_add_exif(img: Image.Image,
+                 d: dt.datetime = None,
+                 observer: ephem.Observer = None,
+                 comment='') -> Image.Image:
+    exif = img.getexif()
+
+    exif[ExifTags.Base.Software] = 'SatsReceiver'   # TODO: add version
+    if d is not None:
+        exif[ExifTags.Base.DateTime] = d.strftime('%Y:%m:%d %H:%M:%S')
+
+    if observer is not None:
+        img.info['exif'] = exif.tobytes()
+        img = ImageOps.exif_transpose(img)
+        exif = img.getexif()
+
+        gps = exif.get_ifd(ExifTags.IFD.GPSInfo)
+        gps[ExifTags.GPS.GPSLatitudeRef] = 'S' if observer.lat < 0 else 'N'
+        gps[ExifTags.GPS.GPSLatitude] = list(map(lambda x: abs(float(x)), str(observer.lat).split(':')))
+        gps[ExifTags.GPS.GPSLongitudeRef] = 'W' if observer.lon < 0 else 'E'
+        gps[ExifTags.GPS.GPSLongitude] = list(map(lambda x: abs(float(x)), str(observer.lon).split(':')))
+        gps[ExifTags.GPS.GPSAltitudeRef] = int(observer.elev < 0)
+        gps[ExifTags.GPS.GPSAltitude] = abs(observer.elev)
+        exif[ExifTags.IFD.GPSInfo] = gps
+
+    if comment:
+        img.info['exif'] = exif.tobytes()
+        img = ImageOps.exif_transpose(img)
+        exif = img.getexif()
+
+        ee = exif.get_ifd(ExifTags.IFD.Exif)
+        ee[ExifTags.Base.UserComment] = comment
+        exif[ExifTags.IFD.Exif] = ee
+
+    img.info['exif'] = exif.tobytes()
+
+    return ImageOps.exif_transpose(img)

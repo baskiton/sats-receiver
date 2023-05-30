@@ -168,6 +168,8 @@ Each frequency object contain:
 | qpsk_excess_bw  | Number  | _Optional. Only for **QPSK** mode._ QPSK Excess bandwidth. `0.35` by default      |
 | qpsk_ntaps      | Integer | _Optional. Only for **QPSK** mode._ QPSK number of taps. `33` by default          |
 | qpsk_costas_bw  | Number  | _Optional. Only for **QPSK** mode._ QPSK Costas bandwidth. `0.005` by default     |
+| sstv_wsr        | Number  | _Optional. Only for **SSTV** decoder._ SSTV work samplerate. `16000` by default   |
+| sstv_sync       | Number  | _Optional. Only for **SSTV** decoder._ SSTV syncing. `true` by default            |
 
 
 #### modulations
@@ -182,7 +184,22 @@ Each frequency object contain:
 #### decoders
 * `RAW` Saved to 2-channel float32 WAV file with `bandwidth` sample rate
 * `RSTREAM` Raw Stream - binary int8. Suitable for further processing, for example, in SatDump
-* `APT` sats_receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)
+* `APT` sats-receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)
+* `SSTV` SSTV saved to PNG image with EXIF. Supported modes:
+  * `Robot24`
+  * `Robot36`
+  * `Robot72`
+  * `MartinM1`
+  * `MartinM2`
+  * `MartinM3`
+  * `MartinM4`
+  * `PD50`
+  * `PD90`
+  * `PD120`
+  * `PD160`
+  * `PD180`
+  * `PD240`
+  * `PD290`
 * ~~`LRPT`~~ Not implemented yet
 
 

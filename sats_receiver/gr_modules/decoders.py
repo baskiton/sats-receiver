@@ -15,8 +15,12 @@ import gnuradio.fft
 import gnuradio.filter
 import gnuradio.gr
 
+from PIL import ExifTags
+
 from sats_receiver import utils
-from sats_receiver.systems import apt
+from sats_receiver.gr_modules.epb import sstv as sstv_epb
+from sats_receiver.observer import Observer
+from sats_receiver.systems import apt, sstv
 
 
 class Decoder(gr.gr.hier_block2):
@@ -115,7 +119,7 @@ class AptDecoder(Decoder):
         self.peaks_file = utils.mktmp(dir=out_dir, prefix=pfx, suffix='.peaks')
         self.sat_ephem_tle = sat_ephem_tle
         self.observer_lonlat = observer_lonlat
-        self.base_kw.update(sat_tle=self.sat_ephem_tle[1], observer_lonlat=self.observer_lonlat)
+        self.base_kw.update(sat_tle=sat_ephem_tle[1], observer_lonlat=observer_lonlat)
 
         resamp_gcd = math.gcd(samp_rate, apt.Apt.WORK_RATE)
 
@@ -314,3 +318,113 @@ class LrptDecoder(RawStreamDecoder):
 
     def finalize(self, executor, fin_key: str):
         super(LrptDecoder, self).finalize(executor, fin_key)
+
+
+class SstvDecoder(Decoder):
+    _FREQ_1 = (1900 - 1200) / 2
+
+    def __init__(self,
+                 sat_name: str,
+                 samp_rate: Union[int, float],
+                 out_dir: pathlib.Path,
+                 observer: Observer,
+                 do_sync=True,
+                 wsr=16000):
+        super(SstvDecoder, self).__init__('SSTV Decoder', sat_name, samp_rate, out_dir)
+
+        self.observer = observer
+        self.do_sync = do_sync
+        self.wsr = wsr
+
+        hdr_pix_width = int(wsr * sstv.Sstv.HDR_PIX_S)
+        hdr = sstv.Sstv.HDR_SYNC_WORD.repeat(hdr_pix_width)
+        resamp_gcd = math.gcd(wsr, samp_rate)
+
+        self.bpf_input = gr.filter.fir_filter_ccc(
+            1,
+            gr.filter.firdes.complex_band_pass(
+                1,          # gain
+                samp_rate,  # sampling_freq
+                900,        # low_cutoff_freq
+                2500,       # high_cutoff_freq
+                200,        # transition_width
+                gr.fft.window.WIN_HAMMING,
+                6.76))
+        self.frs = gr.blocks.rotator_cc(2 * math.pi * -(1900 - self._FREQ_1) / samp_rate)
+        self.quad_demod = gr.analog.quadrature_demod_cf((samp_rate / (2 * math.pi * self._FREQ_1)))
+        self.rsp = gr.filter.rational_resampler_fcc(
+                interpolation=samp_rate // resamp_gcd,
+                decimation=wsr // resamp_gcd,
+                taps=[],
+                fractional_bw=0
+        )
+        self.correllator = gr.digital.corr_est_cc(hdr, hdr_pix_width, 1, 0.4, gr.digital.THRESHOLD_ABSOLUTE)
+        self.ctf_out = gr.blocks.complex_to_float()
+        self.out_add_const = gr.blocks.add_const_ff(450 / self._FREQ_1)
+        self.out_multiply_const = gr.blocks.multiply_const_ff(self._FREQ_1 / (750 + 450))
+        self.ctf_corr = gr.blocks.complex_to_float()
+        self.corr_peak_detector = gr.blocks.peak_detector2_fb(0.1, hdr.size, 0.001)
+        self.sstv_epb = sstv_epb.SstvEpb(wsr, do_sync, self.log, sat_name, out_dir)
+
+        self.connect(
+            self,
+            self.bpf_input,
+            self.frs,
+            self.quad_demod,
+            self.rsp,
+            self.correllator,
+            self.ctf_out,
+            self.out_add_const,
+            self.out_multiply_const,
+            (self.sstv_epb, self.sstv_epb.OUT_IN),
+        )
+        self.connect(
+            (self.correllator, 1),
+            self.ctf_corr,
+            self.corr_peak_detector,
+            (self.sstv_epb, self.sstv_epb.PEAKS_IN),
+        )
+
+        self.base_kw.update(epb=self.sstv_epb, observer=observer)
+
+    def start(self):
+        # super(SstvDecoder, self).start()
+        utils.unlink(self.tmp_file)
+
+    def finalize(self, executor, fin_key: str):
+        self.sstv_epb.stop()
+        executor.execute(self._sstv_finalize, **self.base_kw, fin_key=fin_key)
+
+    @staticmethod
+    def _sstv_finalize(log: logging.Logger,
+                       sat_name: str,
+                       out_dir: pathlib.Path,
+                       epb: sstv_epb.SstvEpb,
+                       observer: Observer,
+                       fin_key: str) -> tuple[str, str, list[tuple[pathlib.Path, dt.datetime]]]:
+        log.debug('finalizing...')
+
+        fn_dt = []
+        sz_sum = 0
+        for img in epb.finalize():
+            img = utils.img_add_exif(img, observer=observer.get_obj())
+            exif = img.getexif()
+
+            sstv_mode = exif.get_ifd(ExifTags.IFD.Exif).get(ExifTags.Base.UserComment, 'SSTV')
+            dt.datetime.strptime(exif.get(ExifTags.Base.DateTime, 'SSTV'), '%Y:%m:%d %H:%M:%S')
+            end_time = exif.get(ExifTags.Base.DateTime)
+            end_time = (dt.datetime.strptime(end_time, '%Y:%m:%d %H:%M:%S')
+                        if end_time
+                        else dt.datetime.utcnow())
+            res_fn = out_dir / end_time.strftime(f'{sat_name}_{sstv_mode}_%Y-%m-%d_%H-%M-%S,%f.png')
+
+            img.save(res_fn, exif=exif)
+
+            fn_dt.append((res_fn, end_time))
+            sz = res_fn.stat().st_size
+            sz_sum += sz
+            log.info('finish: %s (%s)', res_fn, utils.numbi_disp(sz))
+
+        log.info('finish %s images (%s)', len(fn_dt), utils.numbi_disp(sz_sum))
+
+        return sat_name, fin_key, fn_dt
