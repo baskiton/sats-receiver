@@ -46,7 +46,7 @@ For example, this program is perfect for receiving weather
 satellites like NOAA (image below).  
 If you have ideas or knowledge on how to improve this project, feel free to submit issues or pull requests.
 
-![](doc/NOAA-19_2023-01-12_04-24-35,752471_map.jpg "NOAA-19")
+![](doc/NOAA-15_2023-05-11_03-30-41,734229_map.jpg "NOAA-15")
 
 
 ### Requirements
