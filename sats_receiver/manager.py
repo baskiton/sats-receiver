@@ -17,7 +17,7 @@ from sats_receiver.utils import Scheduler, SysUsage
 
 class Executor(mp.Process):
     def __init__(self, q: mp.Queue = None, sysu_intv=SysUsage.DEFAULT_INTV):
-        super().__init__(daemon=False, name=self.__class__.__name__)
+        super().__init__(daemon=True, name=self.__class__.__name__)
 
         self.q = q
         self.sysu_intv = sysu_intv

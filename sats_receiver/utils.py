@@ -303,12 +303,16 @@ def azimuth(a_lonlat: [float, float], b_lonlat: [float, float]) -> float:
 
 
 def mktmp(dir: pathlib.Path = None, prefix: str = None, suffix='.tmp') -> pathlib.Path:
+    if dir:
+        dir.mkdir(parents=True, exist_ok=True)
     f = tempfile.NamedTemporaryFile(dir=dir, prefix=prefix, suffix=suffix, delete=False)
     f.close()
     return pathlib.Path(f.name)
 
 
 def mktmp2(mode='w+b', buffering=-1, dir: pathlib.Path = None, prefix: str = None, suffix='.tmp'):
+    if dir:
+        dir.mkdir(parents=True, exist_ok=True)
     return tempfile.NamedTemporaryFile(mode=mode,
                                        buffering=buffering,
                                        dir=dir,

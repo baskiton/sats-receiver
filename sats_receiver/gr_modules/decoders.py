@@ -353,8 +353,8 @@ class SstvDecoder(Decoder):
         self.frs = gr.blocks.rotator_cc(2 * math.pi * -(1900 - self._FREQ_1) / samp_rate)
         self.quad_demod = gr.analog.quadrature_demod_cf((samp_rate / (2 * math.pi * self._FREQ_1)))
         self.rsp = gr.filter.rational_resampler_fcc(
-                interpolation=samp_rate // resamp_gcd,
-                decimation=wsr // resamp_gcd,
+                interpolation=wsr // resamp_gcd,
+                decimation=samp_rate // resamp_gcd,
                 taps=[],
                 fractional_bw=0
         )

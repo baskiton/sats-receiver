@@ -544,7 +544,7 @@ class SstvRecognizer:
 
             elif self.state == self._STATE_GET_LINE:
                 if self.sstv.feed(data):
-                    self.state = self._STATE_0
+                    self.stop()
                     return self.STATUS_DONE
                 break
 
