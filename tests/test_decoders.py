@@ -22,6 +22,7 @@ from PIL import Image, ExifTags
 from sats_receiver import utils
 from sats_receiver.manager import Executor
 from sats_receiver.gr_modules.decoders import Decoder, SstvDecoder
+from sats_receiver.gr_modules.epb.prober import Prober
 from sats_receiver.observer import Observer
 
 
@@ -87,24 +88,26 @@ class DecoderTopBlock(gr.gr.top_block):
         super(DecoderTopBlock, self).__init__('DecoderTopBlock', catch_exceptions=False)
 
         self.executor = DecoderExecutor(ret_wr)
-        self.executor.start()
-        atexit.register(lambda x: (x.stop(), x.join()), self.executor)
 
         self.blocks_wavfile_source = gr.blocks.wavfile_source(str(wav_fp), False)
+        self.prober = Prober()
         self.blocks_float_to_complex = gr.blocks.float_to_complex(1)
         self.decoder = decoder
 
-        ##################################################
-        # Connections
-        ##################################################
         self.connect(
             self.blocks_wavfile_source,
             self.blocks_float_to_complex,
             self.decoder,
         )
+        self.connect(
+            self.blocks_wavfile_source,
+            self.prober,
+        )
 
     def start(self, max_noutput_items=10000000):
         self.log.info('START')
+        self.executor.start()
+        atexit.register(lambda x: (x.stop(), x.join()), self.executor)
         self.decoder.start()
         super(DecoderTopBlock, self).start(max_noutput_items)
 
@@ -166,7 +169,10 @@ class TestDecoders(TestCase):
         )
         self.tb = DecoderTopBlock(wav_fp, self.ret_wr, decoder)
         self.tb.start()
-        time.sleep(TIMEOUT)
+
+        while self.tb.prober.changes():
+            time.sleep(self.tb.prober.measure_s)
+
         self.tb.stop()
         self.tb.wait()
 
