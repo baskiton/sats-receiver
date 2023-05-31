@@ -430,7 +430,7 @@ class SstvDecoder(Decoder):
             end_time = (dt.datetime.strptime(end_time, '%Y:%m:%d %H:%M:%S')
                         if end_time
                         else dt.datetime.utcnow())
-            res_fn = out_dir / end_time.strftime(f'{sat_name}_{sstv_mode}_%Y-%m-%d_%H-%M-%S,%f.png')
+            res_fn = out_dir / end_time.strftime(f'{sat_name}_{sstv_mode}_%Y-%m-%d_%H-%M-%S,%f_{fin_key}.png')
 
             img.save(res_fn, exif=exif)
 
