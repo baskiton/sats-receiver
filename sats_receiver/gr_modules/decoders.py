@@ -327,7 +327,7 @@ class SstvDecoder(Decoder):
                  sat_name: str,
                  samp_rate: Union[int, float],
                  out_dir: pathlib.Path,
-                 observer: Observer,
+                 observer: Observer = None,
                  do_sync=True,
                  wsr=16000):
         super(SstvDecoder, self).__init__('SSTV Decoder', sat_name, samp_rate, out_dir)
@@ -385,7 +385,10 @@ class SstvDecoder(Decoder):
             (self.sstv_epb, self.sstv_epb.PEAKS_IN),
         )
 
-        latlonalt = str(observer.lat), str(observer.lon), observer.elev
+        if observer is None:
+            latlonalt = None
+        else:
+            latlonalt = str(observer.lat), str(observer.lon), observer.elev
         self.base_kw.update(observer_latlonalt=latlonalt)
 
     def start(self):
@@ -401,13 +404,15 @@ class SstvDecoder(Decoder):
     def _sstv_finalize(log: logging.Logger,
                        sat_name: str,
                        out_dir: pathlib.Path,
-                       observer_latlonalt: tuple[str, str, Union[int, float]],
+                       observer_latlonalt: Optional[tuple[str, str, Union[int, float]]],
                        sstv_rr: list[sstv.SstvRecognizer],
                        fin_key: str) -> tuple[str, str, list[tuple[pathlib.Path, dt.datetime]]]:
         log.debug('finalizing...')
 
-        observer = ephem.Observer()
-        observer.lat, observer.lon, observer.elev = observer_latlonalt
+        if observer_latlonalt:
+            observer = ephem.Observer()
+            observer.lat, observer.lon, observer.elev = observer_latlonalt
+
         fn_dt = []
         sz_sum = 0
         for i in sstv_rr:
@@ -415,8 +420,9 @@ class SstvDecoder(Decoder):
             if not img:
                 continue
 
-            log.debug('add GPSInfo EXIF')
-            img = utils.img_add_exif(img, observer=observer)
+            if observer_latlonalt:
+                log.debug('add GPSInfo EXIF')
+                img = utils.img_add_exif(img, observer=observer)
             exif = img.getexif()
 
             sstv_mode = exif.get_ifd(ExifTags.IFD.Exif).get(ExifTags.Base.UserComment, 'SSTV')
