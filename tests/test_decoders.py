@@ -20,15 +20,28 @@ import numpy as np
 
 from PIL import Image, ExifTags
 from sats_receiver import utils
-from sats_receiver.manager import Executor
-from sats_receiver.gr_modules.decoders import Decoder, SstvDecoder
+from sats_receiver.gr_modules.decoders import Decoder, AptDecoder, SstvDecoder
 from sats_receiver.gr_modules.epb.prober import Prober
+from sats_receiver.manager import Executor
 from sats_receiver.observer import Observer
+from sats_receiver.systems.apt import Apt
+from sats_receiver.tle import Tle
 
 
 HERE = pathlib.Path(__file__).parent
 FILES = HERE / 'files'
 TIMEOUT = support.SHORT_TIMEOUT
+
+
+class TestTle(Tle):
+    def __init__(self):
+        super().__init__({'update_period': 0})
+        self.tle_file = FILES / 'test_tle.txt'
+        self.fill_objects()
+
+    def update_config(self, config):
+        self.config = config
+        return 1
 
 
 class DecoderExecutor(Executor):
@@ -217,3 +230,76 @@ class TestDecoders(TestCase):
 
         self.assertTrue(np.isclose(float(gps[ExifTags.GPS.GPSAltitude]), abs(alt)))
         self.assertEqual(gps[ExifTags.GPS.GPSAltitudeRef], b'\1')
+
+    def test_apt(self):
+        lat = 11.111
+        lon = -22.222
+        wav_fp = FILES / 'apt_11025hz.wav'
+        wav_samp_rate = 11025
+        sat_name = 'TEST SAT'
+        tle = TestTle()
+
+        decoder = AptDecoder(
+            sat_name=sat_name,
+            samp_rate=wav_samp_rate,
+            out_dir=self.out_dp,
+            sat_ephem_tle=tle.get(sat_name),
+            observer_lonlat=(lon, lat),
+        )
+        self.tb = DecoderTopBlock(wav_fp, self.ret_wr, decoder)
+        self.tb.start()
+
+        while self.tb.prober.changes():
+            time.sleep(self.tb.prober.measure_s)
+
+        self.tb.stop()
+        self.tb.wait()
+
+        x = self.ret_rd.poll(TIMEOUT)
+        self.assertTrue(x)
+
+        x = self.ret_rd.recv()
+        self.assertIsInstance(x, tuple)
+        self.assertEqual(len(x), 4)
+
+        res_sat_name, res_fin_key, res_filename, res_end_time = x
+        self.assertEqual(res_sat_name, sat_name)
+
+        apt = Apt.from_apt(res_filename)
+        self.assertEqual(apt.sat_name, sat_name)
+        self.assertEqual(apt.end_time, res_end_time)
+        self.assertTupleEqual(apt.observer_lonlat, (lon, lat))
+        self.assertTupleEqual(apt.sat_tle, tle.get_tle(sat_name))
+        self.assertFalse(apt.process())
+
+    def test_apt_fail(self):
+        lat = 11.111
+        lon = -22.222
+        wav_fp = FILES / 'apt_noise_48000hz.wav'
+        wav_samp_rate = 11025
+        sat_name = 'TEST SAT'
+        tle = TestTle()
+
+        decoder = AptDecoder(
+            sat_name=sat_name,
+            samp_rate=wav_samp_rate,
+            out_dir=self.out_dp,
+            sat_ephem_tle=tle.get(sat_name),
+            observer_lonlat=(lon, lat),
+        )
+        self.tb = DecoderTopBlock(wav_fp, self.ret_wr, decoder)
+        self.tb.start()
+
+        while self.tb.prober.changes():
+            time.sleep(self.tb.prober.measure_s)
+
+        self.tb.stop()
+        self.tb.wait()
+
+        self.assertWarns(Warning)
+
+        x = self.ret_rd.poll(TIMEOUT)
+        self.assertTrue(x)
+
+        x = self.ret_rd.recv()
+        self.assertIsNone(x)
