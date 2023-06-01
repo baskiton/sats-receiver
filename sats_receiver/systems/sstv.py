@@ -47,8 +47,6 @@ class Sstv:
 
         self.line_len_fp = self.LINE_S * srate
         self.line_len = int(self.LINE_S * srate)
-        self.line = np.full(self.line_len, np.nan, np.float32)
-        self.line_rest_sz = self.line_len
 
         # horizontal sync
         self.sync_pix_width = int(srate * self.SYNC_PIX_S)

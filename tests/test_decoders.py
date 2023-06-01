@@ -3,7 +3,6 @@ import datetime as dt
 import logging
 import logging.handlers
 import multiprocessing as mp
-import multiprocessing.connection
 import pathlib
 import tempfile
 import time
@@ -22,7 +21,6 @@ from PIL import Image, ExifTags
 from sats_receiver import utils
 from sats_receiver.gr_modules.decoders import Decoder, AptDecoder, SstvDecoder
 from sats_receiver.gr_modules.epb.prober import Prober
-from sats_receiver.manager import Executor
 from sats_receiver.observer import Observer
 from sats_receiver.systems.apt import Apt
 from sats_receiver.tle import Tle
@@ -44,63 +42,57 @@ class TestTle(Tle):
         return 1
 
 
-class DecoderExecutor(Executor):
-    def __init__(self, ret_wr: mp.connection.Connection):
-        super().__init__()
-        self.ret_wr = ret_wr
+class TestExecutor:
+    def __init__(self):
+        self.name = self.__class__.__name__
+        self.log = logging.getLogger(self.name)
+        self.rd, self.wr = mp.Pipe(False)
 
-    def action(self):
-        while 1:
-            self.sysu.collect()
+    def execute(self, fn, *args, **kwargs):
+        if self.wr:
+            self.wr.send((fn, args, kwargs))
 
+    def stop(self):
+        if self.wr:
+            utils.close(self.wr)
+            self.wr = 0
+
+    def action(self, t=TIMEOUT):
+        try:
+            x = self.rd.poll(t)
+        except InterruptedError:
+            x = 1
+        except:
+            return
+
+        if not x:
+            return
+
+        x = self.rd.recv()
+        try:
+            fn, args, kwargs = x
+        except ValueError:
+            self.log.error('invalid task: %s', x)
+            return
+
+        if callable(fn):
             try:
-                x = self.rd.poll(1)
-            except InterruptedError:
-                x = 1
-            except:
-                continue
-
-            if not x:
-                continue
-
-            x = self.rd.recv()
-
-            if x == '.':
-                break
-
-            try:
-                fn, args, kwargs = x
-            except ValueError:
-                self.log.error('invalid task: %s', x)
-                continue
-
-            if callable(fn):
-                try:
-                    x = fn(*args, **kwargs)
-                except Exception:
-                    self.log.exception('%s with args=%s kwargs=%s', fn, args, kwargs)
-                    continue
-
-                if x and isinstance(x, tuple):
-                    if len(x) == 4:
-                        sat_name, fin_key, res_filename, end_time = x
-                    elif len(x) == 3:
-                        sat_name, fin_key, fn_dt = x
-
-                self.ret_wr.send(x)
+                return fn(*args, **kwargs)
+            except Exception:
+                self.log.exception('%s with args=%s kwargs=%s', fn, args, kwargs)
+                return
 
 
 class DecoderTopBlock(gr.gr.top_block):
     def __init__(self,
                  wav_fp: pathlib.Path,
-                 ret_wr: mp.connection.Connection,
                  decoder: Decoder):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
         super(DecoderTopBlock, self).__init__('DecoderTopBlock', catch_exceptions=False)
 
-        self.executor = DecoderExecutor(ret_wr)
+        self.executor = TestExecutor()
 
         self.blocks_wavfile_source = gr.blocks.wavfile_source(str(wav_fp), False)
         self.prober = Prober()
@@ -119,8 +111,7 @@ class DecoderTopBlock(gr.gr.top_block):
 
     def start(self, max_noutput_items=10000000):
         self.log.info('START')
-        self.executor.start()
-        atexit.register(lambda x: (x.stop(), x.join()), self.executor)
+        atexit.register(lambda x: x.stop(), self.executor)
         self.decoder.start()
         super(DecoderTopBlock, self).start(max_noutput_items)
 
@@ -130,12 +121,10 @@ class DecoderTopBlock(gr.gr.top_block):
 
         fin_key = sha256((self.prefix + str(dt.datetime.now())).encode()).hexdigest()
         self.decoder.finalize(self.executor, fin_key)
-
         self.executor.stop()
 
     def wait(self):
         super(DecoderTopBlock, self).wait()
-        self.executor.join()
 
 
 class TestDecoders(TestCase):
@@ -151,9 +140,8 @@ class TestDecoders(TestCase):
         cls.out_dir = None
 
     def setUp(self) -> None:
-        self.ret_rd, self.ret_wr = mp.Pipe(False)
         self.tb = None
-        self.to_close = [self.ret_rd, self.ret_wr]
+        self.to_close = []
 
     def tearDown(self) -> None:
         if isinstance(self.tb, DecoderTopBlock):
@@ -180,7 +168,7 @@ class TestDecoders(TestCase):
             do_sync=1,
             wsr=sstv_wsr,
         )
-        self.tb = DecoderTopBlock(wav_fp, self.ret_wr, decoder)
+        self.tb = DecoderTopBlock(wav_fp, decoder)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -189,10 +177,7 @@ class TestDecoders(TestCase):
         self.tb.stop()
         self.tb.wait()
 
-        x = self.ret_rd.poll(TIMEOUT)
-        self.assertTrue(x)
-
-        x = self.ret_rd.recv()
+        x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
         self.assertEqual(len(x), 3)
 
@@ -246,7 +231,7 @@ class TestDecoders(TestCase):
             sat_ephem_tle=tle.get(sat_name),
             observer_lonlat=(lon, lat),
         )
-        self.tb = DecoderTopBlock(wav_fp, self.ret_wr, decoder)
+        self.tb = DecoderTopBlock(wav_fp, decoder)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -255,10 +240,7 @@ class TestDecoders(TestCase):
         self.tb.stop()
         self.tb.wait()
 
-        x = self.ret_rd.poll(TIMEOUT)
-        self.assertTrue(x)
-
-        x = self.ret_rd.recv()
+        x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
         self.assertEqual(len(x), 4)
 
@@ -287,7 +269,7 @@ class TestDecoders(TestCase):
             sat_ephem_tle=tle.get(sat_name),
             observer_lonlat=(lon, lat),
         )
-        self.tb = DecoderTopBlock(wav_fp, self.ret_wr, decoder)
+        self.tb = DecoderTopBlock(wav_fp, decoder)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -296,10 +278,7 @@ class TestDecoders(TestCase):
         self.tb.stop()
         self.tb.wait()
 
-        self.assertWarns(Warning)
-
-        x = self.ret_rd.poll(TIMEOUT)
-        self.assertTrue(x)
-
-        x = self.ret_rd.recv()
+        with self.assertLogs(f'Apt: {sat_name}', level=logging.ERROR) as e:
+            x = self.tb.executor.action(TIMEOUT)
+        self.assertEqual(e.records[0].msg, 'recording too short for telemetry decoding')
         self.assertIsNone(x)

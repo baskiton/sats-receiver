@@ -9,14 +9,14 @@ import time
 
 from typing import Mapping
 
+from sats_receiver import utils
 from sats_receiver.gr_modules.receiver import RecUpdState, SatsReceiver
 from sats_receiver.observer import Observer
 from sats_receiver.tle import Tle
-from sats_receiver.utils import Scheduler, SysUsage
 
 
 class Executor(mp.Process):
-    def __init__(self, q: mp.Queue = None, sysu_intv=SysUsage.DEFAULT_INTV):
+    def __init__(self, q: mp.Queue = None, sysu_intv=utils.SysUsage.DEFAULT_INTV):
         super().__init__(daemon=True, name=self.__class__.__name__)
 
         self.q = q
@@ -32,7 +32,7 @@ class Executor(mp.Process):
             logger.addHandler(qh)
             # logging.basicConfig(level=mp.get_logger().level, handlers=[qh])
         self.log = logging.getLogger(self.name)
-        self.sysu = SysUsage(self.name, self.sysu_intv)
+        self.sysu = utils.SysUsage(self.name, self.sysu_intv)
 
     def start(self) -> None:
         super(Executor, self).start()
@@ -100,16 +100,16 @@ class Executor(mp.Process):
     def stop(self):
         if self.wr:
             self.wr.send('.')
-            self.wr.close()
+            utils.close(self.wr)
             self.wr = 0
 
 
 class ReceiverManager:
-    def __init__(self, q: mp.Queue, config_filename: pathlib.Path, sysu_intv=SysUsage.DEFAULT_INTV, executor_cls=Executor):
+    def __init__(self, q: mp.Queue, config_filename: pathlib.Path, sysu_intv=utils.SysUsage.DEFAULT_INTV, executor_cls=Executor):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
-        self.sysu = SysUsage(self.prefix, sysu_intv)
+        self.sysu = utils.SysUsage(self.prefix, sysu_intv)
         self.config_filename = config_filename.expanduser().absolute()
         self.config_file_stat = None
         self.config = {}
@@ -124,7 +124,7 @@ class ReceiverManager:
 
         self.observer = Observer(self.config['observer'])
         self.tle = Tle(self.config['tle'])
-        self.scheduler = Scheduler()
+        self.scheduler = utils.Scheduler()
         self.executor = executor_cls(q, sysu_intv)
         self.executor.start()
         atexit.register(lambda x: (x.stop(), x.join()), self.executor)
