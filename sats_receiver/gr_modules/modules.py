@@ -260,7 +260,7 @@ class Satellite(gr.gr.hier_block2):
 
     def __init__(self,
                  config: Mapping,
-                 sat_ephem_tle: Optional[tuple[ephem.EarthSatellite, tuple[str, str, str]]],
+                 sat_ephem_tle: tuple[ephem.EarthSatellite, tuple[str, str, str]],
                  observer: Observer,
                  main_tune: Union[int, float],
                  samp_rate: Union[int, float],

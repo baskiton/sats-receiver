@@ -138,7 +138,7 @@ class Apt:
             l1 = f.readline().decode('ascii').rstrip()
             l2 = f.readline().decode('ascii').rstrip()
             sat_tle = sat_name, l1, l2
-            observer_lonlat = [*np.frombuffer(f.read(np.dtype(np.double).itemsize * 2), dtype=np.double)]
+            observer_lonlat = tuple(np.frombuffer(f.read(np.dtype(np.double).itemsize * 2), dtype=np.double))
             end_time = np.frombuffer(f.read(np.dtype(np.double).itemsize), dtype=np.double)[0]
             data = np.fromfile(f, dtype=np.float32)
 

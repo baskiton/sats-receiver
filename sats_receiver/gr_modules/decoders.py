@@ -109,10 +109,12 @@ class AptDecoder(Decoder):
                  sat_name: str,
                  samp_rate: Union[int, float],
                  out_dir: pathlib.Path,
-                 sat_ephem_tle: Optional[tuple[ephem.EarthSatellite, tuple[str, str, str]]],
+                 sat_ephem_tle: tuple[ephem.EarthSatellite, tuple[str, str, str]],
                  observer_lonlat: tuple[float, float]):
         name = 'APT Decoder'
         super(AptDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
+
+        self.already_fins = 0
 
         pfx = '_'.join(name.lower().split())
         self.corr_file = utils.mktmp(dir=out_dir, prefix=pfx, suffix='.corr')
@@ -211,6 +213,11 @@ class AptDecoder(Decoder):
         self.out_peaks_sink.set_unbuffered(False)
 
     def finalize(self, executor, fin_key: str):
+        if self.already_fins:
+            self.log.debug('Already finalized. Skip')
+            return
+
+        self.already_fins = 1
         self.out_file_sink.do_update()
         self.out_corr_sink.do_update()
         self.out_peaks_sink.do_update()
@@ -219,7 +226,7 @@ class AptDecoder(Decoder):
 
         for p in self.tmp_file, self.corr_file, self.peaks_file:
             if not p.exists():
-                self.log.warning('%s: missing components `%s`', p)
+                self.log.warning('missing components `%s`', p)
                 utils.unlink(self.tmp_file, self.corr_file, self.peaks_file)
                 return
 
