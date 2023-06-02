@@ -423,6 +423,8 @@ class SstvDecoder(Decoder):
         fn_dt = []
         sz_sum = 0
         for i in sstv_rr:
+            if not i.sstv and i.vis_code:
+                continue
             img = i.get_image()
             if not img:
                 continue

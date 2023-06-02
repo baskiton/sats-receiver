@@ -48,6 +48,11 @@ class SstvEpb(gr.gr.sync_block):
                 self.find_sstv = 1
                 break
 
+            elif status == sstv.SstvRecognizer.STATUS_VIS_UNKNOWN:
+                if self.sstv[i].vis_code:
+                    self.sstv_done.append(self.sstv[i])
+                to_delete.append(i)
+
             elif status != sstv.SstvRecognizer.STATUS_OK:
                 to_delete.append(i)
 

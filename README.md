@@ -186,20 +186,10 @@ Each frequency object contain:
 * `RSTREAM` Raw Stream - binary int8. Suitable for further processing, for example, in SatDump
 * `APT` sats-receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)
 * `SSTV` SSTV saved to PNG image with EXIF. Supported modes:
-  * `Robot24`
-  * `Robot36`
-  * `Robot72`
-  * `MartinM1`
-  * `MartinM2`
-  * `MartinM3`
-  * `MartinM4`
-  * `PD50`
-  * `PD90`
-  * `PD120`
-  * `PD160`
-  * `PD180`
-  * `PD240`
-  * `PD290`
+  * Robot (24, 24, 72)
+  * Martin (M1, M2, M3, M4)
+  * PD (50, 90, 120, 160, 180, 240, 290)
+  * Scottie (S1, S2, S3, S4)
 * ~~`LRPT`~~ Not implemented yet
 
 

@@ -112,7 +112,7 @@ class Sstv:
         hsync_len = int(self.HSYNC_MS * self.sync_pix_width)
         line_len = self.line_len - hsync_len
 
-        sync_word = np.array([-1] * int(self.HSYNC_MS * self.sync_pix_width))
+        sync_word = np.array([-1] * hsync_len)
         corrs = np.correlate(data - np.mean(data), sync_word, 'valid')
         corrs_mean = np.mean(corrs)
         corrs_up = corrs > corrs_mean
@@ -263,6 +263,7 @@ class MartinM2(_Martin):
     VIS = 0x28
 
     C_MS = _Martin.CSYNC_MS * 128
+    LINE_S = (_Martin.HSYNC_MS + _Martin.CSYNC_MS + C_MS + _Martin.CSYNC_MS + C_MS + _Martin.CSYNC_MS + C_MS + _Martin.CSYNC_MS) / 1000
 
     IMG_W = 160
     IMG_H = 256
@@ -279,6 +280,7 @@ class MartinM4(_Martin):
     VIS = 0x20
 
     C_MS = _Martin.CSYNC_MS * 128
+    LINE_S = (_Martin.HSYNC_MS + _Martin.CSYNC_MS + C_MS + _Martin.CSYNC_MS + C_MS + _Martin.CSYNC_MS + C_MS + _Martin.CSYNC_MS) / 1000
 
     IMG_W = 160
     IMG_H = 128
@@ -376,12 +378,73 @@ class PD290(_PD):
     IMG_H = 616 // 2
 
 
+class _Scottie(Sstv):
+    MODE = 'RGB'
+
+    HSYNC_MS = 9.0
+    CSYNC_MS = 1.5
+    C_MS = 138.24
+    LINE_S = (CSYNC_MS + C_MS + CSYNC_MS + C_MS + HSYNC_MS + CSYNC_MS + C_MS) / 1000
+
+    IMG_W = 320
+    IMG_H = 256
+
+    def _image_process(self, data: np.ndarray) -> np.ndarray:
+        indices = [0]
+        for i in self.CSYNC_MS, self.C_MS, self.CSYNC_MS, self.C_MS, self.CSYNC_MS:
+            indices.append(indices[-1] + i)
+
+        indices = np.array(indices[1:]) / 1000
+        _, r, _, g, _, b = np.hsplit(data, (indices * self.srate).astype(int))
+        g = np.concatenate((np.zeros((1, g.shape[1]), dtype=g.dtype), g[:-1]), axis=0)
+        b = np.concatenate((np.zeros((1, b.shape[1]), dtype=b.dtype), b[:-1]), axis=0)
+
+        return np.dstack((
+            sp.signal.resample(r, self.IMG_W, axis=1),
+            sp.signal.resample(g, self.IMG_W, axis=1),
+            sp.signal.resample(b, self.IMG_W, axis=1)
+        ))
+
+
+class ScottieS1(_Scottie):
+    VIS = 0x3c
+
+
+class ScottieS2(_Scottie):
+    VIS = 0x38
+
+    C_MS = 88.064
+    LINE_S = (_Scottie.CSYNC_MS + C_MS + _Scottie.CSYNC_MS + C_MS + _Scottie.HSYNC_MS + _Scottie.CSYNC_MS + C_MS) / 1000
+
+
+class ScottieS3(ScottieS1):
+    VIS = 0x34
+
+    IMG_W = 160
+    IMG_H = 128
+
+
+class ScottieS4(ScottieS2):
+    VIS = 0x30
+
+    IMG_W = 160
+    IMG_H = 128
+
+
+class ScottieDX(_Scottie):
+    VIS = 0x4c
+
+    C_MS = 345.6
+    LINE_S = (_Scottie.CSYNC_MS + C_MS + _Scottie.CSYNC_MS + C_MS + _Scottie.HSYNC_MS + _Scottie.CSYNC_MS + C_MS) / 1000
+
+
 class SstvRecognizer:
     STATUS_OK = 0
     STATUS_CALIB_FAIL = 1
     STATUS_VIS_FAIL = 2
-    STATUS_FOUND = 3
-    STATUS_DONE = 4
+    STATUS_VIS_UNKNOWN = 3
+    STATUS_FOUND = 4
+    STATUS_DONE = 5
 
     _STATE_0 = 0
     _STATE_GET_PEAKS = 1
@@ -422,6 +485,11 @@ class SstvRecognizer:
         PD180.VIS: PD180,
         PD240.VIS: PD240,
         PD290.VIS: PD290,
+        ScottieS1.VIS: ScottieS1,
+        ScottieS2.VIS: ScottieS2,
+        ScottieS3.VIS: ScottieS3,
+        ScottieS4.VIS: ScottieS4,
+        ScottieDX.VIS: ScottieDX,
     }
 
     def __init__(self,
@@ -526,13 +594,13 @@ class SstvRecognizer:
                         self.state = self._STATE_0
                         return self.STATUS_VIS_FAIL
 
+                    self.vis_code = code
                     sstv = self.CODES.get(code)
                     if not sstv:
                         # print(f'Unknown VIS<0x{code:02x}>')
                         self.state = self._STATE_0
-                        return self.STATUS_VIS_FAIL
+                        return self.STATUS_VIS_UNKNOWN
 
-                    self.vis_code = code
                     self.sstv = sstv(sat_name=self.sat_name,
                                      out_dir=self.out_dir,
                                      srate=self.srate,
