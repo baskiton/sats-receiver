@@ -84,8 +84,11 @@ class SatRecorder(gr.gr.hier_block2):
 
                         # 'sstv_wsr',         # optional, only in SSTV decode
                         # 'sstv_sync',        # optional, only in SSTV decode
+
+                        # 'channels',         # only for GMSK
                     ]))
             and (config['mode'] != utils.Mode.QPSK or 'qpsk_baudrate' in config)
+            and (config['mode'] != utils.Mode.GMSK or 'channels' in config)
         )
 
     def __init__(self,
@@ -160,28 +163,39 @@ class SatRecorder(gr.gr.hier_block2):
         elif self.mode == utils.Mode.QPSK:
             self.demodulator = demodulators.QpskDemod(self.bandwidth, self.qpsk_baudrate, self.qpsk_excess_bw, self.qpsk_ntaps, self.qpsk_costas_bw)
 
+        elif self.mode == utils.Mode.GMSK:
+            # TODO
+            self.demodulator = demodulators.GmskDemod(self.bandwidth, self.channels)
+
+        self.decoders = []
         if self.decode == utils.Decode.APT:
-            self.decoder = decoders.AptDecoder(up.name, self.bandwidth, up.output_directory, up.sat_ephem_tle, up.observer.lonlat)
+            self.decoders.append(decoders.AptDecoder(up.name, self.bandwidth, up.output_directory, up.sat_ephem_tle, up.observer.lonlat))
 
         # elif self.decode == Decode.LRPT:
         #     # TODO
         #     # self.decoder =
 
         elif self.decode == utils.Decode.RSTREAM:
-            self.decoder = decoders.RawStreamDecoder(up.name, self.bandwidth, up.output_directory)
+            for ch in (self.channels if hasattr(self.demodulator, 'channels') else (self.bandwidth,)):
+                self.decoders.append(decoders.RawStreamDecoder(up.name, ch, up.output_directory))
+            # self.decoder = decoders.RawStreamDecoder(up.name, self.bandwidth, up.output_directory)
 
         elif self.decode == utils.Decode.RAW:
-            self.decoder = decoders.RawDecoder(up.name, self.bandwidth, up.output_directory)
+            for ch in (self.channels if hasattr(self.demodulator, 'channels') else (self.bandwidth,)):
+                self.decoders.append(decoders.RawDecoder(up.name, ch, up.output_directory))
+            # self.decoder = decoders.RawDecoder(up.name, self.bandwidth, up.output_directory)
 
         elif self.decode == utils.Decode.SSTV:
-            self.decoder = decoders.SstvDecoder(up.name, self.bandwidth, up.output_directory, up.observer, self.sstv_sync, self.sstv_wsr)
+            self.decoders.append(decoders.SstvDecoder(up.name, self.bandwidth, up.output_directory, up.observer, self.sstv_sync, self.sstv_wsr))
 
         self.connect(
             self,
             self.radio,
-            *((self.demodulator, self.post_demod) if self.demodulator else tuple()),
-            self.decoder,
+            *(self.demodulator and (self.demodulator, self.post_demod) or ()),
         )
+        last = self.demodulator and self.post_demod or self.radio
+        for i, decoder in enumerate(self.decoders):
+            self.connect((last, i), decoder)
 
     def set_freq_offset(self, new_freq: Union[int, float]):
         self.radio.set_freq_offset(new_freq)
@@ -241,6 +255,10 @@ class SatRecorder(gr.gr.hier_block2):
     @property
     def sstv_sync(self) -> bool:
         return self.config.get('sstv_sync', True)
+
+    @property
+    def channels(self) -> list[Union[int, float]]:
+        return self.config['channels']
 
 
 class Satellite(gr.gr.hier_block2):
@@ -311,7 +329,8 @@ class Satellite(gr.gr.hier_block2):
             self.start_event = None
 
             for r in self.recorders:
-                r.decoder.start()
+                for decoder in r.decoders:
+                    decoder.start()
                 r.radio.set_enabled(1)
 
     def stop(self):
@@ -323,7 +342,8 @@ class Satellite(gr.gr.hier_block2):
             for r in self.recorders:
                 if r.is_runned:
                     r.radio.set_enabled(0)
-                    r.decoder.finalize(self.executor, fin_key)
+                    for decoder in r.decoders:
+                        decoder.finalize(self.executor, fin_key)
 
     def correct_doppler(self, observer: ephem.Observer):
         if self.is_runned and self.doppler:

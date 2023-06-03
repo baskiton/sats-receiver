@@ -35,6 +35,7 @@ class Mode(enum.Enum):
     WFM_STEREO = 'WFM_STEREO'
     QUAD = 'QUAD'
     QPSK = 'QPSK'
+    GMSK = 'GMSK'
 
 
 class Decode(enum.Enum):
