@@ -346,7 +346,7 @@ class Satellite(gr.gr.hier_block2):
         return self.config.get('min_elevation', 0.0)
 
     @property
-    def frequencies(self) -> Mapping:
+    def frequencies(self) -> list[Mapping]:
         return self.config['frequencies']
 
     @property

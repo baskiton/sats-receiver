@@ -590,14 +590,16 @@ class SstvRecognizer:
 
                     # check parity
                     if sum(vis_bits[1:]) % 2 != vis_bits[0]:
-                        # print(f'VIS<0x{code:02x}> parity check failed')
+                        if code:
+                            self.log.debug('Parity failed VIS<0x%02x>', code)
                         self.state = self._STATE_0
                         return self.STATUS_VIS_FAIL
 
                     self.vis_code = code
                     sstv = self.CODES.get(code)
                     if not sstv:
-                        # print(f'Unknown VIS<0x{code:02x}>')
+                        if code:
+                            self.log.debug('Unknown VIS<0x%02x>', code)
                         self.state = self._STATE_0
                         return self.STATUS_VIS_UNKNOWN
 
