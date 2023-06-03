@@ -156,20 +156,22 @@ Each satellite object contain:
 #### frequencies
 Each frequency object contain:
 
-| Field           | Type    | Description                                                                       |
-|:----------------|:--------|:----------------------------------------------------------------------------------|
-| freq            | Number  | Basic signal frequency, Hz                                                        |
-| bandwidth       | Number  | Received signal bandwidth, Hz                                                     |
-| enabled         | Boolean | _Optional._ Enable/Disable this frequency. `true` by default                      |
-| freq_correction | Boolean | _Optional._ Correction for basic frequency, Hz. `0` by default                    |
-| mode            | String  | _Optional._ Modulation option (see [modulations](#modulations)). `RAW` by default |
-| decode          | String  | _Optional._ Decoder option (see [decoders](#decoders)). `RAW` by default          |
-| qpsk_baudrate   | Number  | _Required only for **QPSK** mode._ QPSK Baudrate, bps                             |
-| qpsk_excess_bw  | Number  | _Optional. Only for **QPSK** mode._ QPSK Excess bandwidth. `0.35` by default      |
-| qpsk_ntaps      | Integer | _Optional. Only for **QPSK** mode._ QPSK number of taps. `33` by default          |
-| qpsk_costas_bw  | Number  | _Optional. Only for **QPSK** mode._ QPSK Costas bandwidth. `0.005` by default     |
-| sstv_wsr        | Number  | _Optional. Only for **SSTV** decoder._ SSTV work samplerate. `16000` by default   |
-| sstv_sync       | Number  | _Optional. Only for **SSTV** decoder._ SSTV syncing. `true` by default            |
+| Field           | Type            | Description                                                                                                            |
+|:----------------|:----------------|:-----------------------------------------------------------------------------------------------------------------------|
+| freq            | Number          | Basic signal frequency, Hz                                                                                             |
+| bandwidth       | Number          | Received signal bandwidth, Hz                                                                                          |
+| enabled         | Boolean         | _Optional._ Enable/Disable this frequency. `true` by default                                                           |
+| freq_correction | Boolean         | _Optional._ Correction for basic frequency, Hz. `0` by default                                                         |
+| mode            | String          | _Optional._ Modulation option (see [modulations](#modulations)). `RAW` by default                                      |
+| decode          | String          | _Optional._ Decoder option (see [decoders](#decoders)). `RAW` by default                                               |
+| channels        | Array of Number | _Required only for **GMSK** mode._ Demodulation baudrates, bps                                                         |
+| rstream_bits    | Boolean         | _Optional. Only for **RSTREAM** decoder._ Store data as 0-1 stream. Recommended for digital signals `false` by default |
+| qpsk_baudrate   | Number          | _Required only for **QPSK** mode._ QPSK Baudrate, bps                                                                  |
+| qpsk_excess_bw  | Number          | _Optional. Only for **QPSK** mode._ QPSK Excess bandwidth. `0.35` by default                                           |
+| qpsk_ntaps      | Integer         | _Optional. Only for **QPSK** mode._ QPSK number of taps. `33` by default                                               |
+| qpsk_costas_bw  | Number          | _Optional. Only for **QPSK** mode._ QPSK Costas bandwidth. `0.005` by default                                          |
+| sstv_wsr        | Number          | _Optional. Only for **SSTV** decoder._ SSTV work samplerate. `16000` by default                                        |
+| sstv_sync       | Number          | _Optional. Only for **SSTV** decoder._ SSTV syncing. `true` by default                                                 |
 
 
 #### modulations
@@ -180,11 +182,12 @@ Each frequency object contain:
 * `WFM_STEREO`
 * `QUAD`
 * `QPSK`
+* `GMSK`
 
 #### decoders
 * `RAW` Saved to 2-channel float32 WAV file with `bandwidth` sample rate
-* `RSTREAM` Raw Stream - binary int8. Suitable for further processing, for example, in SatDump
-* `APT` sats-receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)
+* `RSTREAM` Raw Stream - 1-channel binary int8. Suitable for further processing, for example, in SatDump
+* `APT` Sats-Receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)
 * `SSTV` SSTV saved to PNG image with EXIF. Supported modes:
   * Robot (24, 24, 72)
   * Martin (M1, M2, M3, M4)

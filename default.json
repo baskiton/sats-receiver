@@ -124,7 +124,7 @@
             "output_directory": "~/sats_receiver/records",
             "sats": [
                 {
-                    "name": "ISS",
+                    "name": "ISS (ZARYA)",
                     "enabled": true,
                     "min_elevation": 15.0,
                     "doppler": true,
@@ -132,12 +132,43 @@
                         {
                             "enabled": true,
                             "freq": 145800000,
-                            "freq_correction": 1000,
+                            "freq_correction": 0,
                             "bandwidth": 16000,
                             "mode": "QUAD",
                             "decode": "SSTV",
                             "sstv_wsr": 16000,
                             "sstv_sync": true
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "437:1 MHz",
+            "enabled": false,
+            "source": "rtlsdr",
+            "serial": "00000001",
+            "biast": false,
+            "gain": 38.6,
+            "tune": 437500000,
+            "samp_rate": 1024000,
+            "output_directory": "~/sats_receiver/records",
+            "sats": [
+                {
+                    "name": "ORBICRAFT-ZORKIY (RS15S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 437850000,
+                            "freq_correction": 0,
+                            "bandwidth": 9600,
+                            "mode": "GMSK",
+                            "channels": [9600, 4800, 2400],
+                            "decode": "RSTREAM",
+                            "rstream_bits": true
                         }
                     ]
                 }

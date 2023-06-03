@@ -263,12 +263,14 @@ class RawStreamDecoder(Decoder):
                  sat_name: str,
                  samp_rate: Union[int, float],
                  out_dir: pathlib.Path,
+                 rstream_bits=False,
                  name='RAW Stream Decoder'):
         super(RawStreamDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
+        self.rstream_bits = rstream_bits
 
         self.ctf = gr.blocks.complex_to_float(1)
         self.rail = gr.analog.rail_ff(-1, 1)
-        self.ftch = gr.blocks.float_to_char(1, 127)
+        self.ftch = rstream_bits and gr.blocks.float_to_uchar() or gr.blocks.float_to_char(1, 127)
         # self.fts = gr.blocks.float_to_short(1, 32767)
         # self.stch = gr.blocks.short_to_char(1)
 
