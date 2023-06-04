@@ -157,8 +157,8 @@ class AptDecoder(Decoder):
             threshold=0.9,
             threshold_method=gr.digital.THRESHOLD_ABSOLUTE,
         )
-        self.ctf_out = gr.blocks.complex_to_float()
-        self.ctf_corr = gr.blocks.complex_to_float()
+        self.ctr_out = gr.blocks.complex_to_real()
+        self.ctr_corr = gr.blocks.complex_to_real()
 
         self.out_file_sink = gr.blocks.file_sink(gr.gr.sizeof_float, str(self.tmp_file), False)
         self.out_corr_sink = gr.blocks.file_sink(gr.gr.sizeof_float, str(self.corr_file), False)
@@ -178,16 +178,16 @@ class AptDecoder(Decoder):
             self.ftc,
             # self.dc_rem,
             self.correllator,
-            self.ctf_out,
+            self.ctr_out,
             self.out_file_sink,
         )
         self.connect(
             (self.correllator, 1),
-            self.ctf_corr,
+            self.ctr_corr,
             self.out_corr_sink,
         )
         self.connect(
-            self.ctf_corr,
+            self.ctr_corr,
             self.peak_detector,
             self.out_peaks_sink,
         )
@@ -268,7 +268,7 @@ class RawStreamDecoder(Decoder):
         super(RawStreamDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
         self.rstream_bits = rstream_bits
 
-        self.ctf = gr.blocks.complex_to_float(1)
+        self.ctr = gr.blocks.complex_to_real(1)
         self.rail = gr.analog.rail_ff(-1, 1)
         self.ftch = rstream_bits and gr.blocks.float_to_uchar() or gr.blocks.float_to_char(1, 127)
         # self.fts = gr.blocks.float_to_short(1, 32767)
@@ -280,7 +280,7 @@ class RawStreamDecoder(Decoder):
 
         self.connect(
             self,
-            self.ctf,
+            self.ctr,
             self.rail,
             self.ftch,
             self.out_file_sink,
@@ -368,10 +368,10 @@ class SstvDecoder(Decoder):
                 fractional_bw=0
         )
         self.correllator = gr.digital.corr_est_cc(hdr, hdr_pix_width, 1, 0.4, gr.digital.THRESHOLD_ABSOLUTE)
-        self.ctf_out = gr.blocks.complex_to_float()
+        self.ctr_out = gr.blocks.complex_to_real()
         self.out_add_const = gr.blocks.add_const_ff(450 / self._FREQ_1)
         self.out_multiply_const = gr.blocks.multiply_const_ff(self._FREQ_1 / (750 + 450))
-        self.ctf_corr = gr.blocks.complex_to_float()
+        self.ctr_corr = gr.blocks.complex_to_real()
         self.corr_peak_detector = gr.blocks.peak_detector2_fb(0.1, hdr.size, 0.001)
         self.sstv_epb = sstv_epb.SstvEpb(wsr, do_sync, self.log, sat_name, out_dir)
 
@@ -382,14 +382,14 @@ class SstvDecoder(Decoder):
             self.quad_demod,
             self.rsp,
             self.correllator,
-            self.ctf_out,
+            self.ctr_out,
             self.out_add_const,
             self.out_multiply_const,
             (self.sstv_epb, self.sstv_epb.OUT_IN),
         )
         self.connect(
             (self.correllator, 1),
-            self.ctf_corr,
+            self.ctr_corr,
             self.corr_peak_detector,
             (self.sstv_epb, self.sstv_epb.PEAKS_IN),
         )

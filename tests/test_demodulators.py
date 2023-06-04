@@ -43,7 +43,7 @@ class DemodTopBlock(gr.gr.top_block):
 
         self.fsrc = gr.blocks.file_source(gr.gr.sizeof_gr_complex, str(fp), False, 0, samp_rate)
         self.thr = gr.blocks.throttle(gr.gr.sizeof_gr_complex, samp_rate, True)
-        self.ctf = gr.blocks.complex_to_float()
+        self.ctr = gr.blocks.complex_to_real()
         self.probe = Prober()
         self.gmsk_demod = GmskDemod(samp_rate, channels)
         self.fsinks = {}
@@ -58,7 +58,7 @@ class DemodTopBlock(gr.gr.top_block):
             self.thr,
             self.gmsk_demod,
         )
-        self.connect(self.thr, self.ctf, self.probe)
+        self.connect(self.thr, self.ctr, self.probe)
         for i, rate in enumerate(channels):
             self.connect((self.gmsk_demod, i), self.fsinks[rate][1])
 

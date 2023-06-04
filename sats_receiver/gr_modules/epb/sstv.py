@@ -11,7 +11,7 @@ class SstvEpb(gr.gr.sync_block):
 
     def __init__(self, srate=16000, do_sync=True, log=None, sat_name='unknown', out_dir=None):
         super(SstvEpb, self).__init__(
-            name='SstvProcess',
+            name='SstvEpb',
             in_sig=[np.float32, np.byte],   # [out, corr]
             out_sig=None,
         )
