@@ -167,6 +167,7 @@ class SatRecorder(gr.gr.hier_block2):
             # TODO
             self.demodulator = demodulators.GmskDemod(self.bandwidth, self.channels)
 
+        channels = getattr(self.demodulator, 'channels', (self.bandwidth,))
         self.decoders = []
         if self.decode == utils.Decode.APT:
             self.decoders.append(decoders.AptDecoder(up.name, self.bandwidth, up.output_directory, up.sat_ephem_tle, up.observer.lonlat))
@@ -176,14 +177,12 @@ class SatRecorder(gr.gr.hier_block2):
         #     # self.decoder =
 
         elif self.decode == utils.Decode.RSTREAM:
-            for ch in (self.channels if hasattr(self.demodulator, 'channels') else (self.bandwidth,)):
+            for ch in channels:
                 self.decoders.append(decoders.RawStreamDecoder(up.name, ch, up.output_directory))
-            # self.decoder = decoders.RawStreamDecoder(up.name, self.bandwidth, up.output_directory)
 
         elif self.decode == utils.Decode.RAW:
-            for ch in (self.channels if hasattr(self.demodulator, 'channels') else (self.bandwidth,)):
+            for ch in channels:
                 self.decoders.append(decoders.RawDecoder(up.name, ch, up.output_directory))
-            # self.decoder = decoders.RawDecoder(up.name, self.bandwidth, up.output_directory)
 
         elif self.decode == utils.Decode.SSTV:
             self.decoders.append(decoders.SstvDecoder(up.name, self.bandwidth, up.output_directory, up.observer, self.sstv_sync, self.sstv_wsr))

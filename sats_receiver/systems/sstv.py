@@ -513,12 +513,12 @@ class SstvRecognizer:
         self.calib_break_len = int(self.CALIB_BREAK_S * srate)
         self.calib_len = self.calib_leader_len * 2 + self.calib_break_len
         self.calib_hdr = np.full(self.calib_len, np.nan, np.float32)
-        self.calib_rest_sz = self.calib_len
+        self.calib_remained_sz = self.calib_len
 
         # vis code setup
         self.vis_len = int(self.VIS_S * srate)
         self.vis = np.full(self.vis_len, np.nan, np.float32)
-        self.vis_rest_sz = self.vis_len
+        self.vis_remained_sz = self.vis_len
         self.vis_code = 0
 
         self.sstv = None
@@ -535,22 +535,22 @@ class SstvRecognizer:
             if self.state == self._STATE_GET_PEAKS:
                 data = data[self.start_peak:]
                 self.calib_hdr.fill(np.nan)
-                self.calib_rest_sz = self.calib_len
+                self.calib_remained_sz = self.calib_len
                 self.vis.fill(np.nan)
-                self.vis_rest_sz = self.vis_len
+                self.vis_remained_sz = self.vis_len
                 self.state = self._STATE_GET_HDR
 
             elif self.state == self._STATE_GET_HDR:
                 if not np.isnan(np.amin(self.calib_hdr)):
                     self.calib_hdr.fill(np.nan)
-                    self.calib_rest_sz = self.calib_len
+                    self.calib_remained_sz = self.calib_len
                 i = np.argmin(self.calib_hdr)
-                x = data[:self.calib_rest_sz]
-                data = data[self.calib_rest_sz:]
+                x = data[:self.calib_remained_sz]
+                data = data[self.calib_remained_sz:]
                 self.calib_hdr[i:i + x.size] = x
-                self.calib_rest_sz -= x.size
+                self.calib_remained_sz -= x.size
 
-                if not self.calib_rest_sz:
+                if not self.calib_remained_sz:
                     # hdr is full. check it
                     leaders = np.append(
                         self.calib_hdr[:self.calib_leader_len],
@@ -572,14 +572,14 @@ class SstvRecognizer:
             elif self.state == self._STATE_GET_VIS:
                 if not np.isnan(np.amin(self.vis)):
                     self.vis.fill(np.nan)
-                    self.vis_rest_sz = self.vis_len
+                    self.vis_remained_sz = self.vis_len
                 i = np.argmin(self.vis)
-                x = data[:self.vis_rest_sz]
-                data = data[self.vis_rest_sz:]
+                x = data[:self.vis_remained_sz]
+                data = data[self.vis_remained_sz:]
                 self.vis[i:i + x.size] = x
-                self.vis_rest_sz -= x.size
+                self.vis_remained_sz -= x.size
 
-                if not self.vis_rest_sz:
+                if not self.vis_remained_sz:
                     # VIS is full. check it
                     vis = np.median(np.resize(self.vis, (10, self.vis_len // 10)), axis=1)
                     vis_bits = [int(bit < self._1200) for bit in vis[8:0:-1]]
