@@ -15,68 +15,66 @@ permissions:
 jobs:
   unittests:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
 
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install GNURadio
+      - name: Conda install
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-activate-base: false
+          activate-environment: sats-receiver-test-venv
+          channel-priority: strict
+          use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
+
+      - name: Get Variables
+        id: get-vars
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gnuradio
+          echo "today=$(/bin/date -u '+%Y%m%d')" >> $GITHUB_OUTPUT
+          echo "pip-cache-dir=$(pip cache dir)" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: pip cache
+        uses: actions/cache@v3
+        id: pip-cache
+        with:
+          path: ${{ steps.get-vars.outputs.pip-cache-dir }}
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+
+      - name: Conda cache
+        uses: actions/cache@v3
+        id: conda-cache
+        env:
+          # Increase this value to reset cache if test-env.yml has not changed
+          CACHE_NUMBER: 0
+        with:
+          path: ${{ env.CONDA_PKGS_DIR }}
+          key:
+            conda-${{ runner.os }}-${{ runner.arch }}-${{
+            steps.get-vars.outputs.today }}-${{ 
+            hashFiles('test-env.yml') }}-${{ env.CACHE_NUMBER }}
+
+      - name: Update environment
+        run: conda env update -f test-env.yml
+
+      - name: Prepare GNURadio
+        run: |
           mkdir -p $HOME/.gnuradio/prefs
-          sudo chown -R $(id -u):$(id -g) $HOME/.gnuradio/
+          chown -R $(id -u):$(id -g) $HOME/.gnuradio/
           echo "gr::vmcircbuf_sysv_shm_factory" > $HOME/.gnuradio/prefs/vmcircbuf_default_factory
-
-      - name: Install pipenv
-        run: |
-          curl https://raw.githubusercontent.com/pypa/pipenv/master/get-pipenv.py | python3
-          export PIPENV_VENV_IN_PROJECT=1
-          pipenv --site-packages
-
-      - name: Install dependencies
-        run: |
-          pipenv install -r requirements.txt
-          pipenv install -r test_requirements.txt
-
-      - name: Run tests
-        run: pipenv run python -m unittest discover -v
-
-
-  coverage:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Install GNURadio
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gnuradio
-          mkdir -p $HOME/.gnuradio/prefs
-          sudo chown -R $(id -u):$(id -g) $HOME/.gnuradio/
-          echo "gr::vmcircbuf_sysv_shm_factory" > $HOME/.gnuradio/prefs/vmcircbuf_default_factory
-
-      - name: Install pipenv
-        run: |
-          curl https://raw.githubusercontent.com/pypa/pipenv/master/get-pipenv.py | python3
-          export PIPENV_VENV_IN_PROJECT=1
-          pipenv --site-packages
-
-      - name: Install dependencies
-        run: |
-          pipenv install -r requirements.txt
-          pipenv install -r test_requirements.txt
+        shell: bash
 
       - name: Run tests and collect coverage
-        continue-on-error: true
-        run: pipenv run coverage run --omit=tests/* --source=sats_receiver -m unittest discover -v
+        run: coverage run --omit=tests/* --source=sats_receiver -m unittest discover -v
 
       - name: Generate report
-        continue-on-error: true
-        run: pipenv run coverage xml
+        run: coverage xml
 
       - name: Show report
-        continue-on-error: true
-        run: pipenv run coverage report -m
+        run: coverage report -m
 
-      - uses: codecov/codecov-action@v3
+      - name: Send report to codecov
+        uses: codecov/codecov-action@v3

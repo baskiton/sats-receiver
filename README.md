@@ -56,28 +56,32 @@ The program has only been tested on Linux. Work on Windows is not guaranteed!
 * librtlsdr (if you use RTL-SDR)
 
 ### Installation
-First [install gnuradio](https://wiki.gnuradio.org/index.php?title=InstallingGR)
+I recommended to use miniconda. So, first of all,
+[install it.](https://docs.conda.io/en/latest/miniconda.html#linux-installers)
 
-#### Linux
-  If you need a virtual environment (recommended), you need to create it
-  with the `--system-site-packages` option
-  ```
-  python3 -m venv --system-site-packages venv
-  source venv/bin/activate
-  pip install sats-receiver
-  ```
+#### From source
+```commandline
+cd sats-receiver
+conda create -n sats-receiver-env python --file=requirements.txt
+conda activate sats-receiver-env
+conda config --env --add channels conda-forge
+conda config --env --set channel_priority strict
+conda env update -f environment.yml
+```
 
-#### Windows
-  After install `radioconda`, launch a terminal by running "Conda Prompt"
-  in the "radioconda" directory in the Start menu and type
-  ```
-  pip install sats-receiver
-  ```
+#### From PYPI
+```commandline
+conda create -n sats-receiver-env python
+conda activate sats-receiver-env
+conda config --env --add channels conda-forge
+conda config --env --set channel_priority strict
+conda install gnuradio gnuradio-satellites
+pip install sats-receiver
+```
 
 ### Usage
-* in Linux if a virtual environment has been created:  
-  `source venv/bin/activate`
-* in Windows launch "Conda Prompt" terminal
+First, activate conda environment:  
+`conda activate sats-receiver-env`
 
 `python -u -m sats_receiver [-h, --help] [--log LOG] [--sysu SYSU] config`  
 * `config` Config file path. See [Configure](#Configure)

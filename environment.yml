@@ -1,0 +1,9 @@
+name: sats-receiver-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python
+  - pip
+  - gnuradio
+  - gnuradio-satellites
