@@ -410,7 +410,8 @@ class Apt:
             else:
                 self._draw_lines(points, color)
 
-        self.map_overlay = np.array(overlay_img.resize((self.IMAGE_WIDTH, height), Image.Resampling.LANCZOS), dtype=np.uint8)
+        self.map_overlay = np.array(overlay_img.resize((self.IMAGE_WIDTH, height), Image.Resampling.LANCZOS),
+                                    dtype=np.uint8)
 
         del self._height
         del self._ss_height

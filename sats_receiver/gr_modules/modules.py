@@ -149,7 +149,8 @@ class SatRecorder(gr.gr.hier_block2):
 
         elif self.mode == utils.Mode.WFM_STEREO:
             if self.bandwidth < 76800:
-                raise ValueError(f'{self.prefix}: param `bandwidth` for WFM Stereo must be at least 76800, got {self.bandwidth} instead')
+                raise ValueError(f'{self.prefix}: param `bandwidth` for WFM Stereo must be at least 76800, '
+                                 f'got {self.bandwidth} instead')
             self.demodulator = gr.analog.wfm_rcv_pll(
                 demod_rate=self.bandwidth,
                 audio_decimation=1,
@@ -161,7 +162,8 @@ class SatRecorder(gr.gr.hier_block2):
             self.demodulator = gr.analog.quadrature_demod_cf(1)
 
         elif self.mode == utils.Mode.QPSK:
-            self.demodulator = demodulators.QpskDemod(self.bandwidth, self.qpsk_baudrate, self.qpsk_excess_bw, self.qpsk_ntaps, self.qpsk_costas_bw)
+            self.demodulator = demodulators.QpskDemod(self.bandwidth, self.qpsk_baudrate, self.qpsk_excess_bw,
+                                                      self.qpsk_ntaps, self.qpsk_costas_bw)
 
         elif self.mode == utils.Mode.GMSK:
             # TODO
@@ -170,7 +172,8 @@ class SatRecorder(gr.gr.hier_block2):
         channels = getattr(self.demodulator, 'channels', (self.bandwidth,))
         self.decoders = []
         if self.decode == utils.Decode.APT:
-            self.decoders.append(decoders.AptDecoder(up.name, self.bandwidth, up.output_directory, up.sat_ephem_tle, up.observer.lonlat))
+            self.decoders.append(decoders.AptDecoder(up.name, self.bandwidth, up.output_directory,
+                                                     up.sat_ephem_tle, up.observer.lonlat))
 
         # elif self.decode == Decode.LRPT:
         #     # TODO
@@ -185,7 +188,8 @@ class SatRecorder(gr.gr.hier_block2):
                 self.decoders.append(decoders.RawDecoder(up.name, ch, up.output_directory))
 
         elif self.decode == utils.Decode.SSTV:
-            self.decoders.append(decoders.SstvDecoder(up.name, self.bandwidth, up.output_directory, up.observer, self.sstv_sync, self.sstv_wsr))
+            self.decoders.append(decoders.SstvDecoder(up.name, self.bandwidth, up.output_directory,
+                                                      up.observer, self.sstv_sync, self.sstv_wsr))
 
         self.connect(
             self,

@@ -1,4 +1,3 @@
-import logging
 import math
 
 from typing import Union

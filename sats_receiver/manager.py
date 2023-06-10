@@ -105,7 +105,11 @@ class Executor(mp.Process):
 
 
 class ReceiverManager:
-    def __init__(self, q: mp.Queue, config_filename: pathlib.Path, sysu_intv=utils.SysUsage.DEFAULT_INTV, executor_cls=Executor):
+    def __init__(self,
+                 q: mp.Queue,
+                 config_filename: pathlib.Path,
+                 sysu_intv=utils.SysUsage.DEFAULT_INTV,
+                 executor_cls=Executor):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 

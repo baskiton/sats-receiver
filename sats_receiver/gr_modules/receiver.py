@@ -129,7 +129,8 @@ class SatsReceiver(gr.gr.top_block):
                     continue
 
                 try:
-                    sat = modules.Satellite(cfg, sat_ephem_tle, self.up.observer, self.tune, self.samp_rate, self.output_directory, self.up.executor)
+                    sat = modules.Satellite(cfg, sat_ephem_tle, self.up.observer, self.tune, self.samp_rate,
+                                            self.output_directory, self.up.executor)
                 except ValueError as e:
                     self.log.warning('%s: %s. Skip', sat_name, e)
                     continue
@@ -330,7 +331,8 @@ class SatsReceiver(gr.gr.top_block):
                         self.up.scheduler.plan(set_t, sat.stop),
                         self.up.scheduler.plan(set_tt, self.calculate_pass, sat)
                     ]
-                    self.log.info('Sat `%s` planned on %s <-> %s', sat.name, rise_t.astimezone(ltz), set_t.astimezone(ltz))
+                    self.log.info('Sat `%s` planned on %s <-> %s',
+                                  sat.name, rise_t.astimezone(ltz), set_t.astimezone(ltz))
                     break
 
                 t = set_tt

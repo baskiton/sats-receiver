@@ -263,7 +263,10 @@ class MartinM2(_Martin):
     VIS = 0x28
 
     C_MS = _Martin.CSYNC_MS * 128
-    LINE_S = (_Martin.HSYNC_MS + _Martin.CSYNC_MS + C_MS + _Martin.CSYNC_MS + C_MS + _Martin.CSYNC_MS + C_MS + _Martin.CSYNC_MS) / 1000
+    LINE_S = (_Martin.HSYNC_MS + _Martin.CSYNC_MS
+              + C_MS + _Martin.CSYNC_MS
+              + C_MS + _Martin.CSYNC_MS
+              + C_MS + _Martin.CSYNC_MS) / 1000
 
     IMG_W = 160
     IMG_H = 256
@@ -280,7 +283,10 @@ class MartinM4(_Martin):
     VIS = 0x20
 
     C_MS = _Martin.CSYNC_MS * 128
-    LINE_S = (_Martin.HSYNC_MS + _Martin.CSYNC_MS + C_MS + _Martin.CSYNC_MS + C_MS + _Martin.CSYNC_MS + C_MS + _Martin.CSYNC_MS) / 1000
+    LINE_S = (_Martin.HSYNC_MS + _Martin.CSYNC_MS
+              + C_MS + _Martin.CSYNC_MS
+              + C_MS + _Martin.CSYNC_MS
+              + C_MS + _Martin.CSYNC_MS) / 1000
 
     IMG_W = 160
     IMG_H = 128

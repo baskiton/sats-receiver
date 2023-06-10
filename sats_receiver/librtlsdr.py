@@ -67,6 +67,7 @@ _f.restype = c_uint32
 def rtlsdr_get_device_count() -> int:
     return _lib.rtlsdr_get_device_count()
 
+
 _f = _lib.rtlsdr_get_device_name
 _f.argtypes = c_uint32,
 _f.restype = c_char_p

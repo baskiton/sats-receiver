@@ -61,7 +61,7 @@ class Scheduler:
         self._lock = threading.RLock()
         self._sequence_generator = itertools.count()
 
-    def plan(self, t: dt.datetime, fn: Callable, *a: Any, prior : int = 0, **kw: Any) -> Event:
+    def plan(self, t: dt.datetime, fn: Callable, *a: Any, prior: int = 0, **kw: Any) -> Event:
         with self._lock:
             event = Event(t, prior, next(self._sequence_generator), fn, a, kw)
             heapq.heappush(self._queue, event)
@@ -113,7 +113,7 @@ class Scheduler:
 class SysUsage:
     DEFAULT_INTV = 3600
 
-    def __init__(self, ctx: str, intv : Union[int, float] = DEFAULT_INTV):
+    def __init__(self, ctx: str, intv: Union[int, float] = DEFAULT_INTV):
         self.prefix = f'{self.__class__.__name__}: {ctx}'
         self.log = logging.getLogger(self.prefix)
         self.proc = psutil.Process()
