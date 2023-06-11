@@ -167,6 +167,7 @@
                             "bandwidth": 9600,
                             "mode": "RAW",
                             "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/OrbiCraft-Zorkiy.yml",
                             "grs_tlm_decode": false
                         }
                     ]

@@ -276,7 +276,9 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def grs_file(self) -> Optional[pathlib.Path]:
-        return pathlib.Path(self.config.get('grs_file', None))
+        p = self.config.get('grs_file', None)
+        if p:
+            return pathlib.Path(p).expanduser()
 
     @property
     def grs_name(self) -> Optional[str]:
