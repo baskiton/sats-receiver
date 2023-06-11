@@ -87,11 +87,24 @@ class Executor(mp.Process):
                     self.log.exception('%s with args=%s kwargs=%s', fn, args, kwargs)
                     continue
 
-                if x and isinstance(x, tuple):
-                    if len(x) == 4:
-                        sat_name, fin_key, res_filename, end_time = x
-                    elif len(x) == 3:
-                        sat_name, fin_key, fn_dt = x
+                if not x:
+                    continue
+
+                decoder_type = x[0]
+                if decoder_type == utils.Decode.RAW:
+                    _, sat_name, fin_key, res_filename, end_time = x
+
+                elif decoder_type == utils.Decode.APT:
+                    _, sat_name, fin_key, res_filename, end_time = x
+
+                elif decoder_type == utils.Decode.RSTREAM:
+                    _, sat_name, fin_key, res_filename, end_time = x
+
+                elif decoder_type == utils.Decode.SSTV:
+                    _, sat_name, fin_key, fn_dt = x
+
+                elif decoder_type == utils.Decode.SATS:
+                    _, sat_name, fin_key, files = x
 
     def execute(self, fn, *args, **kwargs):
         if self.wr:

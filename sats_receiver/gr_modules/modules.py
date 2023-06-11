@@ -86,9 +86,17 @@ class SatRecorder(gr.gr.hier_block2):
                         # 'sstv_sync',        # optional, only in SSTV decode
 
                         # 'channels',         # only for GMSK
+
+                        # 'sats_file',        # optional, only for SATS decode
+                        # 'sats_name',        # optional, only for SATS decode
+                        # 'sats_norad',       # optional, only for SATS decode
+                        # 'sats_tlm_decode',  # optional, only for SATS decode
                     ]))
             and (config['mode'] != utils.Mode.QPSK or 'qpsk_baudrate' in config)
             and (config['mode'] != utils.Mode.GMSK or 'channels' in config)
+            and (config['mode'] != utils.Mode.RAW or config['decode'] == utils.Decode.SATS)
+            # and (config['mode'] != utils.Mode.RAW or
+            #      (config['decode'] != utils.Decode.SATS or (set(config.keys()) & {'grs_file', 'grs_name', 'grs_norad'})))
         )
 
     def __init__(self,
@@ -166,7 +174,6 @@ class SatRecorder(gr.gr.hier_block2):
                                                       self.qpsk_ntaps, self.qpsk_costas_bw)
 
         elif self.mode == utils.Mode.GMSK:
-            # TODO
             self.demodulator = demodulators.GmskDemod(self.bandwidth, self.channels)
 
         channels = getattr(self.demodulator, 'channels', (self.bandwidth,))
@@ -190,6 +197,10 @@ class SatRecorder(gr.gr.hier_block2):
         elif self.decode == utils.Decode.SSTV:
             self.decoders.append(decoders.SstvDecoder(up.name, self.bandwidth, up.output_directory,
                                                       up.observer, self.sstv_sync, self.sstv_wsr))
+
+        elif self.decode == utils.Decode.SATS:
+            cfg = dict(file=self.grs_file, name=self.grs_name, norad=self.grs_norad, tlm_decode=self.grs_tlm_decode)
+            self.decoders.append(decoders.SatellitesDecoder(up.name, self.bandwidth, up.output_directory, cfg))
 
         self.connect(
             self,
@@ -262,6 +273,22 @@ class SatRecorder(gr.gr.hier_block2):
     @property
     def channels(self) -> list[Union[int, float]]:
         return self.config['channels']
+
+    @property
+    def grs_file(self) -> Optional[pathlib.Path]:
+        return pathlib.Path(self.config.get('grs_file', None))
+
+    @property
+    def grs_name(self) -> Optional[str]:
+        return self.config.get('grs_name', None)
+
+    @property
+    def grs_norad(self) -> Optional[int]:
+        return int(self.config.get('grs_norad', None))
+
+    @property
+    def grs_tlm_decode(self) -> bool:
+        return self.config.get('grs_tlm_decode', True)
 
 
 class Satellite(gr.gr.hier_block2):

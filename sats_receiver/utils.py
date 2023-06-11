@@ -44,6 +44,7 @@ class Decode(enum.Enum):
     APT = 'APT'
     LRPT = 'LRPT'
     SSTV = 'SSTV'
+    SATS = 'SATS'
 
 
 Event = collections.namedtuple('Event', 't, prior, seq, fn, a, kw')

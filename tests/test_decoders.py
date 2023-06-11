@@ -19,7 +19,7 @@ import numpy as np
 
 from PIL import Image, ExifTags
 from sats_receiver import utils
-from sats_receiver.gr_modules.decoders import Decoder, AptDecoder, SstvDecoder
+from sats_receiver.gr_modules.decoders import Decoder, AptDecoder, SatellitesDecoder, SstvDecoder
 from sats_receiver.gr_modules.epb.prober import Prober
 from sats_receiver.observer import Observer
 from sats_receiver.systems.apt import Apt
@@ -28,6 +28,7 @@ from sats_receiver.tle import Tle
 
 HERE = pathlib.Path(__file__).parent
 FILES = HERE / 'files'
+SATYAML = HERE.parent / 'satyaml'
 TIMEOUT = support.SHORT_TIMEOUT
 
 
@@ -85,6 +86,7 @@ class TestExecutor:
 
 class DecoderTopBlock(gr.gr.top_block):
     def __init__(self,
+                 is_iq,
                  wav_fp: pathlib.Path,
                  decoder: Decoder):
         self.prefix = self.__class__.__name__
@@ -94,20 +96,21 @@ class DecoderTopBlock(gr.gr.top_block):
 
         self.executor = TestExecutor()
 
-        self.blocks_wavfile_source = gr.blocks.wavfile_source(str(wav_fp), False)
+        self.wav_src = gr.blocks.wavfile_source(str(wav_fp), False)
         self.prober = Prober()
-        self.blocks_float_to_complex = gr.blocks.float_to_complex(1)
+        self.ftc = gr.blocks.float_to_complex(1)
+        self.thr = gr.blocks.throttle(gr.gr.sizeof_gr_complex, decoder.samp_rate * 100)
         self.decoder = decoder
 
         self.connect(
-            self.blocks_wavfile_source,
-            self.blocks_float_to_complex,
+            self.wav_src,
+            self.ftc,
+            self.thr,
             self.decoder,
         )
-        self.connect(
-            self.blocks_wavfile_source,
-            self.prober,
-        )
+        self.connect(self.wav_src, self.prober)
+        if is_iq:
+            self.connect((self.wav_src, 1), (self.ftc, 1))
 
     def start(self, max_noutput_items=10000000):
         self.log.info('START')
@@ -131,7 +134,7 @@ class TestDecoders(TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.out_dir = tempfile.TemporaryDirectory('.d', 'sats-receiver-test', ignore_cleanup_errors=True)
+        cls.out_dir = tempfile.TemporaryDirectory('.d', 'sats-receiver-test-', ignore_cleanup_errors=True)
         cls.out_dp = pathlib.Path(cls.out_dir.name)
 
     @classmethod
@@ -168,7 +171,7 @@ class TestDecoders(TestCase):
             do_sync=1,
             wsr=sstv_wsr,
         )
-        self.tb = DecoderTopBlock(wav_fp, decoder)
+        self.tb = DecoderTopBlock(0, wav_fp, decoder)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -179,9 +182,9 @@ class TestDecoders(TestCase):
 
         x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
-        self.assertEqual(len(x), 3)
+        self.assertEqual(x[0], utils.Decode.SSTV)
 
-        sat_name, fin_key, fn_dts = x
+        _, sat_name, fin_key, fn_dts = x
         self.assertEqual(sat_name, 'Test Sat')
         self.assertIsInstance(fn_dts, list)
         self.assertEqual(len(fn_dts), 1)
@@ -231,7 +234,7 @@ class TestDecoders(TestCase):
             sat_ephem_tle=tle.get(sat_name),
             observer_lonlat=(lon, lat),
         )
-        self.tb = DecoderTopBlock(wav_fp, decoder)
+        self.tb = DecoderTopBlock(0, wav_fp, decoder)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -242,9 +245,9 @@ class TestDecoders(TestCase):
 
         x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
-        self.assertEqual(len(x), 4)
+        self.assertEqual(x[0], utils.Decode.APT)
 
-        res_sat_name, res_fin_key, res_filename, res_end_time = x
+        _, res_sat_name, res_fin_key, res_filename, res_end_time = x
         self.assertEqual(res_sat_name, sat_name)
 
         apt = Apt.from_apt(res_filename)
@@ -269,7 +272,7 @@ class TestDecoders(TestCase):
             sat_ephem_tle=tle.get(sat_name),
             observer_lonlat=(lon, lat),
         )
-        self.tb = DecoderTopBlock(wav_fp, decoder)
+        self.tb = DecoderTopBlock(0, wav_fp, decoder)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -282,3 +285,33 @@ class TestDecoders(TestCase):
             x = self.tb.executor.action(TIMEOUT)
         self.assertEqual(e.records[0].msg, 'recording too short for telemetry decoding')
         self.assertIsNone(x)
+
+    def test_satellites(self):
+        wav_fp = FILES / 'orbicraft_tlm_4800@16000.wav'
+        wav_samp_rate = 16000
+        sat_name = 'ORBICRAFT-ZORKIY'
+        cfg = dict(tlm_decode=True, file=SATYAML / 'OrbiCraft-Zorkiy.yml')
+
+        decoder = SatellitesDecoder(sat_name, wav_samp_rate, self.out_dp, cfg)
+        self.tb = DecoderTopBlock(1, wav_fp, decoder)
+        self.tb.start()
+
+        while self.tb.prober.changes():
+            time.sleep(self.tb.prober.measure_s)
+        time.sleep(self.tb.prober.measure_s)
+
+        self.tb.stop()
+        self.tb.wait()
+
+        x = self.tb.executor.action(TIMEOUT)
+        self.assertIsInstance(x, tuple)
+        self.assertEqual(x[0], utils.Decode.SATS)
+
+        _, sat_name, fin_key, files = x
+
+        self.assertIn('Telemetry', files)
+        tlm_files = files['Telemetry']
+        self.assertTrue(len(tlm_files) == 2)
+        for fp in tlm_files:
+            self.assertIsInstance(fp, pathlib.Path)
+            self.assertRegex(fp.name, r'usp_4k8-FSK.+\.(txt|bin)')

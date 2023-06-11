@@ -20,7 +20,7 @@ from PIL import ExifTags
 from sats_receiver import utils
 from sats_receiver.gr_modules.epb import sstv as sstv_epb
 from sats_receiver.observer import Observer
-from sats_receiver.systems import apt, sstv
+from sats_receiver.systems import apt, satellites as sats, sstv
 
 
 class Decoder(gr.gr.hier_block2):
@@ -93,7 +93,7 @@ class RawDecoder(Decoder):
             executor.execute(self._raw_finalize, **self.base_kw, fin_key=fin_key)
 
     @staticmethod
-    def _raw_finalize(log, sat_name, out_dir, tmp_file, fin_key) -> Optional[tuple[str, str, str, dt.datetime]]:
+    def _raw_finalize(log, sat_name, out_dir, tmp_file, fin_key) -> tuple[utils.Decode, str, str, str, dt.datetime]:
         log.debug('finalizing...')
 
         d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
@@ -101,7 +101,7 @@ class RawDecoder(Decoder):
         st = res_fn.stat()
         log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
 
-        return sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        return utils.Decode.RAW, sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 
 
 class AptDecoder(Decoder):
@@ -241,7 +241,7 @@ class AptDecoder(Decoder):
                       corr_file: pathlib.Path,
                       peaks_file: pathlib.Path,
                       out_dir: pathlib.Path,
-                      fin_key: str) -> Optional[tuple[str, str, pathlib.Path, dt.datetime]]:
+                      fin_key: str) -> Optional[tuple[utils.Decode, str, str, pathlib.Path, dt.datetime]]:
         log.debug('finalizing...')
 
         a = apt.Apt(sat_name, tmp_file, corr_file, peaks_file, sat_tle, observer_lonlat)
@@ -255,7 +255,7 @@ class AptDecoder(Decoder):
             res_fn, sz = a.to_apt(out_dir)
             log.info('finish: %s (%s)', res_fn, utils.numbi_disp(sz))
 
-            return sat_name, fin_key, res_fn, a.end_time
+            return utils.Decode.APT, sat_name, fin_key, res_fn, a.end_time
 
 
 class RawStreamDecoder(Decoder):
@@ -303,7 +303,7 @@ class RawStreamDecoder(Decoder):
                              sat_name: str,
                              out_dir: pathlib.Path,
                              tmp_file: pathlib.Path,
-                             fin_key: str) -> Optional[tuple[str, str, pathlib.Path, dt.datetime]]:
+                             fin_key: str) -> tuple[utils.Decode, str, str, pathlib.Path, dt.datetime]:
         log.debug('finalizing...')
 
         d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
@@ -311,7 +311,7 @@ class RawStreamDecoder(Decoder):
         st = res_fn.stat()
         log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
 
-        return sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        return utils.Decode.RSTREAM, sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 
 
 class LrptDecoder(RawStreamDecoder):
@@ -415,7 +415,7 @@ class SstvDecoder(Decoder):
                        out_dir: pathlib.Path,
                        observer_latlonalt: Optional[tuple[str, str, Union[int, float]]],
                        sstv_rr: list[sstv.SstvRecognizer],
-                       fin_key: str) -> tuple[str, str, list[tuple[pathlib.Path, dt.datetime]]]:
+                       fin_key: str) -> tuple[utils.Decode, str, str, list[tuple[pathlib.Path, dt.datetime]]]:
         log.debug('finalizing...')
 
         if observer_latlonalt:
@@ -452,4 +452,63 @@ class SstvDecoder(Decoder):
 
         log.info('finish %s images (%s)', len(fn_dt), utils.numbi_disp(sz_sum))
 
-        return sat_name, fin_key, fn_dt
+        return utils.Decode.SSTV, sat_name, fin_key, fn_dt
+
+
+class SatellitesDecoder(Decoder):
+    def __init__(self,
+                 sat_name: str,
+                 samp_rate: Union[int, float],
+                 out_dir: pathlib.Path,
+                 config: dict):
+        super(SatellitesDecoder, self).__init__('GR Satellites Decoder', sat_name, samp_rate, out_dir)
+        opt_str = (
+            f' --file_output_path="{out_dir}"'
+            # f' --codec2_ip='
+            # f' --codec2_port='
+        )
+
+        x = config.copy()
+        if 'tlm_decode' in x:
+            x.pop('tlm_decode')
+        if all(map(lambda v: v is None, x.values())):
+            if sat_name.isnumeric():
+                config['norad'] = int(sat_name)
+            else:
+                config['name'] = sat_name
+
+        self.sat_fg = sats.SatFlowgraph(self.log, samp_rate, opt_str, **config)
+        self.connect(self, self.sat_fg)
+
+    def start(self):
+        utils.unlink(self.tmp_file)
+
+    def finalize(self, executor, fin_key: str):
+        utils.close(f.f
+                    for d in self.sat_fg.get_files().values()
+                    for f in d.values())
+
+        d = {}
+        for dtype, v in self.sat_fg.get_files().items():
+            x = []
+            for f in v.values():
+                utils.close(f.f)
+                x.append(f.path)
+            d[dtype] = x
+
+        executor.execute(self._sats_finalize, **self.base_kw, files=d, fin_key=fin_key)
+
+    @staticmethod
+    def _sats_finalize(log: logging.Logger,
+                       sat_name: str,
+                       out_dir: pathlib.Path,
+                       files: dict[str, list[pathlib.Path]],
+                       fin_key: str) -> tuple[utils.Decode, str, str, dict[str, list[pathlib.Path]]]:
+
+        f_cnt = 0
+        for v in files.values():
+            f_cnt += len(v)
+
+        log.info('finish %s files', f_cnt)
+
+        return utils.Decode.SATS, sat_name, fin_key, files

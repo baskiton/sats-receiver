@@ -29,6 +29,7 @@ Satellites data receiver based on GNURadio
       * [frequencies](#frequencies)
         * [modulations](#modulations)
         * [decoders](#decoders)
+          * [gr-satellites](#gr-satellites)
 * [Map Shapes](#Map-Shapes)
   * [shapes](#shapes)
   * [points](#points)
@@ -170,6 +171,10 @@ Each frequency object contain:
 | decode          | String          | _Optional._ Decoder option (see [decoders](#decoders)). `RAW` by default                                               |
 | channels        | Array of Number | _Required only for **GMSK** mode._ Demodulation baudrates, bps                                                         |
 | rstream_bits    | Boolean         | _Optional. Only for **RSTREAM** decoder._ Store data as 0-1 stream. Recommended for digital signals `false` by default |
+| grs_file        | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                 |
+| grs_name        | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                 |
+| grs_norad       | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                 |
+| grs_tlm_decode  | Boolean         | _Optional. Only for **SATS** decoder._ Save decoded telemetry. `true` by default                                       |
 | qpsk_baudrate   | Number          | _Required only for **QPSK** mode._ QPSK Baudrate, bps                                                                  |
 | qpsk_excess_bw  | Number          | _Optional. Only for **QPSK** mode._ QPSK Excess bandwidth. `0.35` by default                                           |
 | qpsk_ntaps      | Integer         | _Optional. Only for **QPSK** mode._ QPSK number of taps. `33` by default                                               |
@@ -197,7 +202,24 @@ Each frequency object contain:
   * Martin (M1, M2, M3, M4)
   * PD (50, 90, 120, 160, 180, 240, 290)
   * Scottie (S1, S2, S3, S4)
+* `SATS` See [gr-satellites](#gr-satellites) for details
 * ~~`LRPT`~~ Not implemented yet
+
+##### gr-satellites
+See [gr-satellites Documentation][grs-doc]  
+**IMPORTANT:** For this decoder need to leave the `modulation` on `RAW`  
+
+This decoder need to specify one of the parameters for recognize satellite option:
+* grs_file - Path to your own [SatYAML-file][grs-satyaml]
+* grs_name - Satellite name (may different from [sats name](#sats))
+* grs_norad - Satellite NORAD ID
+
+[List of builtin supported satellites][grs-satlist]  
+Additionally supported satellites can be found in the [satyaml](satyaml) directory of this repository
+
+[grs-doc]: https://gr-satellites.readthedocs.io/en/latest/
+[grs-satyaml]: https://gr-satellites.readthedocs.io/en/latest/satyaml.html
+[grs-satlist]: https://gr-satellites.readthedocs.io/en/latest/supported_satellites.html
 
 
 ### Map Shapes

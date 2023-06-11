@@ -165,10 +165,9 @@
                             "freq": 437850000,
                             "freq_correction": 0,
                             "bandwidth": 9600,
-                            "mode": "GMSK",
-                            "channels": [9600, 4800, 2400],
-                            "decode": "RSTREAM",
-                            "rstream_bits": true
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_tlm_decode": false
                         }
                     ]
                 }
