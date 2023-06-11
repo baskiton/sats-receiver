@@ -32,7 +32,8 @@ class DemodTopBlock(gr.gr.top_block):
                  fp: pathlib.Path,
                  out_dir: pathlib.Path,
                  samp_rate: int,
-                 channels: list[int]):
+                 channels: list[int],
+                 demodulator):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
@@ -45,7 +46,7 @@ class DemodTopBlock(gr.gr.top_block):
         self.thr = gr.blocks.throttle(gr.gr.sizeof_gr_complex, samp_rate, True)
         self.ctr = gr.blocks.complex_to_real()
         self.probe = Prober()
-        self.gmsk_demod = GmskDemod(samp_rate, channels)
+        self.demod = demodulator
         self.fsinks = {}
         for rate in channels:
             fn = str(out_dir / str(rate))
@@ -56,11 +57,11 @@ class DemodTopBlock(gr.gr.top_block):
         self.connect(
             self.fsrc,
             self.thr,
-            self.gmsk_demod,
+            self.demod,
         )
         self.connect(self.thr, self.ctr, self.probe)
         for i, rate in enumerate(channels):
-            self.connect((self.gmsk_demod, i), self.fsinks[rate][1])
+            self.connect((self.demod, i), self.fsinks[rate][1])
 
     def start(self, max_noutput_items=10000000):
         self.log.info('START')
@@ -103,7 +104,8 @@ class TestDemod(TestCase):
         f = FILES / 'gmsk_9600@9600_10010111.bin'
         subseq = np.array(list('10010111'), dtype=np.uint8)
 
-        self.tb = DemodTopBlock(f, self.out_dp, samp_rate, channels)
+        demod = GmskDemod(samp_rate, channels)
+        self.tb = DemodTopBlock(f, self.out_dp, samp_rate, channels, demod)
         self.tb.start()
 
         while self.tb.probe.changes():
@@ -136,7 +138,8 @@ class TestDemod(TestCase):
         f = FILES / 'gmsk_4800@9600_10010111.bin'
         subseq = np.array(list('10010111'), dtype=np.uint8)
 
-        self.tb = DemodTopBlock(f, self.out_dp, samp_rate, channels)
+        demod = GmskDemod(samp_rate, channels)
+        self.tb = DemodTopBlock(f, self.out_dp, samp_rate, channels, demod)
         self.tb.start()
 
         while self.tb.probe.changes():
@@ -169,7 +172,8 @@ class TestDemod(TestCase):
         f = FILES / 'gmsk_2400@9600_10010111.bin'
         subseq = np.array(list('10010111'), dtype=np.uint8)
 
-        self.tb = DemodTopBlock(f, self.out_dp, samp_rate, channels)
+        demod = GmskDemod(samp_rate, channels)
+        self.tb = DemodTopBlock(f, self.out_dp, samp_rate, channels, demod)
         self.tb.start()
 
         while self.tb.probe.changes():
