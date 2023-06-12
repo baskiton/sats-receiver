@@ -63,7 +63,7 @@ I recommended to use miniconda. So, first of all,
 #### From source
 ```commandline
 cd sats-receiver
-conda create -n sats-receiver-env python
+conda create -n sats-receiver-env
 conda activate sats-receiver-env
 conda config --env --add channels conda-forge
 conda config --env --set channel_priority strict
@@ -174,7 +174,7 @@ Each frequency object contain:
 | rstream_bits    | Boolean         | _Optional. Only for **RSTREAM** decoder._ Store data as 0-1 stream. Recommended for digital signals `false` by default |
 | grs_file        | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                 |
 | grs_name        | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                 |
-| grs_norad       | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                 |
+| grs_norad       | Integer         | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                 |
 | grs_tlm_decode  | Boolean         | _Optional. Only for **SATS** decoder._ Save decoded telemetry. `true` by default                                       |
 | qpsk_baudrate   | Number          | _Required only for **QPSK** mode._ QPSK Baudrate, bps                                                                  |
 | qpsk_excess_bw  | Number          | _Optional. Only for **QPSK** mode._ QPSK Excess bandwidth. `0.35` by default                                           |

@@ -286,7 +286,9 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def grs_norad(self) -> Optional[int]:
-        return int(self.config.get('grs_norad', None))
+        x = self.config.get('grs_norad', None)
+        if x is not None:
+            return int(x)
 
     @property
     def grs_tlm_decode(self) -> bool:

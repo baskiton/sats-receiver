@@ -7,3 +7,16 @@ dependencies:
   - pip
   - gnuradio
   - gnuradio-satellites
+  - soapysdr
+  - soapysdr-module-airspy
+  - soapysdr-module-airspyhf
+  - soapysdr-module-audio
+  - soapysdr-module-bladerf
+  - soapysdr-module-hackrf
+  - soapysdr-module-lms7
+  - soapysdr-module-netsdr
+  - soapysdr-module-plutosdr
+  - soapysdr-module-redpitaya
+  - soapysdr-module-remote
+  - soapysdr-module-rtlsdr
+  - soapysdr-module-uhd
