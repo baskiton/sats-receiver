@@ -1,0 +1,1 @@
+from sats_receiver.systems.satellites.filereceivers.geoscan import ImageReceiverGeoscan as geoscan

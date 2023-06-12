@@ -9,6 +9,7 @@ import time
 
 from hashlib import sha256
 from test import support
+from typing import Union
 from unittest import TestCase
 
 import ephem
@@ -86,8 +87,8 @@ class TestExecutor:
 
 class DecoderTopBlock(gr.gr.top_block):
     def __init__(self,
-                 is_iq,
-                 wav_fp: pathlib.Path,
+                 wav_channels: int,
+                 wav_fp: Union[pathlib.Path, str],
                  decoder: Decoder):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
@@ -102,15 +103,14 @@ class DecoderTopBlock(gr.gr.top_block):
         self.thr = gr.blocks.throttle(gr.gr.sizeof_gr_complex, decoder.samp_rate * 100)
         self.decoder = decoder
 
+        for i in range(wav_channels):
+            self.connect((self.wav_src, i), (self.ftc, i))
         self.connect(
-            self.wav_src,
             self.ftc,
             self.thr,
             self.decoder,
         )
         self.connect(self.wav_src, self.prober)
-        if is_iq:
-            self.connect((self.wav_src, 1), (self.ftc, 1))
 
     def start(self, max_noutput_items=10000000):
         self.log.info('START')
@@ -171,7 +171,7 @@ class TestDecoders(TestCase):
             do_sync=1,
             wsr=sstv_wsr,
         )
-        self.tb = DecoderTopBlock(0, wav_fp, decoder)
+        self.tb = DecoderTopBlock(1, wav_fp, decoder)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -234,7 +234,7 @@ class TestDecoders(TestCase):
             sat_ephem_tle=tle.get(sat_name),
             observer_lonlat=(lon, lat),
         )
-        self.tb = DecoderTopBlock(0, wav_fp, decoder)
+        self.tb = DecoderTopBlock(1, wav_fp, decoder)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -272,7 +272,7 @@ class TestDecoders(TestCase):
             sat_ephem_tle=tle.get(sat_name),
             observer_lonlat=(lon, lat),
         )
-        self.tb = DecoderTopBlock(0, wav_fp, decoder)
+        self.tb = DecoderTopBlock(1, wav_fp, decoder)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -286,14 +286,14 @@ class TestDecoders(TestCase):
         self.assertEqual(e.records[0].msg, 'recording too short for telemetry decoding')
         self.assertIsNone(x)
 
-    def test_satellites(self):
+    def test_satellites_orbicraft_tlm(self):
         wav_fp = FILES / 'orbicraft_tlm_4800@16000.wav'
         wav_samp_rate = 16000
         sat_name = 'ORBICRAFT-ZORKIY'
         cfg = dict(tlm_decode=True, file=SATYAML / 'OrbiCraft-Zorkiy.yml')
 
         decoder = SatellitesDecoder(sat_name, wav_samp_rate, self.out_dp, cfg)
-        self.tb = DecoderTopBlock(1, wav_fp, decoder)
+        self.tb = DecoderTopBlock(2, wav_fp, decoder)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -315,3 +315,63 @@ class TestDecoders(TestCase):
         for fp in tlm_files:
             self.assertIsInstance(fp, pathlib.Path)
             self.assertRegex(fp.name, r'usp_4k8-FSK.+\.(txt|bin)')
+
+    def test_satellites_geoscan_tlm(self):
+        wav_fp = FILES / 'geoscan_tlm_9600@48000.wav'
+        wav_samp_rate = 48000
+        sat_name = 'GEOSCAN-EDELVEIS'
+        cfg = dict(tlm_decode=True, file=SATYAML / 'GEOSCAN-EDELVEIS.yml')
+
+        decoder = SatellitesDecoder(sat_name, wav_samp_rate, self.out_dp, cfg)
+        self.tb = DecoderTopBlock(2, wav_fp, decoder)
+        self.tb.start()
+
+        while self.tb.prober.changes():
+            time.sleep(self.tb.prober.measure_s)
+        time.sleep(self.tb.prober.measure_s)
+
+        self.tb.stop()
+        self.tb.wait()
+
+        x = self.tb.executor.action(TIMEOUT)
+        self.assertIsInstance(x, tuple)
+        self.assertEqual(x[0], utils.Decode.SATS)
+
+        _, sat_name, fin_key, files = x
+
+        self.assertIn('Telemetry', files)
+        tlm_files = files['Telemetry']
+        self.assertTrue(len(tlm_files) == 2)
+        for fp in tlm_files:
+            self.assertIsInstance(fp, pathlib.Path)
+            self.assertRegex(fp.name, r'geoscan_9k6-FSK.+\.(txt|bin)')
+
+    def test_satellites_geoscan_img(self):
+        wav_fp = FILES / 'geoscan_img_2023-02-02T15-18-40_9600@48000.ogg'
+        wav_samp_rate = 48000
+        sat_name = 'GEOSCAN-EDELVEIS'
+        cfg = dict(tlm_decode=True, file=SATYAML / 'GEOSCAN-EDELVEIS.yml')
+
+        decoder = SatellitesDecoder(sat_name, wav_samp_rate, self.out_dp, cfg, False)
+        self.tb = DecoderTopBlock(1, wav_fp, decoder)
+        self.tb.start()
+
+        while self.tb.prober.changes():
+            time.sleep(self.tb.prober.measure_s)
+        time.sleep(self.tb.prober.measure_s)
+
+        self.tb.stop()
+        self.tb.wait()
+
+        x = self.tb.executor.action(TIMEOUT)
+        self.assertIsInstance(x, tuple)
+        self.assertEqual(x[0], utils.Decode.SATS)
+
+        _, sat_name, fin_key, files = x
+
+        self.assertIn('Image', files)
+        img_files = files['Image']
+        self.assertTrue(len(img_files) == 1)
+        for fp in img_files:
+            self.assertIsInstance(fp, pathlib.Path)
+            self.assertRegex(fp.name, r'GEOSCAN_.+\.jpg')

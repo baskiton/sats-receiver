@@ -2,7 +2,6 @@ import argparse
 import logging
 import pathlib
 import shlex
-import sys
 
 from hashlib import sha256
 
@@ -10,27 +9,30 @@ import construct
 import gnuradio as gr
 import gnuradio.gr
 import pmt
-import satellites
-import satellites.telemetry
 
-from satellites.components import datasinks
-from satellites.core import gr_satellites_flowgraph
-from satellites.filereceiver import filereceiver
+from satellites import filereceiver as grs_filereceivers
+from satellites.components import datasinks as grs_datasinks
+from satellites.components.datasinks.file_receiver import file_receiver as GrsFileReceiver
+from satellites.core import gr_satellites_flowgraph as grs_flowgraph
+from satellites.filereceiver.filereceiver import File as GrsFile
+from satellites import telemetry as grs_tlm
 
 from sats_receiver import utils
-from sats_receiver.systems.satellites.usp_tlm import usp
+from sats_receiver.systems.satellites import telemetry as sr_tlm
+from sats_receiver.systems.satellites import filereceivers as sr_filereceivers
+from sats_receiver.systems.satellites import demodulators as sr_demod
 
 
-class SatFlowgraph(gr_satellites_flowgraph):
+class SatFlowgraph(grs_flowgraph):
     @classmethod
     def add_options(cls, parser, file=None, name=None, norad=None):
         super().add_options(parser, file, name, norad)
 
         data_options = parser.add_argument_group('data sink')
         TlmDecoder.add_options(data_options)
-        for i in dir(datasinks):
+        for i in dir(grs_datasinks):
             if not (i.startswith('__') or i.endswith('__')):
-                ds = getattr(datasinks, i)
+                ds = getattr(grs_datasinks, i)
                 if hasattr(ds, 'add_options'):
                     ds.add_options(data_options)
 
@@ -38,9 +40,10 @@ class SatFlowgraph(gr_satellites_flowgraph):
         p_output.add_argument('--hexdump', action='store_true')
 
     def __init__(self, log, samp_rate=None, options=None,
-                 file=None, name=None, norad=None, tlm_decode=False):
+                 file=None, name=None, norad=None, tlm_decode=False, is_iq=True):
         self.log = log
         self.tlm_decode = tlm_decode
+        self._demodulator_hooks['GFSK'] = sr_demod.GfskDemod
 
         if type(options) is str:
             p = argparse.ArgumentParser(prog=self.__class__.__name__,
@@ -50,11 +53,11 @@ class SatFlowgraph(gr_satellites_flowgraph):
 
         super().__init__(file=file, name=name, norad=norad,
                          samp_rate=samp_rate, options=options,
-                         iq=1, grc_block=0)
+                         iq=is_iq, grc_block=0)
 
     def _init_datasink(self, key, info):
         if 'decoder' in info:
-            ds = getattr(datasinks, info['decoder'])
+            ds = getattr(grs_datasinks, info['decoder'])
             try:
                 x = ds(options=self.options)
             except TypeError:  # raised if ds doesn't have an options parameter
@@ -62,9 +65,9 @@ class SatFlowgraph(gr_satellites_flowgraph):
         elif 'telemetry' in info:
             x = TlmDecoder(info['telemetry'], self.log, options=self.options, tlm_decode=self.tlm_decode)
         elif 'files' in info:
-            x = datasinks.file_receiver(info['files'], verbose=False, options=self.options)
+            x = FileReceiver(info['files'], verbose=False, options=self.options)
         elif 'image' in info:
-            x = datasinks.file_receiver(info['image'], verbose=False, display=False, fullscreen=False, options=self.options)
+            x = FileReceiver(info['image'], verbose=False, display=False, fullscreen=False, options=self.options)
         else:
             x = TlmDecoder('raw', self.log, options=self.options)
 
@@ -73,8 +76,8 @@ class SatFlowgraph(gr_satellites_flowgraph):
     def _init_additional_datasinks(self):
         pass
 
-    def get_files(self) -> dict[str, dict[str, filereceiver.File]]:
-        return {k: v._files
+    def get_files(self) -> dict[str, dict[str, GrsFile]]:
+        return {k: v.get_files()
                 for k, v in self._datasinks.items()}
 
 
@@ -87,15 +90,15 @@ class TlmDecoder(gr.gr.basic_block):
         self.message_port_register_in(pmt.intern('in'))
         self.set_msg_handler(pmt.intern('in'), self.handle_msg)
 
-        self.fmt = getattr(satellites.telemetry, dname, None)
+        self.fmt = getattr(grs_tlm, dname, None)
         if self.fmt is None and dname != 'raw':
-            self.fmt = getattr(sys.modules[__name__], dname, None)
+            self.fmt = getattr(sr_tlm, dname)
 
         self.log = log
         self.dname = dname
         self.tlm_decode = tlm_decode
         self.out_dir = pathlib.Path(options.file_output_path)
-        self._files: dict[str, filereceiver.File] = {}
+        self._files: dict[str, GrsFile] = {}
 
     def handle_msg(self, msg_pmt):
         msg = pmt.cdr(msg_pmt)
@@ -112,30 +115,65 @@ class TlmDecoder(gr.gr.basic_block):
             transmitter = str(transmitter)
 
         fn_base = '_'.join((self.dname, transmitter, sha256(packet).hexdigest()[:16])).replace(' ', '-')
-        f = filereceiver.File((self.out_dir / fn_base).with_suffix('.bin'))
 
-        if self.tlm_decode:
-            try:
-                tlm = self.fmt.parse(packet)
-            except construct.ConstructError as e:
-                self.log.debug('TlmDecoder: Could not parse telemetry beacon: %s', e)
-                tlm = None
-            except AttributeError:
-                tlm = packet.hex()
+        try:
+            tlm = self.fmt.parse(packet)
+        except construct.ConstructError as e:
+            self.log.debug('TlmDecoder: Could not parse telemetry beacon: %s', e)
+            return
 
-            if tlm:
-                tlmf = filereceiver.File((self.out_dir / fn_base).with_suffix('.txt'))
-                tlm = str(tlm)
-                tlmf.f.write(tlm.encode('utf-8'))
-                utils.close(tlmf.f)
-                tlmf.size = len(tlm)
-                self._files[tlmf.path.name] = f
+        if not (tlm and self.fmt.build(tlm)):
+            return
 
+        f = GrsFile((self.out_dir / fn_base).with_suffix('.bin'))
         f.f.write(packet)
         utils.close(f.f)
         f.size = len(packet)
         self._files[f.path.name] = f
 
+        if self.tlm_decode:
+            tlmf = GrsFile((self.out_dir / fn_base).with_suffix('.txt'))
+            tlm = str(tlm)
+            tlmf.f.write(tlm.encode('utf-8'))
+            utils.close(tlmf.f)
+            tlmf.size = len(tlm)
+            self._files[tlmf.path.name] = tlmf
+
     @classmethod
     def add_options(cls, parser):
         parser.add_argument('--file_output_path', default='.')
+
+    def get_files(self):
+        return self._files
+
+
+class FileReceiver(GrsFileReceiver):
+    def __init__(self, receiver, path=None, verbose=None,
+                 options=None, **kwargs):
+        gr.gr.basic_block.__init__(
+            self,
+            'file_receiver',
+            in_sig=[],
+            out_sig=[])
+        if verbose is None:
+            if options is not None:
+                verbose = options.verbose_file_receiver
+            else:
+                raise ValueError(
+                    'Must indicate verbose in function arguments or options')
+        if path is None:
+            if options is not None:
+                path = options.file_output_path
+            else:
+                raise ValueError(
+                    'Must indicate path in function arguments or options')
+        self.message_port_register_in(pmt.intern('in'))
+        self.set_msg_handler(pmt.intern('in'), self.handle_msg)
+
+        x = getattr(grs_filereceivers, receiver, None)
+        if x is None:
+            x = getattr(sr_filereceivers, receiver)
+        self.receiver = x(path, verbose, **kwargs)
+
+    def get_files(self):
+        return self.receiver._files

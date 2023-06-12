@@ -460,7 +460,9 @@ class SatellitesDecoder(Decoder):
                  sat_name: str,
                  samp_rate: Union[int, float],
                  out_dir: pathlib.Path,
-                 config: dict):
+                 config: dict,
+                 is_iq=True):
+        gr.digital.gfsk_demod
         super(SatellitesDecoder, self).__init__('GR Satellites Decoder', sat_name, samp_rate, out_dir)
         opt_str = (
             f' --file_output_path="{out_dir}"'
@@ -477,8 +479,12 @@ class SatellitesDecoder(Decoder):
             else:
                 config['name'] = sat_name
 
-        self.sat_fg = sats.SatFlowgraph(self.log, samp_rate, opt_str, **config)
-        self.connect(self, self.sat_fg)
+        self.sat_fg = sats.SatFlowgraph(self.log, samp_rate, opt_str, is_iq=is_iq, **config)
+        if is_iq:
+            self.connect(self, self.sat_fg)
+        else:
+            self.ctor = gr.blocks.complex_to_real()
+            self.connect(self, self.ctor, self.sat_fg)
 
     def start(self):
         utils.unlink(self.tmp_file)
