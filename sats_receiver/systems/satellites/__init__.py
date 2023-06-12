@@ -119,7 +119,11 @@ class TlmDecoder(gr.gr.basic_block):
                 tlm = self.fmt.parse(packet)
             except construct.ConstructError as e:
                 self.log.debug('TlmDecoder: Could not parse telemetry beacon: %s', e)
-            else:
+                tlm = None
+            except AttributeError:
+                tlm = packet.hex()
+
+            if tlm:
                 tlmf = filereceiver.File((self.out_dir / fn_base).with_suffix('.txt'))
                 tlm = str(tlm)
                 tlmf.f.write(tlm.encode('utf-8'))

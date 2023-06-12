@@ -63,11 +63,12 @@ I recommended to use miniconda. So, first of all,
 #### From source
 ```commandline
 cd sats-receiver
-conda create -n sats-receiver-env python --file=requirements.txt
+conda create -n sats-receiver-env python
 conda activate sats-receiver-env
 conda config --env --add channels conda-forge
 conda config --env --set channel_priority strict
 conda env update -f environment.yml
+pip install -r requirements.txt
 ```
 
 #### From PYPI
