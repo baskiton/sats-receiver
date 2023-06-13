@@ -4,6 +4,7 @@ import logging
 import logging.handlers
 import multiprocessing as mp
 import pathlib
+import pprint
 import tempfile
 import time
 
@@ -287,6 +288,11 @@ class TestDecoders(TestCase):
         self.assertIsNone(x)
 
     def test_satellites_orbicraft_tlm(self):
+        expected = bytes.fromhex('a464829c8c4060a4a6626aa6406d00f01642020001004200ea0418057607c702'
+                                 '5b0b29010402000000000000000009001a004a004a0000000000ff1c25040b00'
+                                 'b6a437647904110bff7a2113641eb6a4376482c10700a00f981c21de04000100'
+                                 '2e00ea0418057607c7025b0b290104020000000000000000cf035a0aff1cfe1c'
+                                 '00000000ff1c25040b009de99f5a7904')
         wav_fp = FILES / 'orbicraft_tlm_4800@16000.wav'
         wav_samp_rate = 16000
         sat_name = 'ORBICRAFT-ZORKIY'
@@ -315,15 +321,27 @@ class TestDecoders(TestCase):
         for fp in tlm_files:
             self.assertIsInstance(fp, pathlib.Path)
             self.assertRegex(fp.name, r'usp_4k8-FSK.+\.(txt|bin)')
+            if fp.name.endswith('.bin'):
+                self.assertEqual(fp.read_bytes(), expected)
 
-    def test_satellites_geoscan_tlm(self):
-        wav_fp = FILES / 'geoscan_tlm_9600@48000.wav'
+    def test_satellites_geoscan_tlm_multiple(self):
+        expected = [
+            bytes.fromhex('848a82869e9c60a4a66460a640e103f0655e86642607f00bd4e084dd0e111609'
+                          '800a07070f611de9050600000000000000000000000000000000000000000000'),
+            bytes.fromhex('848a82869e9c60a4a66460a640e103f0855e86642007bf07a6e022dc0c151308'
+                          '800b07070e611de9050600000000000000000000000000000000000000000000'),
+            bytes.fromhex('848a82869e9c60a4a66460a640e103f0a65e86642407be0a97e054dc0b181109'
+                          '800b07070e611de9050600000000000000000000000000000000000000000000'),
+            bytes.fromhex('848a82869e9c60a4a66460a640e103f0e75e86642207da0488e0f0db081c0d0c'
+                          '800b07070f611de9050600000000000000000000000000000000000000000000'),
+        ]
+        wav_fp = FILES / 'geoscan_tlm_mult_9600@48000.ogg'
         wav_samp_rate = 48000
         sat_name = 'GEOSCAN-EDELVEIS'
-        cfg = dict(tlm_decode=True, file=SATYAML / 'GEOSCAN-EDELVEIS.yml')
+        cfg = dict(tlm_decode=False, file=SATYAML / 'GEOSCAN-EDELVEIS.yml')
 
-        decoder = SatellitesDecoder(sat_name, wav_samp_rate, self.out_dp, cfg)
-        self.tb = DecoderTopBlock(2, wav_fp, decoder)
+        decoder = SatellitesDecoder(sat_name, wav_samp_rate, self.out_dp, cfg, 0)
+        self.tb = DecoderTopBlock(1, wav_fp, decoder)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -341,10 +359,13 @@ class TestDecoders(TestCase):
 
         self.assertIn('Telemetry', files)
         tlm_files = files['Telemetry']
-        self.assertTrue(len(tlm_files) == 2)
-        for fp in tlm_files:
+        pprint.pprint(tlm_files)
+        self.assertTrue(len(tlm_files) == 4)
+
+        for i, fp in enumerate(sorted(tlm_files, key=lambda fp: fp.stat().st_mtime)):
             self.assertIsInstance(fp, pathlib.Path)
-            self.assertRegex(fp.name, r'geoscan_9k6-FSK.+\.(txt|bin)')
+            self.assertRegex(fp.name, r'geoscan_9k6-FSK.+\.bin')
+            self.assertEqual(fp.read_bytes(), expected[i])
 
     def test_satellites_geoscan_img(self):
         wav_fp = FILES / 'geoscan_img_2023-02-02T15-18-40_9600@48000.ogg'
@@ -375,3 +396,33 @@ class TestDecoders(TestCase):
         for fp in img_files:
             self.assertIsInstance(fp, pathlib.Path)
             self.assertRegex(fp.name, r'GEOSCAN_.+\.jpg')
+
+    def test_satellites_geoscan_tlm(self):
+        wav_fp = FILES / 'geoscan_tlm_9600@48000.wav'
+        wav_samp_rate = 48000
+        sat_name = 'GEOSCAN-EDELVEIS'
+        cfg = dict(tlm_decode=True, file=SATYAML / 'GEOSCAN-EDELVEIS.yml')
+
+        decoder = SatellitesDecoder(sat_name, wav_samp_rate, self.out_dp, cfg)
+        self.tb = DecoderTopBlock(2, wav_fp, decoder)
+        self.tb.start()
+
+        while self.tb.prober.changes():
+            time.sleep(self.tb.prober.measure_s)
+        time.sleep(self.tb.prober.measure_s)
+
+        self.tb.stop()
+        self.tb.wait()
+
+        x = self.tb.executor.action(TIMEOUT)
+        self.assertIsInstance(x, tuple)
+        self.assertEqual(x[0], utils.Decode.SATS)
+
+        _, sat_name, fin_key, files = x
+
+        self.assertIn('Telemetry', files)
+        tlm_files = files['Telemetry']
+        self.assertTrue(len(tlm_files) == 2)
+        for fp in tlm_files:
+            self.assertIsInstance(fp, pathlib.Path)
+            self.assertRegex(fp.name, r'geoscan_9k6-FSK.+\.(txt|bin)')
