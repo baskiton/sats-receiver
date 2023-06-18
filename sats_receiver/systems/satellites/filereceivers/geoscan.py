@@ -32,7 +32,7 @@ class ImageReceiverGeoscan(ImageReceiver):
         self._miss_cnt = 0
 
     def generate_fid(self):
-        self._current_fid = f'GEOSCAN_{dt.datetime.utcnow()}'.replace(' ', '_')
+        self._current_fid = f'GEOSCAN_{dt.datetime.now()}'.replace(' ', '_')
         return self._current_fid
 
     def parse_chunk(self, chunk):
@@ -60,7 +60,7 @@ class ImageReceiverGeoscan(ImageReceiver):
                 and chunk.data.startswith(b'\xff\xd8')
                 and ch_hash != self._last_chunk_hash):
             # new image
-            self._current_fid = f'GEOSCAN_{dt.datetime.utcnow()}'
+            self.generate_fid()
 
         self._last_chunk_hash = ch_hash
 

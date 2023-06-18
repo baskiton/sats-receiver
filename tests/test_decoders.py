@@ -4,7 +4,6 @@ import logging
 import logging.handlers
 import multiprocessing as mp
 import pathlib
-import pprint
 import tempfile
 import time
 
@@ -359,7 +358,6 @@ class TestDecoders(TestCase):
 
         self.assertIn('Telemetry', files)
         tlm_files = files['Telemetry']
-        pprint.pprint(tlm_files)
         self.assertTrue(len(tlm_files) == 4)
 
         for i, fp in enumerate(sorted(tlm_files, key=lambda fp: fp.stat().st_mtime)):

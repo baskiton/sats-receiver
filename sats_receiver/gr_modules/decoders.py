@@ -462,7 +462,6 @@ class SatellitesDecoder(Decoder):
                  out_dir: pathlib.Path,
                  config: dict,
                  is_iq=True):
-        gr.digital.gfsk_demod
         super(SatellitesDecoder, self).__init__('GR Satellites Decoder', sat_name, samp_rate, out_dir)
         opt_str = (
             f' --file_output_path="{out_dir}"'
@@ -501,6 +500,7 @@ class SatellitesDecoder(Decoder):
                 utils.close(f.f)
                 x.append(f.path)
             d[dtype] = x
+        self.sat_fg.clean()
 
         executor.execute(self._sats_finalize, **self.base_kw, files=d, fin_key=fin_key)
 

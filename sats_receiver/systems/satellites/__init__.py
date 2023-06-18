@@ -1,4 +1,5 @@
 import argparse
+import datetime as dt
 import logging
 import pathlib
 import shlex
@@ -80,6 +81,10 @@ class SatFlowgraph(grs_flowgraph):
         return {k: v.get_files()
                 for k, v in self._datasinks.items()}
 
+    def clean(self):
+        for ds in self._datasinks.values():
+            ds.clean()
+
 
 class TlmDecoder(gr.gr.basic_block):
     def __init__(self, dname: str, log: logging.Logger, options=None, tlm_decode=False):
@@ -114,7 +119,8 @@ class TlmDecoder(gr.gr.basic_block):
         else:
             transmitter = str(transmitter)
 
-        fn_base = '_'.join((self.dname, transmitter, sha256(packet).hexdigest()[:16])).replace(' ', '-')
+        fn_base = '_'.join((self.dname, transmitter, dt.datetime.now().isoformat(),
+                            sha256(packet).hexdigest()[:16])).replace(' ', '-').replace('.', ',')
 
         try:
             tlm = self.fmt.parse(packet)
@@ -127,7 +133,7 @@ class TlmDecoder(gr.gr.basic_block):
 
         f = GrsFile((self.out_dir / fn_base).with_suffix('.bin'))
         f.f.write(packet)
-        utils.close(f.f)
+        to_close = [f.f]
         f.size = len(packet)
         self._files[f.path.name] = f
 
@@ -135,9 +141,11 @@ class TlmDecoder(gr.gr.basic_block):
             tlmf = GrsFile((self.out_dir / fn_base).with_suffix('.txt'))
             tlm = str(tlm)
             tlmf.f.write(tlm.encode('utf-8'))
-            utils.close(tlmf.f)
+            to_close.append(tlmf.f)
             tlmf.size = len(tlm)
             self._files[tlmf.path.name] = tlmf
+
+        utils.close(*to_close)
 
     @classmethod
     def add_options(cls, parser):
@@ -145,6 +153,9 @@ class TlmDecoder(gr.gr.basic_block):
 
     def get_files(self):
         return self._files
+
+    def clean(self):
+        self._files = {}
 
 
 class FileReceiver(GrsFileReceiver):
@@ -177,3 +188,6 @@ class FileReceiver(GrsFileReceiver):
 
     def get_files(self):
         return self.receiver._files
+
+    def clean(self):
+        self.receiver._files = {}
