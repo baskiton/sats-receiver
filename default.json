@@ -144,16 +144,214 @@
             ]
         },
         {
-            "name": "437:1 MHz",
+            "name": "435:3 MHz",
             "enabled": false,
             "source": "rtlsdr",
             "serial": "00000001",
             "biast": false,
-            "gain": 38.6,
-            "tune": 437500000,
-            "samp_rate": 1024000,
+            "gain": 7.7,
+            "tune": 436640000,
+            "samp_rate": 2880000,
             "output_directory": "~/sats_receiver/records",
             "sats": [
+                {
+                    "name": "RESHUCUBE (RS8S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 435380000,
+                            "freq_correction": 0,
+                            "bandwidth": 19200,
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/RESHUCUBE.yml",
+                            "grs_tlm_decode": false
+                        }
+                    ]
+                },
+                {
+                    "name": "CUBESX-HSE (RS13S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 435650000,
+                            "freq_correction": 0,
+                            "bandwidth": 19200,
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/CubeSX-HSE.yml",
+                            "grs_tlm_decode": false
+                        }
+                    ]
+                },
+                {
+                    "name": "UTMN (RS23S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 435670000,
+                            "freq_correction": 0,
+                            "bandwidth": 19200,
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/UTMN.yml",
+                            "grs_tlm_decode": false
+                        }
+                    ]
+                },
+                {
+                    "name": "CYCLOPS (RS29S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 436050000,
+                            "freq_correction": 0,
+                            "bandwidth": 19200,
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/CYCLOPS.yml",
+                            "grs_tlm_decode": false
+                        }
+                    ]
+                },
+                {
+                    "name": "GEOSCAN-EDELVEIS (RS20S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 436200000,
+                            "freq_correction": 0,
+                            "bandwidth": 19200,
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/GEOSCAN-EDELVEIS.yml",
+                            "grs_tlm_decode": false
+                        }
+                    ]
+                },
+                {
+                    "name": "CUBESX-SIRIUS-HSE (RS13S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 437050000,
+                            "freq_correction": 0,
+                            "bandwidth": 19200,
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/CubeSX-Sirius-HSE.yml",
+                            "grs_tlm_decode": false
+                        }
+                    ]
+                },
+                {
+                    "name": "MONITOR-1 (RS32S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 437550000,
+                            "freq_correction": 0,
+                            "bandwidth": 19200,
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/MONITOR-1.yml",
+                            "grs_tlm_decode": false
+                        }
+                    ]
+                },
+                {
+                    "name": "ISOI (RS19S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 437650000,
+                            "freq_correction": 0,
+                            "bandwidth": 19200,
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/ISOI.yml",
+                            "grs_tlm_decode": false
+                        }
+                    ]
+                },
+                {
+                    "name": "KUZBASS-300 (RS34S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 437700000,
+                            "freq_correction": 0,
+                            "bandwidth": 19200,
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/KUZBASS-300.yml",
+                            "grs_tlm_decode": false
+                        }
+                    ]
+                },
+                {
+                    "name": "SIREN (RS30S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 437750000,
+                            "freq_correction": 0,
+                            "bandwidth": 19200,
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/SIREN.yml",
+                            "grs_tlm_decode": false
+                        }
+                    ]
+                },
+                {
+                    "name": "VIZARD (RS33S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 437800000,
+                            "freq_correction": 0,
+                            "bandwidth": 19200,
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/VIZARD.yml",
+                            "grs_tlm_decode": false
+                        }
+                    ]
+                },
                 {
                     "name": "ORBICRAFT-ZORKIY (RS15S)",
                     "enabled": true,
@@ -164,10 +362,28 @@
                             "enabled": true,
                             "freq": 437850000,
                             "freq_correction": 0,
-                            "bandwidth": 9600,
+                            "bandwidth": 19200,
                             "mode": "RAW",
                             "decode": "SATS",
                             "grs_file": "~/sats_receiver/satyaml/OrbiCraft-Zorkiy.yml",
+                            "grs_tlm_decode": false
+                        }
+                    ]
+                },
+                {
+                    "name": "MIET-AIS (RS28S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 437900000,
+                            "freq_correction": 0,
+                            "bandwidth": 19200,
+                            "mode": "RAW",
+                            "decode": "SATS",
+                            "grs_file": "~/sats_receiver/satyaml/MIET-AIS.yml",
                             "grs_tlm_decode": false
                         }
                     ]

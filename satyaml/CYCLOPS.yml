@@ -1,0 +1,39 @@
+name: CYCLOPS
+alternative_names:
+  - SXC3-2110
+  - VOENMEH
+  - RS29S
+  - CYCLOPS (RS29S)
+norad: 53373
+data:
+  &tlm Telemetry:
+    telemetry: usp
+transmitters:
+  1k2 FSK USP downlink:
+    frequency: 436.050e+6
+    modulation: FSK
+    baudrate: 1200
+    framing: USP
+    data:
+    - *tlm
+  2k4 FSK USP downlink:
+    frequency: 436.050e+6
+    modulation: FSK
+    baudrate: 2400
+    framing: USP
+    data:
+    - *tlm
+  4k8 FSK USP downlink:
+    frequency: 436.050e+6
+    modulation: FSK
+    baudrate: 4800
+    framing: USP
+    data:
+    - *tlm
+  9k6 FSK USP downlink:
+    frequency: 436.050e+6
+    modulation: FSK
+    baudrate: 9600
+    framing: USP
+    data:
+    - *tlm
