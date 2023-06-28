@@ -6,21 +6,25 @@ from satellites.filereceiver.imagereceiver import ImageReceiver
 from sats_receiver import utils
 
 
+# GEOSCAN Telemetry Protocol
+# https://download.geoscan.aero/site-files/%D0%9F%D1%80%D0%BE%D1%82%D0%BE%D0%BA%D0%BE%D0%BB%20%D0%BF%D0%B5%D1%80%D0%B5%D0%B4%D0%B0%D1%87%D0%B8%20%D1%82%D0%B5%D0%BB%D0%B5%D0%BC%D0%B5%D1%82%D1%80%D0%B8%D0%B8.pdf
+
+
 _frame = construct.Struct(
-    'marker' / construct.Int16ul,   # #0
-    'dlen' / construct.Int8ul,      # #2
-    'cmd' / construct.Int8ul,       # #3
-    'x1' / construct.Int8ul,        # #4
-    'offset' / construct.Int16ul,   # #5
-    'x2' / construct.Int8ul,        # #7
-    'data' / construct.Bytes(construct.this.dlen - 6)
+    'marker' / construct.Int16ul,           # #0
+    'dlen' / construct.Int8ul,              # #2
+    'mtype' / construct.Int16ul,            # #3
+    'offset' / construct.Int16ul,           # #5
+    'subsystem_num' / construct.Int8ul,     # #7
+    # 'data' / construct.Bytes(construct.this.dlen - 6)
+    'data' / construct.Bytes(56)
 )
 
 
 class ImageReceiverGeoscan(ImageReceiver):
     MARKER_IMG = 1
-    CMD_IMG_START = 1
-    CMD_IMG_FRAME = 5
+    CMD_IMG_START = 0x0901
+    CMD_IMG_FRAME = 0x0905
     BASE_OFFSET = 4     # old 16384  # old 32768
 
     def __init__(self, path, verbose=False, display=False, fullscreen=True):
@@ -45,11 +49,11 @@ class ImageReceiverGeoscan(ImageReceiver):
             self._miss_cnt += 1
             return
 
-        if chunk.cmd == self.CMD_IMG_START:
+        if chunk.mtype == self.CMD_IMG_START:
             self.base_offset = chunk.offset
             chunk.offset = 0
 
-        else:
+        elif chunk.mtype == self.CMD_IMG_FRAME:
             chunk.offset -= self.base_offset
 
         return chunk

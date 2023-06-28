@@ -3,6 +3,10 @@ from satellites.telemetry import ax25
 from satellites.adapters import UNIXTimestampAdapter
 
 
+# GEOSCAN Telemetry Protocol
+# https://download.geoscan.aero/site-files/%D0%9F%D1%80%D0%BE%D1%82%D0%BE%D0%BA%D0%BE%D0%BB%20%D0%BF%D0%B5%D1%80%D0%B5%D0%B4%D0%B0%D1%87%D0%B8%20%D1%82%D0%B5%D0%BB%D0%B5%D0%BC%D0%B5%D1%82%D1%80%D0%B8%D0%B8.pdf
+
+
 class SubAdapter(construct.Adapter):
     def __init__(self, v, *args, **kwargs):
         self.v = v
@@ -32,20 +36,8 @@ Frame = construct.Struct(
     'Iab' / MulAdapter(0.0766, construct.Int16ul),      # mA
     'Isp' / MulAdapter(0.03076, construct.Int16ul),     # mA
 
-    # 'Uab_avg' / LinearAdapter(1 / 0.0176, Int8ul),  # V
-    # 'Uab1' / LinearAdapter(1 / 0.0352, Int8ul),     # V
-    # 'Uab2' / LinearAdapter(1 / 0.0176, Int8ul),     # V
-    # 'Uab_sum' / LinearAdapter(1 / 0.0352, Int8ul),  # V
-
-    # 'Uab_avg' / Int8ul,
-    # 'Uab1' / Int8ul,
-    # 'Uab2' / Int8ul,
-    # 'Uab_sum' / Int8ul,
-
-    'Uab_avg' / MulAdapter(0.0352, construct.Int8ul),   # V
-    'Uab1' / MulAdapter(0.0176, construct.Int8ul),      # V
-    'Uab2' / MulAdapter(0.0352, construct.Int8ul),      # V
-    'Uab_sum' / MulAdapter(0.0176, construct.Int8ul),   # V
+    'Uab_per' / MulAdapter(0.00006928, construct.Int16ul),   # V
+    'Uab_sum' / MulAdapter(0.00013856, construct.Int16ul),   # V
 
     'Tx_plus' / construct.Int8ul,   # deg C
     'Tx_minus' / construct.Int8ul,  # deg C
@@ -59,7 +51,8 @@ Frame = construct.Struct(
     'Nres_obc' / SubAdapter(7476, construct.Int16ul),
     'Nres_CommU' / SubAdapter(1505, construct.Int16ul),
     'RSSI' / SubAdapter(99, construct.Int8ul),  # dBm
-    'pad' / construct.Bytes(22)
+
+    'pad' / construct.GreedyBytes
 )
 
 geoscan = construct.Struct(
