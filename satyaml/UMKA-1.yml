@@ -1,0 +1,51 @@
+name: UMKA-1
+alternative_names:
+  - RS40S
+  - UMKA-1 (RS40S)
+norad: 90003
+data:
+  &tlm Telemetry:
+    telemetry: usp
+transmitters:
+  2k4 FSK downlink:
+    frequency: 437.625e+6
+    modulation: FSK
+    baudrate: 2400
+    framing: USP
+    data:
+    - *tlm
+  2k4 FSK downlink2:
+    frequency: 435.825e+6
+    modulation: FSK
+    baudrate: 2400
+    framing: USP
+    data:
+    - *tlm
+  4k8 FSK downlink:
+    frequency: 437.625e+6
+    modulation: FSK
+    baudrate: 4800
+    framing: USP
+    data:
+    - *tlm
+  4k8 FSK downlink2:
+    frequency: 435.825e+6
+    modulation: FSK
+    baudrate: 4800
+    framing: USP
+    data:
+    - *tlm
+  9k6 FSK downlink:
+    frequency: 437.625e+6
+    modulation: FSK
+    baudrate: 9600
+    framing: USP
+    data:
+    - *tlm
+  9k6 FSK downlink2:
+    frequency: 435.825e+6
+    modulation: FSK
+    baudrate: 9600
+    framing: USP
+    data:
+    - *tlm
