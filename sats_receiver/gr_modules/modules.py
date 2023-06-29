@@ -256,7 +256,7 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def qpsk_ntaps(self) -> int:
-        return int(self.config.get('qpsk_ntaps'), 33)
+        return int(self.config.get('qpsk_ntaps', 33))
 
     @property
     def qpsk_costas_bw(self) -> Union[int, float]:
