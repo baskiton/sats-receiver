@@ -91,7 +91,7 @@
                     ]
                 },
                 {
-                    "name": "METEOR-M2",
+                    "name": "METEOR M2-3",
                     "enabled": false,
                     "min_elevation": 15.0,
                     "doppler": true,
