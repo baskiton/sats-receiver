@@ -23,7 +23,7 @@ class QpskDemod(gr.gr.hier_block2):
         super(QpskDemod, self).__init__(
             'QPSK Demodulator',
             gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
-            gr.gr.io_signature(1, 1, gr.gr.sizeof_float)
+            gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex)
         )
 
         if excess_bw is None:
@@ -51,13 +51,6 @@ class QpskDemod(gr.gr.hier_block2):
         self.agc = gr.analog.agc_cc(0.1, 1.0, 1.0)
         self.agc.set_max_gain(65536)
         self.costas = gr.digital.costas_loop_cc(costas_bw, 4, False)
-
-        self.connect(
-            self,
-            self.rrc,
-            self.agc,
-            self.costas,
-        )
 
         if oqpsk:
             self.after_costas = DelayOneImag()
