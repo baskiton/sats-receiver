@@ -41,7 +41,6 @@ class Mode(enum.Enum):
 
 class Decode(enum.Enum):
     RAW = 'RAW'
-    RSTREAM = 'RSTREAM'
     CSOFT = 'CSOFT'
     APT = 'APT'
     LRPT = 'LRPT'

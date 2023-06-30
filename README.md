@@ -171,7 +171,6 @@ Each frequency object contain:
 | mode            | String          | _Optional._ Modulation option (see [modulations](#modulations)). `RAW` by default                                      |
 | decode          | String          | _Optional._ Decoder option (see [decoders](#decoders)). `RAW` by default                                               |
 | channels        | Array of Number | _Required only for **GMSK** mode._ Demodulation baudrates, bps                                                         |
-| rstream_bits    | Boolean         | _Optional. Only for **RSTREAM** decoder._ Store data as 0-1 stream. Recommended for digital signals `false` by default |
 | grs_file        | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                 |
 | grs_name        | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                 |
 | grs_norad       | Integer         | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                 |
@@ -198,7 +197,6 @@ Each frequency object contain:
 #### decoders
 * `RAW` Saved to 2-channel float32 WAV file with `bandwidth` sample rate
 * `CSOFT` Constellation Soft Decoder - 1-channel binary int8. Suitable for further processing, for example, in SatDump
-* `RSTREAM` Raw Stream - 1-channel binary int8. Suitable for further processing, for example, in SatDump
 * `APT` Sats-Receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)
 * `SSTV` SSTV saved to PNG image with EXIF. Supported modes:
   * Robot (24, 24, 72)

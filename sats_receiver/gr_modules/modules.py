@@ -188,10 +188,6 @@ class SatRecorder(gr.gr.hier_block2):
         #     # TODO
         #     # self.decoder =
 
-        elif self.decode == utils.Decode.RSTREAM:
-            for ch in channels:
-                self.decoders.append(decoders.RawStreamDecoder(up.name, ch, up.output_directory))
-
         elif self.decode == utils.Decode.CSOFT:
             self.decoders.append(decoders.ConstelSoftDecoder(up.name, self.bandwidth, up.output_directory))
 
