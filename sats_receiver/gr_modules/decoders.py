@@ -259,14 +259,31 @@ class AptDecoder(Decoder):
 
 
 class ConstelSoftDecoder(Decoder):
+    CONSTELLS = {
+        '16QAM': gr.digital.constellation_16qam,
+        '8PSK': gr.digital.constellation_8psk,
+        '8PSK_NATURAL': gr.digital.constellation_8psk_natural,
+        'BPSK': gr.digital.constellation_bpsk,
+        'DQPSK': gr.digital.constellation_dqpsk,
+        'PSK': gr.digital.constellation_psk,
+        'QPSK': gr.digital.constellation_qpsk,
+        'OQPSK': gr.digital.constellation_qpsk,
+    }
+
     def __init__(self,
                  sat_name: str,
                  samp_rate: Union[int, float],
                  out_dir: pathlib.Path,
+                 constellation,
                  name='Constellation Soft Decoder'):
         super(ConstelSoftDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
 
-        self.constel_soft_decoder = gr.digital.constellation_soft_decoder_cf(gr.digital.constellation_qpsk().base())
+        if isinstance(constellation, str):
+            constellation = self.CONSTELLS[constellation.upper()]().base()
+        else:
+            raise TypeError(f'`constellation` expected str, got {type(constellation)} instead')
+
+        self.constel_soft_decoder = gr.digital.constellation_soft_decoder_cf(constellation)
         self.rail = gr.analog.rail_ff(-1, 1)
         self.ftch = gr.blocks.float_to_char(1, 127)
 
