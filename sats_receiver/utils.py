@@ -35,12 +35,14 @@ class Mode(enum.Enum):
     WFM_STEREO = 'WFM_STEREO'
     QUAD = 'QUAD'
     QPSK = 'QPSK'
+    OQPSK = 'OQPSK'
     GMSK = 'GMSK'
 
 
 class Decode(enum.Enum):
     RAW = 'RAW'
     RSTREAM = 'RSTREAM'
+    CSOFT = 'CSOFT'
     APT = 'APT'
     LRPT = 'LRPT'
     SSTV = 'SSTV'

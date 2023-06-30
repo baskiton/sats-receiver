@@ -169,9 +169,11 @@ class SatRecorder(gr.gr.hier_block2):
         elif self.mode == utils.Mode.QUAD:
             self.demodulator = gr.analog.quadrature_demod_cf(1)
 
-        elif self.mode == utils.Mode.QPSK:
+        elif self.mode in (utils.Mode.QPSK, utils.Mode.OQPSK):
+            oqpsk = self.mode == utils.Mode.OQPSK
             self.demodulator = demodulators.QpskDemod(self.bandwidth, self.qpsk_baudrate, self.qpsk_excess_bw,
-                                                      self.qpsk_ntaps, self.qpsk_costas_bw)
+                                                      self.qpsk_ntaps, self.qpsk_costas_bw, oqpsk)
+            self.post_demod = None
 
         elif self.mode == utils.Mode.GMSK:
             self.demodulator = demodulators.GmskDemod(self.bandwidth, self.channels)
@@ -190,6 +192,9 @@ class SatRecorder(gr.gr.hier_block2):
             for ch in channels:
                 self.decoders.append(decoders.RawStreamDecoder(up.name, ch, up.output_directory))
 
+        elif self.decode == utils.Decode.CSOFT:
+            self.decoders.append(decoders.ConstelSoftDecoder(up.name, self.bandwidth, up.output_directory))
+
         elif self.decode == utils.Decode.RAW:
             for ch in channels:
                 self.decoders.append(decoders.RawDecoder(up.name, ch, up.output_directory))
@@ -202,14 +207,15 @@ class SatRecorder(gr.gr.hier_block2):
             cfg = dict(file=self.grs_file, name=self.grs_name, norad=self.grs_norad, tlm_decode=self.grs_tlm_decode)
             self.decoders.append(decoders.SatellitesDecoder(up.name, self.bandwidth, up.output_directory, cfg))
 
-        self.connect(
-            self,
-            self.radio,
-            *(self.demodulator and (self.demodulator, self.post_demod) or ()),
-        )
-        last = self.demodulator and self.post_demod or self.radio
+        x = [self, self.radio]
+        if self.demodulator:
+            x.append(self.demodulator)
+            if self.post_demod:
+                x.append(self.post_demod)
+
+        self.connect(*x)
         for i, decoder in enumerate(self.decoders):
-            self.connect((last, i), decoder)
+            self.connect((x[-1], i), decoder)
 
     def set_freq_offset(self, new_freq: Union[int, float]):
         self.radio.set_freq_offset(new_freq)

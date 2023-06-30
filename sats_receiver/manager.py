@@ -94,10 +94,13 @@ class Executor(mp.Process):
                 if decoder_type == utils.Decode.RAW:
                     _, sat_name, fin_key, res_filename, end_time = x
 
-                elif decoder_type == utils.Decode.APT:
+                elif decoder_type == utils.Decode.RSTREAM:
                     _, sat_name, fin_key, res_filename, end_time = x
 
-                elif decoder_type == utils.Decode.RSTREAM:
+                elif decoder_type == utils.Decode.CSOFT:
+                    _, sat_name, fin_key, res_filename, end_time = x
+
+                elif decoder_type == utils.Decode.APT:
                     _, sat_name, fin_key, res_filename, end_time = x
 
                 elif decoder_type == utils.Decode.SSTV:

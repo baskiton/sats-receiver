@@ -9,6 +9,8 @@ import gnuradio.digital
 import gnuradio.filter
 import gnuradio.gr
 
+from sats_receiver.gr_modules.epb import DelayOneImag
+
 
 class QpskDemod(gr.gr.hier_block2):
     def __init__(self,
@@ -16,7 +18,8 @@ class QpskDemod(gr.gr.hier_block2):
                  baudrate: Union[int, float],
                  excess_bw: Union[int, float] = None,
                  ntaps: int = None,
-                 costas_bw: Union[int, float] = None):
+                 costas_bw: Union[int, float] = None,
+                 oqpsk=False):
         super(QpskDemod, self).__init__(
             'QPSK Demodulator',
             gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
@@ -46,8 +49,21 @@ class QpskDemod(gr.gr.hier_block2):
             )
         )
         self.agc = gr.analog.agc_cc(0.1, 1.0, 1.0)
-        self.agc.set_max_gain(10e6)
+        self.agc.set_max_gain(65536)
         self.costas = gr.digital.costas_loop_cc(costas_bw, 4, False)
+
+        self.connect(
+            self,
+            self.rrc,
+            self.agc,
+            self.costas,
+        )
+
+        if oqpsk:
+            self.after_costas = DelayOneImag()
+            self.connect(self.costas, self.after_costas)
+        else:
+            self.after_costas = self.costas
         # self.symbol_sync = gr.digital.symbol_sync_cc(
         #     detector_type=gr.digital.TED_MUELLER_AND_MULLER,
         #     sps=samp_rate / baudrate,
@@ -68,16 +84,17 @@ class QpskDemod(gr.gr.hier_block2):
             gain_mu=0.01,
             omega_relative_limit=0.01,
         )
-        self.constel_decoder = gr.digital.constellation_soft_decoder_cf(gr.digital.constellation_qpsk().base())
 
         self.connect(
             self,
             self.rrc,
             self.agc,
             self.costas,
+        )
+        self.connect(
+            self.after_costas,
             # self.symbol_sync,
             self.recov,
-            self.constel_decoder,
             self,
         )
 

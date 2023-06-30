@@ -176,10 +176,10 @@ Each frequency object contain:
 | grs_name        | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                 |
 | grs_norad       | Integer         | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                 |
 | grs_tlm_decode  | Boolean         | _Optional. Only for **SATS** decoder._ Save decoded telemetry. `true` by default                                       |
-| qpsk_baudrate   | Number          | _Required only for **QPSK** mode._ QPSK Baudrate, bps                                                                  |
-| qpsk_excess_bw  | Number          | _Optional. Only for **QPSK** mode._ QPSK Excess bandwidth. `0.35` by default                                           |
-| qpsk_ntaps      | Integer         | _Optional. Only for **QPSK** mode._ QPSK number of taps. `33` by default                                               |
-| qpsk_costas_bw  | Number          | _Optional. Only for **QPSK** mode._ QPSK Costas bandwidth. `0.005` by default                                          |
+| qpsk_baudrate   | Number          | _Required only for **(O)QPSK** mode._ (O)QPSK Baudrate, bps                                                            |
+| qpsk_excess_bw  | Number          | _Optional. Only for **(O)QPSK** mode._ (O)QPSK Excess bandwidth. `0.35` by default                                     |
+| qpsk_ntaps      | Integer         | _Optional. Only for **(O)QPSK** mode._ (O)QPSK number of taps. `33` by default                                         |
+| qpsk_costas_bw  | Number          | _Optional. Only for **(O)QPSK** mode._ (O)QPSK Costas bandwidth. `0.005` by default                                    |
 | sstv_wsr        | Number          | _Optional. Only for **SSTV** decoder._ SSTV work samplerate. `16000` by default                                        |
 | sstv_sync       | Number          | _Optional. Only for **SSTV** decoder._ SSTV syncing. `true` by default                                                 |
 
@@ -192,10 +192,12 @@ Each frequency object contain:
 * `WFM_STEREO`
 * `QUAD`
 * `QPSK`
+* `OQPSK`
 * `GMSK`
 
 #### decoders
 * `RAW` Saved to 2-channel float32 WAV file with `bandwidth` sample rate
+* `CSOFT` Constellation Soft Decoder - 1-channel binary int8. Suitable for further processing, for example, in SatDump
 * `RSTREAM` Raw Stream - 1-channel binary int8. Suitable for further processing, for example, in SatDump
 * `APT` Sats-Receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)
 * `SSTV` SSTV saved to PNG image with EXIF. Supported modes:

@@ -258,6 +258,58 @@ class AptDecoder(Decoder):
             return utils.Decode.APT, sat_name, fin_key, res_fn, a.end_time
 
 
+class ConstelSoftDecoder(Decoder):
+    def __init__(self,
+                 sat_name: str,
+                 samp_rate: Union[int, float],
+                 out_dir: pathlib.Path,
+                 name='Constellation Soft Decoder'):
+        super(ConstelSoftDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
+
+        self.constel_soft_decoder = gr.digital.constellation_soft_decoder_cf(gr.digital.constellation_qpsk().base())
+        self.rail = gr.analog.rail_ff(-1, 1)
+        self.ftch = gr.blocks.float_to_char(1, 127)
+
+        self.out_file_sink = gr.blocks.file_sink(gr.gr.sizeof_char, str(self.tmp_file), False)
+        self.out_file_sink.close()
+        utils.unlink(self.tmp_file)
+
+        self.connect(
+            self,
+            self.constel_soft_decoder,
+            self.rail,
+            self.ftch,
+            self.out_file_sink,
+        )
+
+    def start(self):
+        super(ConstelSoftDecoder, self).start()
+
+        self.out_file_sink.open(str(self.tmp_file))
+        self.out_file_sink.set_unbuffered(False)
+
+    def finalize(self, executor, fin_key: str):
+        self.out_file_sink.do_update()
+        self.out_file_sink.close()
+        if self.tmp_file.exists():
+            executor.execute(self._constel_soft_finalize, **self.base_kw, fin_key=fin_key)
+
+    @staticmethod
+    def _constel_soft_finalize(log: logging.Logger,
+                               sat_name: str,
+                               out_dir: pathlib.Path,
+                               tmp_file: pathlib.Path,
+                               fin_key: str) -> tuple[utils.Decode, str, str, pathlib.Path, dt.datetime]:
+        log.debug('finalizing...')
+
+        d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
+        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S_RAW.s'))
+        st = res_fn.stat()
+        log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
+
+        return utils.Decode.CSOFT, sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+
+
 class RawStreamDecoder(Decoder):
     def __init__(self,
                  sat_name: str,
