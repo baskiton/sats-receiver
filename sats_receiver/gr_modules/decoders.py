@@ -196,6 +196,7 @@ class AptDecoder(Decoder):
         utils.unlink(self.tmp_file, self.corr_file, self.peaks_file)
 
     def start(self):
+        self.already_fins = 0
         super(AptDecoder, self).start()
         self.corr_file = self.out_dir / ('_'.join([self.now.strftime('%Y%m%d%H%M%S'),
                                                    *self.name().lower().split()]) + '.corr.tmp')
