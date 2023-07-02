@@ -36,7 +36,7 @@ class FileReceiverGeoscan(FileReceiver):
         self._miss_cnt = 0
         self._cnt = 0
 
-    def generate_fid(self, chunk):
+    def generate_fid(self):
         self._current_fid = f'GEOSCAN_{dt.datetime.now()}'.replace(' ', '_')
         return self._current_fid
 
@@ -71,11 +71,11 @@ class FileReceiverGeoscan(FileReceiver):
         ch_hash = hash(chunk.data)
         if chunk.offset == 0 and ch_hash != self._last_chunk_hash:
             # new file
-            self.generate_fid(chunk)
+            self.generate_fid()
 
         self._last_chunk_hash = ch_hash
 
-        return self._current_fid or self.generate_fid(chunk)
+        return self._current_fid or self.generate_fid()
 
     def on_completion(self, f):
         utils.close(f.f)
