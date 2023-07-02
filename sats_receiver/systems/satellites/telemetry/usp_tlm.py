@@ -1,7 +1,7 @@
 import datetime as dt
 
 import construct
-from satellites.telemetry import ax25
+from satellites.telemetry.ax25 import Header as ax25_hdr
 from satellites.adapters import LinearAdapter, UNIXTimestampAdapter
 
 
@@ -190,7 +190,7 @@ Frame = construct.Struct(
 )
 
 usp = construct.Struct(
-    'ax25' / ax25,
-    'usp' / construct.If(construct.this.ax25.header.pid == 0xF0,
-                         construct.Pointer(-construct.len_(construct.this.ax25.info), Frame))
+    'ax25' / construct.Peek(ax25_hdr),
+    'ax25' / construct.If(lambda this: bool(this.ax25), ax25_hdr),
+    'usp' / construct.If(lambda this: (bool(this.ax25) and this.ax25.pid == 0xF0), Frame)
 )
