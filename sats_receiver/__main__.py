@@ -7,6 +7,9 @@ import logging.handlers
 import multiprocessing as mp
 import pathlib
 
+import gnuradio as gr
+import gnuradio.gr
+
 from sats_receiver import HOMEDIR, LOGSDIR, TLEDIR, RECDIR
 from sats_receiver.async_signal import AsyncSignal
 from sats_receiver.manager import ReceiverManager
@@ -35,6 +38,9 @@ def setup_logging(q: mp.Queue, log_lvl: int):
     # PIL logging level
     pil_logger = logging.getLogger('PIL')
     pil_logger.setLevel(logging.DEBUG + 2)
+
+    gr_logger = gr.gr.logging()
+    gr_logger.set_default_level(gr.gr.log_levels.info)
 
 
 if __name__ == '__main__':

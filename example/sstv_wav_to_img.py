@@ -46,6 +46,9 @@ def setup_logging(q: mp.Queue, log_lvl: int):
     pil_logger = logging.getLogger('PIL')
     pil_logger.setLevel(logging.DEBUG + 2)
 
+    gr_logger = gr.gr.logging()
+    gr_logger.set_default_level(gr.gr.log_levels.warn)
+
 
 class DecoderTopBlock(gr.gr.top_block):
     def __init__(self,
