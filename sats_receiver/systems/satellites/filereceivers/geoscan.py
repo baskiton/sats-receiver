@@ -1,7 +1,7 @@
 import datetime as dt
 
 import construct
-from satellites.filereceiver.imagereceiver import ImageReceiver
+from satellites.filereceiver.imagereceiver import FileReceiver, ImageReceiver
 
 from sats_receiver import utils
 
@@ -16,13 +16,75 @@ _frame = construct.Struct(
     'mtype' / construct.Int16ul,            # #3
     'offset' / construct.Int16ul,           # #5
     'subsystem_num' / construct.Int8ul,     # #7
-    # 'data' / construct.Bytes(construct.this.dlen - 6)
-    'data' / construct.Bytes(56)
+    'data' / construct.Bytes(construct.this.dlen - 6)
+    # 'data' / construct.Bytes(56)
 )
 
 
+class FileReceiverGeoscan(FileReceiver):
+    MARKER_FILE = 0x0002
+    CMD_FILE_START = 0x0901
+    CMD_FILE_FRAME = 0x0905
+    BASE_OFFSET = 0     # old 16384  # old 32768
+
+    def __init__(self, path, verbose=False):
+        super().__init__(path, verbose)
+        self.base_offset = self.BASE_OFFSET
+        self._current_fid = None
+        self._last_chunk_hash = None
+        self._prev_chunk_sz = -1
+        self._miss_cnt = 0
+        self._cnt = 0
+
+    def generate_fid(self, chunk):
+        self._current_fid = f'GEOSCAN_{dt.datetime.now()}'.replace(' ', '_')
+        return self._current_fid
+
+    def filename(self, fid):
+        return f'{fid}.bin'
+
+    def parse_chunk(self, chunk):
+        try:
+            chunk = _frame.parse(chunk)
+        except construct.ConstructError:
+            return
+
+        if chunk.marker != self.MARKER_FILE:
+            self._miss_cnt += 1
+            return
+
+        if chunk.mtype == self.CMD_FILE_START:
+            self.base_offset = chunk.offset
+            chunk.offset = 0
+            self._cnt += 1
+
+        elif chunk.mtype == self.CMD_FILE_FRAME:
+            chunk.offset -= self.base_offset
+            self._cnt += 1
+
+        else:
+            return
+
+        return chunk
+
+    def file_id(self, chunk):
+        ch_hash = hash(chunk.data)
+        if chunk.offset == 0 and ch_hash != self._last_chunk_hash:
+            # new file
+            self.generate_fid(chunk)
+
+        self._last_chunk_hash = ch_hash
+
+        return self._current_fid or self.generate_fid(chunk)
+
+    def on_completion(self, f):
+        utils.close(f.f)
+        self._current_fid = None
+        self.base_offset = self.BASE_OFFSET
+
+
 class ImageReceiverGeoscan(ImageReceiver):
-    MARKER_IMG = 1
+    MARKER_IMG = 0x0001
     CMD_IMG_START = 0x0901
     CMD_IMG_FRAME = 0x0905
     BASE_OFFSET = 4     # old 16384  # old 32768
@@ -55,6 +117,9 @@ class ImageReceiverGeoscan(ImageReceiver):
 
         elif chunk.mtype == self.CMD_IMG_FRAME:
             chunk.offset -= self.base_offset
+
+        else:
+            return
 
         return chunk
 

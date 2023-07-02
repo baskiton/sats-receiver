@@ -1,9 +1,8 @@
-name: GEOSCAN-EDELVEIS
+name: STRATOSAT-TK1
 alternative_names:
-  - RS20S
-  - GEOSCAN
-  - GEOSCAN-EDELVEIS (RS20S)
-norad: 53385
+  - RS52S
+  - STRATOSAT-TK1 (RS52S)
+norad: 90005
 data:
   &tlm Telemetry:
     telemetry: geoscan

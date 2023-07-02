@@ -128,7 +128,10 @@ class TlmDecoder(gr.gr.basic_block):
             self.log.debug('TlmDecoder: Could not parse telemetry beacon: %s', e)
             return
 
-        if not (tlm and self.fmt.build(tlm)):
+        try:
+            if not (tlm and self.fmt.build(tlm)):
+                return
+        except:
             return
 
         f = GrsFile((self.out_dir / fn_base).with_suffix('.bin'))

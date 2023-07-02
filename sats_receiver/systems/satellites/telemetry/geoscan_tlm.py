@@ -1,5 +1,5 @@
 import construct
-from satellites.telemetry import ax25
+from satellites.telemetry.ax25 import Header as ax25_hdr
 from satellites.adapters import UNIXTimestampAdapter
 
 
@@ -56,7 +56,7 @@ Frame = construct.Struct(
 )
 
 geoscan = construct.Struct(
-    'ax25' / construct.Peek(construct.Hex(construct.Bytes(16))),
-    'ax25' / construct.If(construct.this.ax25 == bytes.fromhex('848a82869e9c60a4a66460a640e103f0'), ax25),
-    'geoscan' / construct.If(construct.this.ax25, construct.Seek(16) >> Frame),
+    'ax25' / construct.Peek(ax25_hdr),
+    'ax25' / construct.If(lambda this: (bool(this.ax25) and this.ax25.addresses[0].callsign == u'BEACON'), ax25_hdr),
+    'geoscan' / construct.If(lambda this: (bool(this.ax25) and this.ax25.pid == 0xF0), Frame),
 )
