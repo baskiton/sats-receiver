@@ -112,13 +112,13 @@ class Apt:
     BLOCK_HEIGHT = 8
     BLOCKS_NUM = 16
     FRAME_HEIGHT = BLOCK_HEIGHT * BLOCKS_NUM
+    FRAME_HEIGHT_HF = FRAME_HEIGHT // 2
 
     SYNC_A = np.array([*map(float, '000011001100110011001100110011000000000')],
                       dtype=np.float32).repeat(PIX_WIDTH) * 2 - 1
     SYNC_B = np.array([*map(float, '000011100111001110011100111001110011100')],
                       dtype=np.float32).repeat(PIX_WIDTH) * 2 - 1
-    WEDGE_SAMPLE = np.array([*np.interp([31, 63, 95, 127, 159, 191, 223, 255, 0], [0, 255], [-1, 1]),
-                             0, 0, 0, 0, 0, 0, 0], dtype=np.float32).repeat(BLOCK_HEIGHT)
+    WEDGE_SAMPLE = np.array([*np.interp([31, 63, 95, 127, 159, 191, 223, 255, 0], [0, 255], [-1, 1])], dtype=np.float32).repeat(BLOCK_HEIGHT)
 
     # TODO: anoter values???
     NOAA_AVHRR_FOV = 110.74
@@ -316,30 +316,62 @@ class Apt:
     def _read_telemetry(self):
         self.log.debug('read telemetry...')
 
-        if self.data.shape[0] < self.WEDGE_SAMPLE.size:
+        if self.data.shape[0] < self.FRAME_HEIGHT:
             self.log.error('recording too short for telemetry decoding')
             return 1
-        if self.data.shape[0] < self.WEDGE_SAMPLE.size * 2:
+        if self.data.shape[0] < self.FRAME_HEIGHT * 2:
             self.log.warning('reading telemetry on short recording, expect unreliable results')
 
         tlm_a = self.data[0:, self.TLM_A_START:self.SYNC_B_START]
         tlm_b = self.data[0:, self.TLM_B_START:]
 
         # search the best template with minimum noise
-        mean_a = np.mean(tlm_a, 1, dtype=np.float32)
-        mean_b = np.mean(tlm_b, 1, dtype=np.float32)
-        variance = (np.var(tlm_a, 1, dtype=np.float32)
-                    + np.var(tlm_b, 1, dtype=np.float32)) / 2
-        corr = np.correlate(mean_a, self.WEDGE_SAMPLE) + np.correlate(mean_b, self.WEDGE_SAMPLE)
-        qual = np.array([v / np.std(variance[i:i + self.WEDGE_SAMPLE.size], dtype=np.float32)
-                         for i, v in enumerate(corr)], dtype=np.float32)
-        best = np.argmax(qual)
+        mean_a = tlm_a.mean(1)
+        mean_b = tlm_b.mean(1)
+
+        variance_a = np.var(tlm_a, 1, dtype=np.float32)
+        variance_b = np.var(tlm_b, 1, dtype=np.float32)
+
+        corr_a = np.correlate(mean_a, self.WEDGE_SAMPLE)
+        corr_b = np.correlate(mean_b, self.WEDGE_SAMPLE)
+
+        qual_a = np.array([cor / np.std(variance_a[i + 7 * self.BLOCK_HEIGHT:i + self.FRAME_HEIGHT], dtype=np.float32)
+                           for i, cor in enumerate(corr_a - np.min(corr_a))
+                           if variance_a.size > i + (9 * self.BLOCK_HEIGHT)], dtype=np.float32)
+        qual_b = np.array([cor / np.std(variance_b[i + 7 * self.BLOCK_HEIGHT:i + self.FRAME_HEIGHT], dtype=np.float32)
+                           for i, cor in enumerate(corr_b - np.min(corr_b))
+                           if variance_b.size > i + (9 * self.BLOCK_HEIGHT)], dtype=np.float32)
+
+        best_q_a = np.argmax(qual_a)
+        best_q_b = np.argmax(qual_b)
+        x_a = best_q_a - self.FRAME_HEIGHT_HF
+        if x_a < 0:
+            best_qni_a = best_q_a
+            x_a = 0
+        else:
+            best_qni_a = self.FRAME_HEIGHT_HF
+        best_cqs_a = corr_a[x_a:best_q_a + self.FRAME_HEIGHT_HF]
+        x_a = best_q_b - self.FRAME_HEIGHT_HF
+        if x_a < 0:
+            best_qni_b = best_q_a
+            x_a = 0
+        else:
+            best_qni_b = self.FRAME_HEIGHT_HF
+        best_cqs_b = corr_b[x_a:best_q_b + self.FRAME_HEIGHT_HF]
+
+        if np.max(best_cqs_a) >= np.max(best_cqs_b):
+            best = best_q_a - best_qni_a + np.argmax(best_cqs_a)
+            mean = mean_a
+        else:
+            best = best_q_b - best_qni_b + np.argmax(best_cqs_b)
+            mean = mean_b
 
         # form the best telemetry data and create combine contrast values
-        tlm_a = np.reshape(mean_a[best:best + self.FRAME_HEIGHT], (-1, self.BLOCK_HEIGHT)).mean(1, dtype=np.float32)
-        tlm_b = np.reshape(mean_b[best:best + self.FRAME_HEIGHT], (-1, self.BLOCK_HEIGHT)).mean(1, dtype=np.float32)
-        clb = (tlm_a[:9] + tlm_b[:9]) / 2
-        hi, lo = clb[7:10]
+        tlm = mean[best:best + self.FRAME_HEIGHT]
+        tlm = np.resize(tlm, (tlm.size // self.BLOCK_HEIGHT, self.BLOCK_HEIGHT)).mean(1)
+
+        clb = tlm[:9]
+        hi, lo = clb[7:]
         rng = hi - lo
 
         if rng > 0:
