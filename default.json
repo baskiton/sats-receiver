@@ -36,7 +36,7 @@
                             "decode": "APT"
                         },
                         {
-                            "enabled": true,
+                            "enabled": false,
                             "freq": 137350000,
                             "freq_correction": -150,
                             "bandwidth": 40000,
@@ -59,7 +59,7 @@
                             "decode": "APT"
                         },
                         {
-                            "enabled": true,
+                            "enabled": false,
                             "freq": 137350000,
                             "freq_correction": 50,
                             "bandwidth": 40000,
@@ -82,7 +82,7 @@
                             "decode": "APT"
                         },
                         {
-                            "enabled": true,
+                            "enabled": false,
                             "freq": 137770000,
                             "freq_correction": 300,
                             "bandwidth": 40000,
