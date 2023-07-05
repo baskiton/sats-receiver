@@ -280,11 +280,12 @@ class ConstelSoftDecoder(Decoder):
         super(ConstelSoftDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
 
         if isinstance(constellation, str):
-            constellation = self.CONSTELLS[constellation.upper()]().base()
+            self.constellation = self.CONSTELLS[constellation.upper()]().base()
         else:
             raise TypeError(f'`constellation` expected str, got {type(constellation)} instead')
 
-        self.constel_soft_decoder = gr.digital.constellation_soft_decoder_cf(constellation)
+        self.constellation.gen_soft_dec_lut(8)
+        self.constel_soft_decoder = gr.digital.constellation_soft_decoder_cf(self.constellation)
         self.rail = gr.analog.rail_ff(-1, 1)
         self.ftch = gr.blocks.float_to_char(1, 127)
 
