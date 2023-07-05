@@ -6,6 +6,7 @@ import gnuradio.digital
 import gnuradio.gr
 
 from satellites.utils.options_block import options_block
+from satellites.components.demodulators import fsk_demodulator
 
 
 class GfskDemod(gr.gr.hier_block2, options_block):
@@ -19,7 +20,7 @@ class GfskDemod(gr.gr.hier_block2, options_block):
                  options=None):
         gr.gr.hier_block2.__init__(
             self,
-            'fsk_demodulator',
+            'gfsk_demodulator',
             gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex if iq else gr.gr.sizeof_float),
             gr.gr.io_signature(1, 1, gr.gr.sizeof_float))
         options_block.__init__(self, options)
@@ -71,3 +72,20 @@ class GfskDemod(gr.gr.hier_block2, options_block):
                             help='Symbol Sync M&M frequency error [default=%default] (GFSK)')
         parser.add_argument('--deviation', type=float, default=cls._DEF_DEVIATION_HZ,
                             help='Deviation (Hz) [default=%(default)r]')
+
+
+class GmskDemod(fsk_demodulator):
+    _DEF_DEMOD_GAIN = math.pi * 4
+
+    def __init__(self, baudrate, samp_rate, iq, deviation=None,
+                 subaudio=False, dc_block=True, dump_path=None,
+                 options=None):
+        super().__init__(baudrate, samp_rate, iq, deviation, subaudio, dc_block, dump_path, options)
+        if iq:
+            self.demod.set_gain(self.options.demod_gain)
+
+    @classmethod
+    def add_options(cls, parser):
+        super().add_options(parser)
+        parser.add_argument('--demod_gain', type=float, default=cls._DEF_DEMOD_GAIN,
+                            help='Quadrature/FM demodulator gain [default=%default] (GMSK)')

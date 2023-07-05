@@ -1,4 +1,4 @@
-name: UMKA-1
+name: UmKA-1
 alternative_names:
   - RS40S
   - UMKA-1 (RS40S)
@@ -14,22 +14,8 @@ transmitters:
     framing: USP
     data:
     - *tlm
-  2k4 FSK downlink2:
-    frequency: 435.825e+6
-    modulation: FSK
-    baudrate: 2400
-    framing: USP
-    data:
-    - *tlm
   4k8 FSK downlink:
     frequency: 437.625e+6
-    modulation: FSK
-    baudrate: 4800
-    framing: USP
-    data:
-    - *tlm
-  4k8 FSK downlink2:
-    frequency: 435.825e+6
     modulation: FSK
     baudrate: 4800
     framing: USP
@@ -42,9 +28,24 @@ transmitters:
     framing: USP
     data:
     - *tlm
-  9k6 FSK downlink2:
-    frequency: 435.825e+6
-    modulation: FSK
+
+  2k4 GMSK downlink:
+    frequency: 437.625e+6
+    modulation: GMSK
+    baudrate: 2400
+    framing: USP
+    data:
+    - *tlm
+  4k8 GMSK downlink:
+    frequency: 437.625e+6
+    modulation: GMSK
+    baudrate: 4800
+    framing: USP
+    data:
+    - *tlm
+  9k6 GMSK downlink:
+    frequency: 437.625e+6
+    modulation: GMSK
     baudrate: 9600
     framing: USP
     data:

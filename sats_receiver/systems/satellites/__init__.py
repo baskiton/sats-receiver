@@ -45,6 +45,7 @@ class SatFlowgraph(grs_flowgraph):
         self.log = log
         self.tlm_decode = tlm_decode
         self._demodulator_hooks['GFSK'] = sr_demod.GfskDemod
+        self._demodulator_hooks['GMSK'] = sr_demod.GmskDemod
 
         if type(options) is str:
             p = argparse.ArgumentParser(prog=self.__class__.__name__,

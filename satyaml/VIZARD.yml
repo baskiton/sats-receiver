@@ -8,13 +8,6 @@ data:
   &tlm Telemetry:
     telemetry: usp
 transmitters:
-  1k2 FSK downlink:
-    frequency: 437.800e+6
-    modulation: FSK
-    baudrate: 1200
-    framing: USP
-    data:
-    - *tlm
   2k4 FSK downlink:
     frequency: 437.800e+6
     modulation: FSK
@@ -32,6 +25,28 @@ transmitters:
   9k6 FSK downlink:
     frequency: 437.800e+6
     modulation: FSK
+    baudrate: 9600
+    framing: USP
+    data:
+    - *tlm
+
+  2k4 GMSK downlink:
+    frequency: 437.800e+6
+    modulation: GMSK
+    baudrate: 2400
+    framing: USP
+    data:
+    - *tlm
+  4k8 GMSK downlink:
+    frequency: 437.800e+6
+    modulation: GMSK
+    baudrate: 4800
+    framing: USP
+    data:
+    - *tlm
+  9k6 GMSK downlink:
+    frequency: 437.800e+6
+    modulation: GMSK
     baudrate: 9600
     framing: USP
     data:
