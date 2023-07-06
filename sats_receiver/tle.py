@@ -28,6 +28,16 @@ class Tle:
 
         self.t_next = self.last_update_tle + dt.timedelta(days=self.update_period)
 
+    @staticmethod
+    def calc_checksum(full_line: str):
+        checksum = 0
+        for c in full_line[:-1]:
+            if c.isnumeric():
+                checksum += int(c)
+            elif c == '-':
+                checksum += 1
+        return str(checksum)[-1]
+
     def fill_objects(self):
         self.objects.clear()
         with self.tle_file.open() as f:
@@ -41,7 +51,16 @@ class Tle:
                 l1 = line.rstrip()
                 l2 = f.readline().rstrip()
                 for name in names:
-                    self.objects[name] = ephem.readtle(str(name), l1, l2), (str(name), l1, l2)
+                    try:
+                        self.objects[name] = ephem.readtle(str(name), l1, l2), (str(name), l1, l2)
+                    except ValueError as e:
+                        if str(e).startswith('incorrect TLE checksum'):
+                            self.log.warning('%s: for `%s` expect %s:%s, got %s:%s',
+                                             e, name,
+                                             self.calc_checksum(l1), l1[-1],
+                                             self.calc_checksum(l2), l2[-1])
+                        else:
+                            raise e
 
     def fetch_tle(self):
         try:
