@@ -199,6 +199,14 @@ class SatsReceiver(gr.gr.top_block):
         return self.config['tune']
 
     @property
+    def freq_correction(self) -> Union[int, float]:
+        """
+        Receiver frequency correction
+        """
+
+        return self.config.get('freq_correction', 0.0)
+
+    @property
     def samp_rate(self) -> Union[int, float]:
         """
         Receiver samplerate, Hz
@@ -249,7 +257,7 @@ class SatsReceiver(gr.gr.top_block):
 
             self.signal_src.set_sample_rate(0, self.samp_rate)
             self.signal_src.set_frequency(0, self.tune)
-            self.signal_src.set_frequency_correction(0, 0)
+            self.signal_src.set_frequency_correction(0, self.freq_correction)
             self.signal_src.set_gain_mode(0, False)
             self.signal_src.set_gain(0, 'TUNER', self.gain)
 

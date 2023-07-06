@@ -18,6 +18,7 @@
             "biast": false,
             "gain": 38.6,
             "tune": 137500000,
+            "freq_correction": 0,
             "samp_rate": 1024000,
             "output_directory": "~/sats_receiver/records",
             "sats": [
@@ -30,7 +31,7 @@
                         {
                             "enabled": true,
                             "freq": 137620000,
-                            "freq_correction": 1000,
+                            "freq_correction": 0,
                             "bandwidth": 45760,
                             "mode": "QUAD",
                             "decode": "APT"
@@ -38,7 +39,7 @@
                         {
                             "enabled": false,
                             "freq": 137350000,
-                            "freq_correction": -150,
+                            "freq_correction": 0,
                             "bandwidth": 40000,
                             "mode": "RAW"
                         }
@@ -53,7 +54,7 @@
                         {
                             "enabled": true,
                             "freq": 137912500,
-                            "freq_correction": 500,
+                            "freq_correction": 0,
                             "bandwidth": 45760,
                             "mode": "QUAD",
                             "decode": "APT"
@@ -61,7 +62,7 @@
                         {
                             "enabled": false,
                             "freq": 137350000,
-                            "freq_correction": 50,
+                            "freq_correction": 0,
                             "bandwidth": 40000,
                             "mode": "RAW"
                         }
@@ -76,7 +77,7 @@
                         {
                             "enabled": true,
                             "freq": 137100000,
-                            "freq_correction": 500,
+                            "freq_correction": 0,
                             "bandwidth": 45760,
                             "mode": "QUAD",
                             "decode": "APT"
@@ -84,7 +85,7 @@
                         {
                             "enabled": false,
                             "freq": 137770000,
-                            "freq_correction": 300,
+                            "freq_correction": 0,
                             "bandwidth": 40000,
                             "mode": "RAW"
                         }

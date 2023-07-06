@@ -145,6 +145,7 @@ Each receiver object contain:
 | serial           | String          | _Optional._ Serial number of the receiver. Empty by default                                                                                                                        |
 | biast            | Boolean         | _Optional._ Bias-T enable/disable (only for RTL-SDR at this time). `false` by default. **WARNING! Be careful when enabling this option! Use only if you know what it is and why!** |
 | gain             | Boolean         | _Optional._ Receiver gain, dB. `0` by default                                                                                                                                      |
+| freq_correction  | Number          | _Optional._ Receiver frequency correction. `0.0` by default                                                                                                                        |
 
 
 #### sats
