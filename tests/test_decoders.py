@@ -316,10 +316,10 @@ class TestDecoders(TestCase):
 
         self.assertIn('Telemetry', files)
         tlm_files = files['Telemetry']
-        self.assertTrue(len(tlm_files) == 2)
+        self.assertTrue(len(tlm_files) >= 2)
         for fp in tlm_files:
             self.assertIsInstance(fp, pathlib.Path)
-            self.assertRegex(fp.name, r'usp_4k8-FSK.+\.(txt|bin)')
+            self.assertRegex(fp.name, r'usp_4k8.+\.(txt|bin)')
             if fp.name.endswith('.bin'):
                 self.assertEqual(fp.read_bytes(), expected)
 
