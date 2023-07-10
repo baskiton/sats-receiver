@@ -181,7 +181,7 @@ class SatRecorder(gr.gr.hier_block2):
         channels = getattr(self.demodulator, 'channels', (self.bandwidth,))
         self.decoders = []
         if self.decode == utils.Decode.APT:
-            self.decoders.append(decoders.AptDecoder(up.name, self.bandwidth, main_tune, up.output_directory,
+            self.decoders.append(decoders.AptDecoder(up.name, self.bandwidth, self.frequency, up.output_directory,
                                                      up.sat_ephem_tle, up.observer.lonlat))
 
         # elif self.decode == Decode.LRPT:
@@ -189,20 +189,20 @@ class SatRecorder(gr.gr.hier_block2):
         #     # self.decoder =
 
         elif self.decode == utils.Decode.CSOFT:
-            self.decoders.append(decoders.ConstelSoftDecoder(up.name, self.bandwidth, main_tune,
+            self.decoders.append(decoders.ConstelSoftDecoder(up.name, self.bandwidth, self.frequency,
                                                              up.output_directory, self.mode.value))
 
         elif self.decode == utils.Decode.RAW:
             for ch in channels:
-                self.decoders.append(decoders.RawDecoder(up.name, ch, main_tune, up.output_directory))
+                self.decoders.append(decoders.RawDecoder(up.name, ch, self.frequency, up.output_directory))
 
         elif self.decode == utils.Decode.SSTV:
-            self.decoders.append(decoders.SstvDecoder(up.name, self.bandwidth, main_tune, up.output_directory,
+            self.decoders.append(decoders.SstvDecoder(up.name, self.bandwidth, self.frequency, up.output_directory,
                                                       up.observer, self.sstv_sync, self.sstv_wsr))
 
         elif self.decode == utils.Decode.SATS:
             cfg = dict(file=self.grs_file, name=self.grs_name, norad=self.grs_norad, tlm_decode=self.grs_tlm_decode)
-            self.decoders.append(decoders.SatellitesDecoder(up.name, self.bandwidth, main_tune,
+            self.decoders.append(decoders.SatellitesDecoder(up.name, self.bandwidth, self.frequency,
                                                             up.output_directory, cfg))
 
         x = [self, self.radio]

@@ -163,7 +163,7 @@ class TestDecoders(TestCase):
         decoder = SstvDecoder(
             sat_name='Test Sat',
             samp_rate=wav_samp_rate,
-            main_tune=111222333,
+            freq=111222333,
             out_dir=self.out_dp,
             observer=Observer({'latitude': lat,
                                'longitude': lon,
@@ -231,7 +231,7 @@ class TestDecoders(TestCase):
         decoder = AptDecoder(
             sat_name=sat_name,
             samp_rate=wav_samp_rate,
-            main_tune=111222333,
+            freq=111222333,
             out_dir=self.out_dp,
             sat_ephem_tle=tle.get(sat_name),
             observer_lonlat=(lon, lat),
@@ -270,7 +270,7 @@ class TestDecoders(TestCase):
         decoder = AptDecoder(
             sat_name=sat_name,
             samp_rate=wav_samp_rate,
-            main_tune=111222333,
+            freq=111222333,
             out_dir=self.out_dp,
             sat_ephem_tle=tle.get(sat_name),
             observer_lonlat=(lon, lat),
