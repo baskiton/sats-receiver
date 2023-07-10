@@ -48,8 +48,8 @@ class Decoder(gr.gr.hier_block2):
         self.base_kw = dict(log=self.log, sat_name=sat_name, freq=freq, samp_rate=samp_rate, out_dir=out_dir)
 
     def start(self):
-        self.tmp_file = self.out_dir / ('_'.join([self.t.strftime('%Y%m%d%H%M%S'),
-                                                  *self.name().lower().split()]) + '.tmp')
+        pfx = '_'.join([*self.name().lower().split(), self.now.strftime('%Y%m%d%H%M%S')])
+        self.tmp_file = utils.mktmp(self.out_dir, pfx)
         self.base_kw.update(tmp_file=self.tmp_file)
 
     def finalize(self, executor, fin_key: str):
@@ -203,10 +203,10 @@ class AptDecoder(Decoder):
     def start(self):
         self.already_fins = 0
         super(AptDecoder, self).start()
-        self.corr_file = self.out_dir / ('_'.join([self.now.strftime('%Y%m%d%H%M%S'),
-                                                   *self.name().lower().split()]) + '.corr.tmp')
-        self.peaks_file = self.out_dir / ('_'.join([self.now.strftime('%Y%m%d%H%M%S'),
-                                                    *self.name().lower().split()]) + '.peaks.tmp')
+
+        pfx = '_'.join([*self.name().lower().split(), self.now.strftime('%Y%m%d%H%M%S')])
+        self.corr_file = utils.mktmp(self.out_dir, pfx, '.corr.tmp')
+        self.peaks_file = utils.mktmp(self.out_dir, pfx, '.peaks.tmp')
         self.base_kw.update(corr_file=self.corr_file, peaks_file=self.peaks_file)
 
         self.out_file_sink.open(str(self.tmp_file))
