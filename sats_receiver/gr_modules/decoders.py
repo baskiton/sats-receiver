@@ -28,6 +28,7 @@ class Decoder(gr.gr.hier_block2):
                  name: str,
                  sat_name: str,
                  samp_rate: Union[int, float],
+                 main_tune: Union[int, float],
                  out_dir: pathlib.Path):
         self.prefix = f'{self.__class__.__name__}: {sat_name}'
         self.log = logging.getLogger(self.prefix)
@@ -41,9 +42,10 @@ class Decoder(gr.gr.hier_block2):
         self.now = dt.datetime.fromtimestamp(0)
         self.sat_name = sat_name
         self.samp_rate = samp_rate
+        self.main_tune = main_tune
         self.out_dir = out_dir
         self.tmp_file = utils.mktmp(prefix='_'.join(name.lower().split()))
-        self.base_kw = dict(log=self.log, sat_name=sat_name, out_dir=out_dir)
+        self.base_kw = dict(log=self.log, sat_name=sat_name, main_tune=main_tune, samp_rate=samp_rate, out_dir=out_dir)
 
     def start(self):
         self.tmp_file = self.out_dir / ('_'.join([self.t.strftime('%Y%m%d%H%M%S'),
@@ -64,8 +66,9 @@ class RawDecoder(Decoder):
     def __init__(self,
                  sat_name: str,
                  samp_rate: Union[int, float],
+                 main_tune: Union[int, float],
                  out_dir: pathlib.Path):
-        super(RawDecoder, self).__init__('Raw Decoder', sat_name, samp_rate, out_dir)
+        super(RawDecoder, self).__init__('Raw Decoder', sat_name, samp_rate, main_tune, out_dir)
 
         self.ctf = gr.blocks.complex_to_float(1)
         self.wav_sink = gr.blocks.wavfile_sink(
@@ -93,11 +96,12 @@ class RawDecoder(Decoder):
             executor.execute(self._raw_finalize, **self.base_kw, fin_key=fin_key)
 
     @staticmethod
-    def _raw_finalize(log, sat_name, out_dir, tmp_file, fin_key) -> tuple[utils.Decode, str, str, str, dt.datetime]:
+    def _raw_finalize(log, sat_name, main_tune, samp_rate, out_dir, tmp_file, fin_key) -> tuple[utils.Decode, str, str, str, dt.datetime]:
         log.debug('finalizing...')
 
         d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
-        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S_RAW.wav'))
+        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f_{utils.num_disp(main_tune)}Hz_'
+                                                      f'{utils.num_disp(samp_rate)}_{fin_key}_RAW.wav'))
         st = res_fn.stat()
         log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
 
@@ -108,11 +112,12 @@ class AptDecoder(Decoder):
     def __init__(self,
                  sat_name: str,
                  samp_rate: Union[int, float],
+                 main_tune: Union[int, float],
                  out_dir: pathlib.Path,
                  sat_ephem_tle: tuple[ephem.EarthSatellite, tuple[str, str, str]],
                  observer_lonlat: tuple[float, float]):
         name = 'APT Decoder'
-        super(AptDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
+        super(AptDecoder, self).__init__(name, sat_name, samp_rate, main_tune, out_dir)
 
         self.already_fins = 0
 
@@ -236,6 +241,8 @@ class AptDecoder(Decoder):
     @staticmethod
     def _apt_finalize(log: logging.Logger,
                       sat_name: str,
+                      main_tune: Union[int, float],
+                      samp_rate: Union[int, float],
                       sat_tle: tuple[str, str, str],
                       observer_lonlat: tuple[float, float],
                       tmp_file: pathlib.Path,
@@ -254,6 +261,8 @@ class AptDecoder(Decoder):
             log.info('finish with error')
         else:
             res_fn, sz = a.to_apt(out_dir)
+            res_fn = res_fn.rename(res_fn.with_stem(
+                res_fn.stem + f'_{utils.num_disp(main_tune)}Hz_{utils.num_disp(samp_rate)}Hz_{fin_key}'))
             log.info('finish: %s (%s)', res_fn, utils.numbi_disp(sz))
 
             return utils.Decode.APT, sat_name, fin_key, res_fn, a.end_time
@@ -274,10 +283,11 @@ class ConstelSoftDecoder(Decoder):
     def __init__(self,
                  sat_name: str,
                  samp_rate: Union[int, float],
+                 main_tune: Union[int, float],
                  out_dir: pathlib.Path,
                  constellation,
                  name='Constellation Soft Decoder'):
-        super(ConstelSoftDecoder, self).__init__(name, sat_name, samp_rate, out_dir)
+        super(ConstelSoftDecoder, self).__init__(name, sat_name, samp_rate, main_tune, out_dir)
 
         if isinstance(constellation, str):
             self.constellation = self.CONSTELLS[constellation.upper()]().base()
@@ -316,13 +326,16 @@ class ConstelSoftDecoder(Decoder):
     @staticmethod
     def _constel_soft_finalize(log: logging.Logger,
                                sat_name: str,
+                               main_tune: Union[int, float],
+                               samp_rate: Union[int, float],
                                out_dir: pathlib.Path,
                                tmp_file: pathlib.Path,
                                fin_key: str) -> tuple[utils.Decode, str, str, pathlib.Path, dt.datetime]:
         log.debug('finalizing...')
 
         d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
-        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S_RAW.s'))
+        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f_{utils.num_disp(main_tune)}Hz_'
+                                                      f'{utils.num_disp(samp_rate)}Hz_{fin_key}_RAW.s'))
         st = res_fn.stat()
         log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
 
@@ -350,11 +363,12 @@ class SstvDecoder(Decoder):
     def __init__(self,
                  sat_name: str,
                  samp_rate: Union[int, float],
+                 main_tune: Union[int, float],
                  out_dir: pathlib.Path,
                  observer: Observer = None,
                  do_sync=True,
                  wsr=16000):
-        super(SstvDecoder, self).__init__('SSTV Decoder', sat_name, samp_rate, out_dir)
+        super(SstvDecoder, self).__init__('SSTV Decoder', sat_name, samp_rate, main_tune, out_dir)
 
         self.observer = observer
         self.do_sync = do_sync
@@ -427,6 +441,8 @@ class SstvDecoder(Decoder):
     @staticmethod
     def _sstv_finalize(log: logging.Logger,
                        sat_name: str,
+                       main_tune: Union[int, float],
+                       samp_rate: Union[int, float],
                        out_dir: pathlib.Path,
                        observer_latlonalt: Optional[tuple[str, str, Union[int, float]]],
                        sstv_rr: list[sstv.SstvRecognizer],
@@ -456,7 +472,9 @@ class SstvDecoder(Decoder):
             end_time = (dt.datetime.strptime(end_time, '%Y:%m:%d %H:%M:%S')
                         if end_time
                         else dt.datetime.utcnow())
-            res_fn = out_dir / end_time.strftime(f'{sat_name}_{sstv_mode}_%Y-%m-%d_%H-%M-%S,%f_{fin_key}.png')
+            res_fn = out_dir / end_time.strftime(f'{sat_name}_{sstv_mode}_%Y-%m-%d_%H-%M-%S,%f_'
+                                                 f'{utils.num_disp(main_tune)}Hz_{utils.num_disp(samp_rate)}Hz_'
+                                                 f'{fin_key}.png')
 
             img.save(res_fn, exif=exif)
 
@@ -474,10 +492,11 @@ class SatellitesDecoder(Decoder):
     def __init__(self,
                  sat_name: str,
                  samp_rate: Union[int, float],
+                 main_tune: Union[int, float],
                  out_dir: pathlib.Path,
                  config: dict,
                  is_iq=True):
-        super(SatellitesDecoder, self).__init__('GR Satellites Decoder', sat_name, samp_rate, out_dir)
+        super(SatellitesDecoder, self).__init__('GR Satellites Decoder', sat_name, samp_rate, main_tune, out_dir)
         opt_str = (
             f' --file_output_path="{out_dir}"'
             # f' --codec2_ip='
@@ -522,6 +541,8 @@ class SatellitesDecoder(Decoder):
     @staticmethod
     def _sats_finalize(log: logging.Logger,
                        sat_name: str,
+                       main_tune: Union[int, float],
+                       samp_rate: Union[int, float],
                        out_dir: pathlib.Path,
                        files: dict[str, list[pathlib.Path]],
                        fin_key: str) -> tuple[utils.Decode, str, str, dict[str, list[pathlib.Path]]]:
