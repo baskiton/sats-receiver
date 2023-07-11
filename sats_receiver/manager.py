@@ -279,10 +279,11 @@ class ReceiverManager:
             return 1
 
         try:
+            now = self.t
             self.update_config()
             self.scheduler.action()
-            recalc = self.observer.action(self.t)
-            need_upd = self.tle.action(self.now)
+            recalc = self.observer.action(now)
+            need_upd = self.tle.action(now)
 
             for receiver in self.receivers.values():
                 if recalc:
