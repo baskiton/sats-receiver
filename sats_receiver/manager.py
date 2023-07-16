@@ -118,6 +118,8 @@ class Executor(mp.Process):
 
 
 class ReceiverManager:
+    TD_ERR_DEF = dt.timedelta(seconds=5)
+
     def __init__(self,
                  q: mp.Queue,
                  config_filename: pathlib.Path,
@@ -135,6 +137,9 @@ class ReceiverManager:
         self.stopped = False
         self.now = dt.datetime.now(dt.timezone.utc)
         self.file_failed_t = 0
+
+        self.t_err = dt.datetime.utcfromtimestamp(0)
+        self.td_err = self.TD_ERR_DEF
 
         if not self.update_config(True, True):
             raise ValueError(f'{self.prefix}: Invalid config!')
@@ -154,9 +159,15 @@ class ReceiverManager:
             try:
                 rec = SatsReceiver(self, cfg)
                 self.receivers[cfg['name']] = rec
+                self.td_err = self.TD_ERR_DEF
             except RuntimeError as e:
-                self.log.error('Skip receiver "%s": %s', cfg['name'], e)
-        else:
+                if self.now >= self.t_err:
+                    self.t_err = self.now + self.td_err
+                    self.td_err *= 2
+                    self.log.error('Skip receiver "%s": %s', cfg['name'], e)
+        elif self.now >= self.t_err:
+            self.t_err = self.now + self.td_err
+            self.td_err *= 2
             self.log.debug('Skip disabled receiver `%s`', cfg['name'])
 
     @property

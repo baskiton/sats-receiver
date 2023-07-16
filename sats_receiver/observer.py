@@ -11,6 +11,8 @@ import ephem
 
 
 class Observer:
+    TD_ERR_DEF = dt.timedelta(seconds=5)
+
     def __init__(self, config: Mapping):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
@@ -20,6 +22,8 @@ class Observer:
         self.update_period = 1  # hours
         self.t_next = self.last_weather_time + dt.timedelta(hours=self.update_period, minutes=1)
         self._observer = ephem.Observer()
+        self.t_err = self.last_weather_time
+        self.td_err = self.TD_ERR_DEF
 
         if not self.update_config(config):
             raise ValueError(f'{self.prefix}: Invalid config!')
@@ -78,7 +82,7 @@ class Observer:
             'weather',
         ]))
 
-    def fetch_weather(self) -> Optional[int]:
+    def fetch_weather(self, t: dt.datetime) -> Optional[int]:
         q = urllib.parse.urlencode({
             'latitude': self._observer.lat / ephem.degree,
             'longitude': self._observer.lon / ephem.degree,
@@ -92,11 +96,21 @@ class Observer:
         try:
             with urllib.request.urlopen('https://api.open-meteo.com/v1/forecast?' + q) as r:
                 j = json.loads(r.read())
+            self.td_err = self.TD_ERR_DEF
         except urllib.error.HTTPError as e:
-            msg = f'Weather not fetched!\n{e}'
-            if e.code == 400:
-                msg = f'{msg}:\n"{e.url}"'
-            self.log.error('%s', msg)
+            if t >= self.t_err:
+                self.t_err = t + self.td_err
+                self.td_err *= 2
+                msg = f'Weather not fetched!\n{e}'
+                if e.code == 400:
+                    msg = f'{msg}:\n"{e.url}"'
+                self.log.error('%s', msg)
+            return
+        except urllib.error.URLError as e:
+            if t >= self.t_err:
+                self.t_err = t + self.td_err
+                self.td_err *= 2
+                self.log.error('Weather not fetched: %s', e)
             return
 
         self.last_weather_time = dt.datetime.fromisoformat(j['current_weather']['time']).replace(tzinfo=dt.timezone.utc)
@@ -123,7 +137,7 @@ class Observer:
 
     def action(self, t: dt.datetime) -> Optional[int]:
         self.set_date(t)
-        if self.with_weather and t >= self.t_next and self.fetch_weather():
+        if self.with_weather and t >= self.t_next and self.fetch_weather(t):
             self.t_next = self.last_weather_time + dt.timedelta(hours=self.update_period, minutes=1)
             return 1
 
