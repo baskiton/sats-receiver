@@ -108,6 +108,7 @@ class Observer:
                 j = json.loads(j_raw)
             self.weather_fp.write_bytes(j_raw)
             self.td_err = self.TD_ERR_DEF
+            self.t_err = t
         except urllib.error.HTTPError as e:
             if t >= self.t_err:
                 self.t_err = t + self.td_err

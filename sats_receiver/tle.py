@@ -85,6 +85,7 @@ class Tle:
         self.objects = objects
         tle_f.replace(self.tle_file)
         self.td_err = self.TD_ERR_DEF
+        self.t_err = t
 
         return 1
 
@@ -138,7 +139,7 @@ class Tle:
                 self.tle_file.touch()
                 self.last_update_tle = dt.datetime.fromtimestamp(0, dt.timezone.utc)
 
-            self.fill_objects(self.tle_file, dt.datetime.utcnow())
+            self.fill_objects(self.tle_file, dt.datetime.now(dt.timezone.utc))
 
             return 1
 

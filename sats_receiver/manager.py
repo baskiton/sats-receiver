@@ -138,7 +138,7 @@ class ReceiverManager:
         self.now = dt.datetime.now(dt.timezone.utc)
         self.file_failed_t = 0
 
-        self.t_err = dt.datetime.utcfromtimestamp(0)
+        self.t_err = self.now
         self.td_err = self.TD_ERR_DEF
 
         if not self.update_config(True, True):
@@ -160,6 +160,7 @@ class ReceiverManager:
                 rec = SatsReceiver(self, cfg)
                 self.receivers[cfg['name']] = rec
                 self.td_err = self.TD_ERR_DEF
+                self.t_err = self.now
             except RuntimeError as e:
                 if self.now >= self.t_err:
                     self.t_err = self.now + self.td_err
