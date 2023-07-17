@@ -14,6 +14,8 @@ from sats_receiver import TLEDIR
 
 
 class Tle:
+    TD_ERR_DEF = dt.timedelta(seconds=5)
+
     def __init__(self, config: Mapping):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
@@ -22,6 +24,8 @@ class Tle:
         self.tle_file = pathlib.Path(TLEDIR / 'dummy')
         self.last_update_tle = dt.datetime.fromtimestamp(0, dt.timezone.utc)
         self.objects: dict[str, tuple[ephem.EarthSatellite, tuple[str, str, str]]] = {}
+        self.t_err = self.last_update_tle
+        self.td_err = self.TD_ERR_DEF
 
         if not self.update_config(config):
             raise ValueError(f'{self.prefix}: Invalid config!')
@@ -38,21 +42,37 @@ class Tle:
                 checksum += 1
         return str(checksum)[-1]
 
-    def fill_objects(self):
-        self.objects.clear()
-        with self.tle_file.open() as f:
+    def fill_objects(self, tle_f: pathlib.Path, t: dt.datetime):
+        if tle_f is None:
+            if t >= self.t_err:
+                self.t_err = t + self.td_err
+                self.td_err *= 2
+                self.log.error('TLE file failed')
+            return
+
+        objects = {}
+
+        with tle_f.open() as f:
             for line in f:
                 names = set()
-                while len(line) <= 69:
+                while 0 < len(line) <= 69:
                     names.add(line.strip())
                     line = f.readline()
-                names.add(int(line[2:7]))
+
+                try:
+                    names.add(int(line[2:7]))
+                except ValueError:
+                    if t >= self.t_err:
+                        self.t_err = t + self.td_err
+                        self.td_err *= 2
+                        self.log.error('Not TLE. Break')
+                    return
 
                 l1 = line.rstrip()
                 l2 = f.readline().rstrip()
                 for name in names:
                     try:
-                        self.objects[name] = ephem.readtle(str(name), l1, l2), (str(name), l1, l2)
+                        objects[name] = ephem.readtle(str(name), l1, l2), (str(name), l1, l2)
                     except ValueError as e:
                         if str(e).startswith('incorrect TLE checksum'):
                             self.log.warning('%s: for `%s` expect %s:%s, got %s:%s',
@@ -62,23 +82,34 @@ class Tle:
                         else:
                             raise e
 
-    def fetch_tle(self):
+        self.objects = objects
+        tle_f.replace(self.tle_file)
+        self.td_err = self.TD_ERR_DEF
+
+        return 1
+
+    def fetch_tle(self, t: dt.datetime):
         try:
-            urllib.request.urlretrieve(self.url, self.tle_file)
+            x = urllib.request.urlretrieve(self.url)
         except urllib.error.HTTPError as e:
-            msg = f'Tle not fetched: {e}'
-            if e.code == 400:
-                msg = f'{msg}: "{e.url}"'
-            self.log.error('%s', msg)
+            if t >= self.t_err:
+                self.t_err = t + self.td_err
+                self.td_err *= 2
+                msg = f'Tle not fetched: {e}'
+                if e.code == 400:
+                    msg = f'{msg}: "{e.url}"'
+                self.log.error('%s', msg)
             return
         except (urllib.error.URLError, ValueError) as e:
-            self.log.error('Tle not fetched: %s', e)
+            if t >= self.t_err:
+                self.t_err = t + self.td_err
+                self.td_err *= 2
+                self.log.error('Tle not fetched: %s', e)
             return
 
-        self.last_update_tle = dt.datetime.now(dt.timezone.utc)
-        self.fill_objects()
-
-        self.log.info('Tle updated')
+        if self.fill_objects(x and pathlib.Path(x[0]) or None, t):
+            self.last_update_tle = t
+            self.log.info('Tle updated')
 
         return 1
 
@@ -107,7 +138,7 @@ class Tle:
                 self.tle_file.touch()
                 self.last_update_tle = dt.datetime.fromtimestamp(0, dt.timezone.utc)
 
-            self.fill_objects()
+            self.fill_objects(self.tle_file, dt.datetime.utcnow())
 
             return 1
 
@@ -131,7 +162,7 @@ class Tle:
         return self.config['update_period']
 
     def action(self, t: dt.datetime):
-        if t >= self.t_next and self.fetch_tle():
+        if t >= self.t_next and self.fetch_tle(t):
             self.t_next = self.last_update_tle + dt.timedelta(days=self.update_period)
             return 1
 

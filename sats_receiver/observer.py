@@ -112,6 +112,12 @@ class Observer:
                 self.td_err *= 2
                 self.log.error('Weather not fetched: %s', e)
             return
+        except json.JSONDecodeError as e:
+            if t >= self.t_err:
+                self.t_err = t + self.td_err
+                self.td_err *= 2
+                self.log.error('JSON error: %s', e)
+            return
 
         self.last_weather_time = dt.datetime.fromisoformat(j['current_weather']['time']).replace(tzinfo=dt.timezone.utc)
         self._observer.temp = float(j['current_weather']['temperature'])
