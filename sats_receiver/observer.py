@@ -9,6 +9,8 @@ from typing import Mapping, Optional, Union
 
 import ephem
 
+from sats_receiver import HOMEDIR
+
 
 class Observer:
     TD_ERR_DEF = dt.timedelta(seconds=5)
@@ -24,6 +26,7 @@ class Observer:
         self._observer = ephem.Observer()
         self.t_err = self.last_weather_time
         self.td_err = self.TD_ERR_DEF
+        self.weather_fp = HOMEDIR / 'weather.json'
 
         if not self.update_config(config):
             raise ValueError(f'{self.prefix}: Invalid config!')
@@ -71,6 +74,12 @@ class Observer:
             self._observer.elev = self.elev
             self._observer.compute_pressure()
 
+            if self.with_weather:
+                try:
+                    self.set_weather(json.loads(self.weather_fp.read_bytes()))
+                except (json.JSONDecodeError, FileNotFoundError) as e:
+                    self.log.warning('Failed to load weather from file: %s', e)
+
             return 1
 
     @staticmethod
@@ -95,7 +104,9 @@ class Observer:
 
         try:
             with urllib.request.urlopen('https://api.open-meteo.com/v1/forecast?' + q) as r:
-                j = json.loads(r.read())
+                j_raw = r.read()
+                j = json.loads(j_raw)
+            self.weather_fp.write_bytes(j_raw)
             self.td_err = self.TD_ERR_DEF
         except urllib.error.HTTPError as e:
             if t >= self.t_err:
@@ -119,6 +130,12 @@ class Observer:
                 self.log.error('JSON error: %s', e)
             return
 
+        self.set_weather(j)
+        self.log.info('weather updated: %s°C %shPa', self._observer.temp, self._observer.pressure)
+
+        return 1
+
+    def set_weather(self, j):
         self.last_weather_time = dt.datetime.fromisoformat(j['current_weather']['time']).replace(tzinfo=dt.timezone.utc)
         self._observer.temp = float(j['current_weather']['temperature'])
         if self.fetch_elev:
@@ -136,10 +153,6 @@ class Observer:
             self._observer.compute_pressure()
         else:
             self._observer.pressure = press
-
-        self.log.info('weather updated: %s°C %shPa', self._observer.temp, self._observer.pressure)
-
-        return 1
 
     def action(self, t: dt.datetime) -> Optional[int]:
         self.set_date(t)
