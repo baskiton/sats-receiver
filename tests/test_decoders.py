@@ -37,7 +37,7 @@ class TestTle(Tle):
     def __init__(self):
         super().__init__({'update_period': 0})
         self.tle_file = FILES / 'test_tle.txt'
-        self.fill_objects()
+        self.fill_objects(self.tle_file, dt.datetime.now(dt.timezone.utc))
 
     def update_config(self, config):
         self.config = config
