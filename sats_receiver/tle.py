@@ -83,7 +83,7 @@ class Tle:
                             raise e
 
         self.objects = objects
-        tle_f.replace(self.tle_file)
+        shutil.move(tle_f, self.tle_file)
         self.td_err = self.TD_ERR_DEF
         self.t_err = t
 
