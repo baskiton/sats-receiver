@@ -162,8 +162,8 @@ class TestDecoders(TestCase):
 
         decoder = SstvDecoder(
             sat_name='Test Sat',
+            subname='test',
             samp_rate=wav_samp_rate,
-            freq=111222333,
             out_dir=self.out_dp,
             observer=Observer({'latitude': lat,
                                'longitude': lon,
@@ -230,8 +230,8 @@ class TestDecoders(TestCase):
 
         decoder = AptDecoder(
             sat_name=sat_name,
+            subname='test',
             samp_rate=wav_samp_rate,
-            freq=111222333,
             out_dir=self.out_dp,
             sat_ephem_tle=tle.get(sat_name),
             observer_lonlat=(lon, lat),
@@ -269,8 +269,8 @@ class TestDecoders(TestCase):
 
         decoder = AptDecoder(
             sat_name=sat_name,
+            subname='test',
             samp_rate=wav_samp_rate,
-            freq=111222333,
             out_dir=self.out_dp,
             sat_ephem_tle=tle.get(sat_name),
             observer_lonlat=(lon, lat),
@@ -300,7 +300,7 @@ class TestDecoders(TestCase):
         sat_name = 'ORBICRAFT-ZORKIY'
         cfg = dict(tlm_decode=True, file=SATYAML / 'OrbiCraft-Zorkiy.yml')
 
-        decoder = SatellitesDecoder(sat_name, wav_samp_rate, 111222333, self.out_dp, cfg)
+        decoder = SatellitesDecoder(sat_name, 'test', wav_samp_rate, self.out_dp, cfg)
         self.tb = DecoderTopBlock(2, wav_fp, decoder)
         self.tb.start()
 
@@ -342,7 +342,7 @@ class TestDecoders(TestCase):
         sat_name = 'GEOSCAN-EDELVEIS'
         cfg = dict(tlm_decode=False, file=SATYAML / 'GEOSCAN-EDELVEIS.yml')
 
-        decoder = SatellitesDecoder(sat_name, wav_samp_rate, 111222333, self.out_dp, cfg, 0)
+        decoder = SatellitesDecoder(sat_name, 'test', wav_samp_rate, self.out_dp, cfg, 0)
         self.tb = DecoderTopBlock(1, wav_fp, decoder)
         self.tb.start()
 
@@ -374,7 +374,7 @@ class TestDecoders(TestCase):
         sat_name = 'GEOSCAN-EDELVEIS'
         cfg = dict(tlm_decode=True, file=SATYAML / 'GEOSCAN-EDELVEIS.yml')
 
-        decoder = SatellitesDecoder(sat_name, wav_samp_rate, 111222333, self.out_dp, cfg, False)
+        decoder = SatellitesDecoder(sat_name, 'test', wav_samp_rate, self.out_dp, cfg, False)
         self.tb = DecoderTopBlock(1, wav_fp, decoder)
         self.tb.start()
 
@@ -404,7 +404,7 @@ class TestDecoders(TestCase):
         sat_name = 'GEOSCAN-EDELVEIS'
         cfg = dict(tlm_decode=True, file=SATYAML / 'GEOSCAN-EDELVEIS.yml')
 
-        decoder = SatellitesDecoder(sat_name, wav_samp_rate, 111222333, self.out_dp, cfg)
+        decoder = SatellitesDecoder(sat_name, 'test', wav_samp_rate, self.out_dp, cfg)
         self.tb = DecoderTopBlock(2, wav_fp, decoder)
         self.tb.start()
 
