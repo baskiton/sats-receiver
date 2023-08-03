@@ -1,3 +1,4 @@
+import colorsys
 import datetime as dt
 import enum
 import logging
@@ -15,7 +16,10 @@ import scipy.signal
 
 from PIL import Image, ImageDraw
 
-from sats_receiver import utils
+from sats_receiver import utils, SYSRESDIR
+
+
+APTRESDIR = SYSRESDIR / 'NOAA-APT'
 
 
 class AptChannel(enum.Enum):
@@ -121,7 +125,14 @@ class Apt:
     WEDGE_SAMPLE = np.array([*np.interp([31, 63, 95, 127, 159, 191, 223, 255, 0], [0, 255], [-1, 1])], dtype=np.float32).repeat(BLOCK_HEIGHT)
 
     # TODO: anoter values???
-    NOAA_AVHRR_FOV = 110.74
+    # The AVHRR/3 scans 55.4 deg per scan line on either side of the orbital track
+    # https://en.wikipedia.org/wiki/NOAA-15#Advanced_Very_High_Resolution_Radiometer_(AVHRR/3)
+    #
+    # Scanning is cross-track with a range of ±55.37 deg about nadir.
+    # https://nwp-saf.eumetsat.int/site/software/aapp/aapp-overview/avhrr-3/
+    # https://www.eumetsat.int/avhrr#nav-two
+    NOAA_AVHRR_FOV_HALF = 55.37
+    NOAA_AVHRR_FOV = NOAA_AVHRR_FOV_HALF * 2
 
     @classmethod
     def from_apt(cls, aptf: pathlib.Path) -> 'Apt':
@@ -411,7 +422,7 @@ class Apt:
         self._x_offsets = np.empty(height, dtype=float)
         x_fovs = np.empty(height, dtype=float)
 
-        a = math.radians(self.NOAA_AVHRR_FOV / 2)
+        a = math.radians(self.NOAA_AVHRR_FOV_HALF)
         b = math.pi / 2 - a
         sa = math.sin(a)
         for i in range(height):
@@ -496,3 +507,43 @@ class Apt:
 
     def black_overlay(self):
         return self.map_overlay * np.array([0, 0, 0, 1], dtype=np.uint8)
+
+    def create_composites(self, *types):
+        composites = {
+            'HVC': APTRESDIR / f'hvc-{self.sat_name[-2:]}.png',
+            'HVCT': APTRESDIR / f'hvct-{self.sat_name[-2:]}.png',
+            'NO': APTRESDIR / f'no-{self.sat_name[-2:]}.png',
+            'MSA': APTRESDIR / f'msa-{self.sat_name[-2:]}.png',
+            'SEA': APTRESDIR / f'sea-{self.sat_name[-2:]}.png',
+            'THRM': APTRESDIR / f'thermal-{self.sat_name[-2:]}.png',
+        }
+
+        data = (self.data * 255).clip(0, 255).astype(np.uint8)
+        ch_a: np.ndarray = data[:, self.IMAGE_A_START:self.TLM_A_START]
+        ch_b: np.ndarray = data[:, self.IMAGE_B_START:self.TLM_B_START]
+
+        results = []
+        for t in types:
+            if t[:-1] in ('HVC', 'HVCT', 'MSA', 'B') and t[-1] == 'P':
+                if t[0] == 'B':
+                    img = Image.fromarray(ch_b, 'L').convert('RGB')
+                else:
+                    lut = np.array(Image.open(composites[t[:-1]]), dtype=float) / 255.0
+                    img = Image.fromarray((lut[ch_b, ch_a] * 255).clip(0, 255).astype(np.uint8), 'RGB')
+
+                lut = np.array(Image.open(composites['NO']), dtype=float) / 255.0
+
+                for y, line in enumerate(lut):
+                    if abs(155 / 360 - colorsys.rgb_to_hsv(*line[0])[0]) < (8 / 255):
+                        break
+
+                img.paste(Image.fromarray((lut[ch_b, ch_a] * 255).clip(0, 255).astype(np.uint8), 'RGB'),
+                          mask=Image.fromarray((ch_b > y).astype(np.uint8) * 255, 'L'))
+
+                results.append((t, img))
+
+            else:
+                lut = np.array(Image.open(composites[t]), dtype=float) / 255.0
+                results.append((t, Image.fromarray((lut[ch_b, ch_a] * 255).clip(0, 255).astype(np.uint8), 'RGB')))
+
+        return results
