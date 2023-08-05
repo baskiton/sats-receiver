@@ -2,7 +2,7 @@ name: UmKA-1
 alternative_names:
   - RS40S
   - UMKA-1 (RS40S)
-norad: 90003
+norad: 57172
 data:
   &tlm Telemetry:
     telemetry: usp
