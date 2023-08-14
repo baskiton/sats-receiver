@@ -15,7 +15,7 @@ import numpy as np
 import scipy.io.wavfile as sp_wav
 
 from sats_receiver import utils
-from sats_receiver.manager import Executor
+from sats_receiver.executor import Executor
 from sats_receiver.gr_modules.decoders import SstvDecoder
 from sats_receiver.gr_modules.epb.prober import Prober
 
