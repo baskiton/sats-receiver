@@ -6,6 +6,7 @@ import logging
 import logging.handlers
 import multiprocessing as mp
 import pathlib
+import sys
 
 import gnuradio as gr
 import gnuradio.gr
@@ -46,6 +47,8 @@ def setup_logging(q: mp.Queue, log_lvl: int):
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('config', type=pathlib.Path, help='Config file path')
+    ap.add_argument('--exec', type=pathlib.Path,
+                    help='Python script containing specified executor named `Executor`')
     ap.add_argument('--log', default='INFO', type=(lambda x: getattr(logging, x.upper(), None)),
                     help='Logging level, INFO default')
     ap.add_argument('--sysu', default=SysUsage.DEFAULT_INTV, type=int,
@@ -61,8 +64,13 @@ if __name__ == '__main__':
 
     logging.info('Hello!')
 
+    kw = dict(sysu_intv=args.sysu)
+    if args.exec:
+        sys.path.append(str(args.exec.expanduser().absolute().parent))
+        kw['executor_cls'] = __import__(args.exec.stem).Executor
+
     asig = AsyncSignal(['SIGABRT', 'SIGHUP', 'SIGINT', 'SIGTERM', 'SIGUSR1', 'SIGUSR2', 'SIGBREAK'])
-    mng = ReceiverManager(q, args.config, args.sysu)
+    mng = ReceiverManager(q, args.config, **kw)
 
     while not mng.action():
         signame = asig.wait(1)
