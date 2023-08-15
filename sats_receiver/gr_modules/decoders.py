@@ -49,7 +49,7 @@ class Decoder(gr.gr.hier_block2):
                             samp_rate=samp_rate, out_dir=out_dir)
 
     def start(self):
-        pfx = '_'.join([*self.name().lower().split(), self.now.strftime('%Y%m%d%H%M%S')])
+        pfx = '_'.join([*self.name().lower().split(), self.t.strftime('%Y%m%d%H%M%S')])
         self.tmp_file = utils.mktmp(self.out_dir, pfx)
         self.base_kw.update(tmp_file=self.tmp_file)
 
@@ -340,7 +340,7 @@ class ConstelSoftDecoder(Decoder):
         log.debug('finalizing...')
 
         d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
-        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f{subname}_RAW.s'))
+        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f{subname}.s'))
         st = res_fn.stat()
         log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
 
