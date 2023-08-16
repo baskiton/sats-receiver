@@ -1,6 +1,7 @@
 import atexit
 import datetime as dt
 import dateutil.tz
+import errno
 import json
 import logging
 import logging.handlers
@@ -105,7 +106,14 @@ class Sender(threading.Thread):
                         break
 
                     except OSError as e:
-                        self.log.error('send: %s', e)
+                        if e.errno != errno.ENOENT:
+                            t = time.monotonic()
+                            if t > self.err_t_conn:
+                                self.err_t_conn = t + self.err_dt_conn
+                                self.err_dt_conn *= 2
+                                self.log.warning('send: %s', e)
+                            break
+                        self.log.warning('send: %s', e)
                         flush = 1
 
                     except:
