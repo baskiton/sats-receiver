@@ -362,13 +362,13 @@ class Apt:
         else:
             best_qni_a = self.FRAME_HEIGHT_HF
         best_cqs_a = corr_a[x_a:best_q_a + self.FRAME_HEIGHT_HF]
-        x_a = best_q_b - self.FRAME_HEIGHT_HF
-        if x_a < 0:
-            best_qni_b = best_q_a
-            x_a = 0
+        x_b = best_q_b - self.FRAME_HEIGHT_HF
+        if x_b < 0:
+            best_qni_b = best_q_b
+            x_b = 0
         else:
             best_qni_b = self.FRAME_HEIGHT_HF
-        best_cqs_b = corr_b[x_a:best_q_b + self.FRAME_HEIGHT_HF]
+        best_cqs_b = corr_b[x_b:best_q_b + self.FRAME_HEIGHT_HF]
 
         if np.max(best_cqs_a) >= np.max(best_cqs_b):
             best = best_q_a - best_qni_a + np.argmax(best_cqs_a)
