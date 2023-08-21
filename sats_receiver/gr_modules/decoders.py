@@ -439,9 +439,6 @@ class CcsdsConvConcatDecoder(ConstelSoftDecoder):
         super().start()
         self.out.set_out_f(self.tmp_file)
 
-    def finalize(self, executor, fin_key: str):
-        super(LrptDecoder, self).finalize(executor, fin_key)
-
 
 class SstvDecoder(Decoder):
     _FREQ_1 = (1900 - 1200) / 2
