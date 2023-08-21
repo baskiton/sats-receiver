@@ -40,6 +40,7 @@ class Mode(enum.Enum):
 
 
 class Decode(enum.Enum):
+    NONE = 'NONE'
     RAW = 'RAW'
     CSOFT = 'CSOFT'
     CCSDSCC = 'CCSDSCC'

@@ -119,6 +119,8 @@ class RawDecoder(Decoder):
         res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f{subname}_RAW.wav'))
         st = res_fn.stat()
         log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
+        if not st.st_size:
+            return utils.Decode.NONE,
 
         return dtype, sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 
@@ -280,6 +282,8 @@ class AptDecoder(Decoder):
             if subname:
                 res_fn = res_fn.rename(res_fn.with_stem(res_fn.stem + subname))
             log.info('finish: %s (%s)', res_fn, utils.numbi_disp(sz))
+            if not sz:
+                return utils.Decode.NONE,
 
             return dtype, sat_name, fin_key, res_fn, a.end_time
 
@@ -359,6 +363,8 @@ class ConstelSoftDecoder(Decoder):
         res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f{subname}.{suff}'))
         st = res_fn.stat()
         log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
+        if not st.st_size:
+            return utils.Decode.NONE,
 
         return dtype, sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 

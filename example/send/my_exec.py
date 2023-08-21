@@ -209,7 +209,10 @@ class Executor(mp.Process):
                 decoder_type = x[0]
                 dty = decoder_type.value
 
-                if decoder_type in (utils.Decode.RAW, utils.Decode.CSOFT, utils.Decode.CCSDSCC, utils.Decode.APT):
+                if decoder_type == utils.Decode.NONE:
+                    continue
+
+                elif decoder_type in (utils.Decode.RAW, utils.Decode.CSOFT, utils.Decode.CCSDSCC, utils.Decode.APT):
                     _, sat_name, fin_key, res_filename, end_time = x
                     self.sender.push(decoder_type=dty,
                                      sat_name=sat_name,
