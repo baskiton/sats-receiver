@@ -143,7 +143,15 @@ class Worker(mp.Process):
             if dtype == Decode.CSOFT:
                 res = fp.parent / fp.stem
                 res.mkdir(parents=True, exist_ok=True)
+                fp = fp.rename(res / fp.name)
                 sp.run([SATDUMP, SD_METEOR_80 if fp.stem.endswith('80k') else SD_METEOR_72, 'soft', str(fp), res],
+                       cwd=SATDUMP.parent)
+
+            if dtype == Decode.CCSDSCC:
+                res = fp.parent / fp.stem
+                res.mkdir(parents=True, exist_ok=True)
+                fp = fp.rename(res / fp.name)
+                sp.run([SATDUMP, SD_METEOR_80 if fp.stem.endswith('80k') else SD_METEOR_72, 'cadu', str(fp), res],
                        cwd=SATDUMP.parent)
 
             elif dtype == Decode.APT:

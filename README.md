@@ -163,26 +163,32 @@ Each satellite object contain:
 #### frequencies
 Each frequency object contain:
 
-| Field           | Type            | Description                                                                            |
-|:----------------|:----------------|:---------------------------------------------------------------------------------------|
-| freq            | Number          | Basic signal frequency, Hz                                                             |
-| bandwidth       | Number          | Received signal bandwidth, Hz                                                          |
-| enabled         | Boolean         | _Optional._ Enable/Disable this frequency. `true` by default                           |
-| subname         | String          | _Optional._ Subname added to result filename. Empty by default                         |
-| freq_correction | Boolean         | _Optional._ Correction for basic frequency, Hz. `0` by default                         |
-| mode            | String          | _Optional._ Modulation option (see [modulations](#modulations)). `RAW` by default      |
-| decode          | String          | _Optional._ Decoder option (see [decoders](#decoders)). `RAW` by default               |
-| channels        | Array of Number | _Required only for **GMSK** mode._ Demodulation baudrates, bps                         |
-| grs_file        | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details |
-| grs_name        | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details |
-| grs_norad       | Integer         | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details |
-| grs_tlm_decode  | Boolean         | _Optional. Only for **SATS** decoder._ Save decoded telemetry. `true` by default       |
-| qpsk_baudrate   | Number          | _Required only for **(O)QPSK** mode._ (O)QPSK Baudrate, bps                            |
-| qpsk_excess_bw  | Number          | _Optional. Only for **(O)QPSK** mode._ (O)QPSK Excess bandwidth. `0.35` by default     |
-| qpsk_ntaps      | Integer         | _Optional. Only for **(O)QPSK** mode._ (O)QPSK number of taps. `33` by default         |
-| qpsk_costas_bw  | Number          | _Optional. Only for **(O)QPSK** mode._ (O)QPSK Costas bandwidth. `0.005` by default    |
-| sstv_wsr        | Number          | _Optional. Only for **SSTV** decoder._ SSTV work samplerate. `16000` by default        |
-| sstv_sync       | Number          | _Optional. Only for **SSTV** decoder._ SSTV syncing. `true` by default                 |
+| Field               | Type            | Description                                                                            |
+|:--------------------|:----------------|:---------------------------------------------------------------------------------------|
+| freq                | Number          | Basic signal frequency, Hz                                                             |
+| bandwidth           | Number          | Received signal bandwidth, Hz                                                          |
+| enabled             | Boolean         | _Optional._ Enable/Disable this frequency. `true` by default                           |
+| subname             | String          | _Optional._ Subname added to result filename. Empty by default                         |
+| freq_correction     | Boolean         | _Optional._ Correction for basic frequency, Hz. `0` by default                         |
+| mode                | String          | _Optional._ Modulation option (see [modulations](#modulations)). `RAW` by default      |
+| decode              | String          | _Optional._ Decoder option (see [decoders](#decoders)). `RAW` by default               |
+| channels            | Array of Number | _Required only for **GMSK** mode._ Demodulation baudrates, bps                         |
+| grs_file            | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details |
+| grs_name            | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details |
+| grs_norad           | Integer         | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details |
+| grs_tlm_decode      | Boolean         | _Optional. Only for **SATS** decoder._ Save decoded telemetry. `true` by default       |
+| qpsk_baudrate       | Number          | _Required only for **(O)QPSK** mode._ (O)QPSK Baudrate, bps                            |
+| qpsk_excess_bw      | Number          | _Optional. Only for **(O)QPSK** mode._ (O)QPSK Excess bandwidth. `0.35` by default     |
+| qpsk_ntaps          | Integer         | _Optional. Only for **(O)QPSK** mode._ (O)QPSK number of taps. `33` by default         |
+| qpsk_costas_bw      | Number          | _Optional. Only for **(O)QPSK** mode._ (O)QPSK Costas bandwidth. `0.005` by default    |
+| sstv_wsr            | Number          | _Optional. Only for **SSTV** decoder._ SSTV work samplerate. `16000` by default        |
+| sstv_sync           | Number          | _Optional. Only for **SSTV** decoder._ SSTV syncing. `true` by default                 |
+| ccc_frame_size      | Number          | _Optional. Only for **CCSDSCC** decoder._ Frame size, bytes. `892` by default          |
+| ccc_pre_deint       | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Pre-Deinterleaving. `false` by default       |
+| ccc_diff            | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Differential Decoding. `true` by default     |
+| ccc_rs_dualbasis    | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Reed-Solomon Dualbasis. `false` by default   |
+| ccc_rs_interleaving | Number          | _Optional. Only for **CCSDSCC** decoder._ Reed-Solomon Interleaving. `4` by default    |
+| ccc_derandomize     | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Descrambling. `true` by default              |
 
 
 #### modulations
@@ -198,7 +204,8 @@ Each frequency object contain:
 
 #### decoders
 * `RAW` Saved to 2-channel float32 WAV file with `bandwidth` sample rate
-* `CSOFT` Constellation Soft Decoder - 1-channel binary int8. Suitable for further processing, for example, in SatDump
+* `CSOFT` Constellation Soft Decoder - 1-channel binary int8. Suitable for further processing, for example, in SatDump. _Only for constellation-mode._
+* `CCSDSCC` CCSDS Conv Concat Decoder - CADU data. Suitable for further processing, for example, in SatDump. _Only for constellation-mode._
 * `APT` Sats-Receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)
 * `SSTV` SSTV saved to PNG image with EXIF. Supported modes:
   * Robot (24, 24, 72)

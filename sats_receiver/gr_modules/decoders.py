@@ -14,11 +14,18 @@ import gnuradio.digital
 import gnuradio.fft
 import gnuradio.filter
 import gnuradio.gr
+import gnuradio.pdu
+import satellites
+import satellites.components
+import satellites.components.deframers
+import satellites.hier
+import satellites.hier.ccsds_viterbi
 
 from PIL import ExifTags
 
 from sats_receiver import utils
 from sats_receiver.gr_modules.epb import sstv as sstv_epb
+from sats_receiver.gr_modules.epb import pdu_to_cadu, deint
 from sats_receiver.observer import Observer
 from sats_receiver.systems import apt, satellites as sats, sstv
 
@@ -29,7 +36,8 @@ class Decoder(gr.gr.hier_block2):
                  sat_name: str,
                  subname: str,
                  samp_rate: Union[int, float],
-                 out_dir: pathlib.Path):
+                 out_dir: pathlib.Path,
+                 dtype: utils.Decode):
         self.prefix = f'{self.__class__.__name__}: {sat_name}'
         self.log = logging.getLogger(self.prefix)
 
@@ -46,7 +54,7 @@ class Decoder(gr.gr.hier_block2):
         self.out_dir = out_dir
         self.tmp_file = utils.mktmp(prefix='_'.join(name.lower().split()))
         self.base_kw = dict(log=self.log, sat_name=sat_name, subname=self.subname,
-                            samp_rate=samp_rate, out_dir=out_dir)
+                            samp_rate=samp_rate, out_dir=out_dir, dtype=dtype)
 
     def start(self):
         pfx = '_'.join([*self.name().lower().split(), self.t.strftime('%Y%m%d%H%M%S')])
@@ -69,7 +77,7 @@ class RawDecoder(Decoder):
                  subname: str,
                  samp_rate: Union[int, float],
                  out_dir: pathlib.Path):
-        super(RawDecoder, self).__init__('Raw Decoder', sat_name, subname, samp_rate, out_dir)
+        super(RawDecoder, self).__init__('Raw Decoder', sat_name, subname, samp_rate, out_dir, utils.Decode.RAW)
 
         self.ctf = gr.blocks.complex_to_float(1)
         self.wav_sink = gr.blocks.wavfile_sink(
@@ -101,6 +109,7 @@ class RawDecoder(Decoder):
                       sat_name: str,
                       subname: str,
                       out_dir: pathlib.Path,
+                      dtype: utils.Decode,
                       tmp_file: pathlib.Path,
                       fin_key: str,
                       **kw) -> tuple[utils.Decode, str, str, pathlib.Path, dt.datetime]:
@@ -111,7 +120,7 @@ class RawDecoder(Decoder):
         st = res_fn.stat()
         log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
 
-        return utils.Decode.RAW, sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        return dtype, sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 
 
 class AptDecoder(Decoder):
@@ -123,7 +132,7 @@ class AptDecoder(Decoder):
                  sat_ephem_tle: tuple[ephem.EarthSatellite, tuple[str, str, str]],
                  observer_lonlat: tuple[float, float]):
         name = 'APT Decoder'
-        super(AptDecoder, self).__init__(name, sat_name, subname, samp_rate, out_dir)
+        super(AptDecoder, self).__init__(name, sat_name, subname, samp_rate, out_dir, utils.Decode.APT)
 
         self.already_fins = 0
 
@@ -254,6 +263,7 @@ class AptDecoder(Decoder):
                       corr_file: pathlib.Path,
                       peaks_file: pathlib.Path,
                       out_dir: pathlib.Path,
+                      dtype: utils.Decode,
                       fin_key: str,
                       **kw) -> Optional[tuple[utils.Decode, str, str, pathlib.Path, dt.datetime]]:
         log.debug('finalizing...')
@@ -271,7 +281,7 @@ class AptDecoder(Decoder):
                 res_fn = res_fn.rename(res_fn.with_stem(res_fn.stem + subname))
             log.info('finish: %s (%s)', res_fn, utils.numbi_disp(sz))
 
-            return utils.Decode.APT, sat_name, fin_key, res_fn, a.end_time
+            return dtype, sat_name, fin_key, res_fn, a.end_time
 
 
 class ConstelSoftDecoder(Decoder):
@@ -291,9 +301,11 @@ class ConstelSoftDecoder(Decoder):
                  subname: str,
                  samp_rate: Union[int, float],
                  out_dir: pathlib.Path,
-                 constellation,
+                 constellation: str,
+                 dtype=utils.Decode.CSOFT,
                  name='Constellation Soft Decoder'):
-        super(ConstelSoftDecoder, self).__init__(name, sat_name, subname, samp_rate, out_dir)
+        super(ConstelSoftDecoder, self).__init__(name, sat_name, subname, samp_rate, out_dir, dtype)
+        self.base_kw['suff'] = 's'
 
         if isinstance(constellation, str):
             self.constellation = self.CONSTELLS[constellation.upper()]().base()
@@ -320,12 +332,14 @@ class ConstelSoftDecoder(Decoder):
     def start(self):
         super(ConstelSoftDecoder, self).start()
 
-        self.out_file_sink.open(str(self.tmp_file))
-        self.out_file_sink.set_unbuffered(False)
+        if self.out_file_sink:
+            self.out_file_sink.open(str(self.tmp_file))
+            self.out_file_sink.set_unbuffered(False)
 
     def finalize(self, executor, fin_key: str):
-        self.out_file_sink.do_update()
-        self.out_file_sink.close()
+        if self.out_file_sink:
+            self.out_file_sink.do_update()
+            self.out_file_sink.close()
         if self.tmp_file.exists():
             executor.execute(self._constel_soft_finalize, **self.base_kw, fin_key=fin_key)
 
@@ -334,29 +348,96 @@ class ConstelSoftDecoder(Decoder):
                                sat_name: str,
                                subname: str,
                                out_dir: pathlib.Path,
+                               dtype: utils.Decode,
                                tmp_file: pathlib.Path,
                                fin_key: str,
+                               suff: str,
                                **kw) -> tuple[utils.Decode, str, str, pathlib.Path, dt.datetime]:
         log.debug('finalizing...')
 
         d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
-        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f{subname}.s'))
+        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f{subname}.{suff}'))
         st = res_fn.stat()
         log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
 
-        return utils.Decode.CSOFT, sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        return dtype, sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 
 
-class LrptDecoder(ConstelSoftDecoder):
+class CcsdsConvConcatDecoder(ConstelSoftDecoder):
     def __init__(self,
                  sat_name: str,
+                 subname: str,
                  samp_rate: Union[int, float],
-                 out_dir: pathlib.Path):
-        raise NotImplementedError()
-        super(LrptDecoder, self).__init__(sat_name, samp_rate, out_dir, name='LRPT Decoder')
+                 out_dir: pathlib.Path,
+                 constellation: str,
+                 frame_size=892,
+                 pre_deint=False,
+                 diff=True,
+                 rs_dualbasis=False,
+                 rs_interleaving=4,
+                 derandomize=True,
+                 name='CCSDS Conv Concat Decoder'):
+        super().__init__(sat_name, subname, samp_rate, out_dir, constellation, utils.Decode.CCSDSCC, name)
+        self.base_kw['suff'] = 'cadu'
+
+        is_qpsk = constellation.upper().endswith('QPSK')
+
+        self.disconnect(
+            self.rail,
+            self.ftch,
+            self.out_file_sink,
+        )
+        del self.ftch
+        self.out_file_sink = 0
+
+        self.mul = gr.blocks.multiply_const_ff(not pre_deint or 127, 1)
+        self.deframer0 = satellites.components.deframers.ccsds_concatenated_deframer(
+            frame_size=frame_size,
+            precoding=diff and 'differential' or None,
+            rs_basis=rs_dualbasis and 'dual' or 'conventional',
+            rs_interleaving=rs_interleaving,
+            scrambler=derandomize and 'CCSDS' or 'none',
+            convolutional='CCSDS',
+            syncword_threshold=4,
+        )
+        if is_qpsk:
+            self.deframer1 = satellites.components.deframers.ccsds_concatenated_deframer(
+                frame_size=892,
+                precoding=diff and 'differential' or None,
+                rs_basis=rs_dualbasis and 'dual' or 'conventional',
+                rs_interleaving=rs_interleaving,
+                scrambler=derandomize and 'CCSDS' or 'none',
+                convolutional='CCSDS uninverted',
+                syncword_threshold=4,
+            )
+        self.out = pdu_to_cadu.PduToCadu(b'\x1A\xCF\xFC\x1D', 1024)
+
+        self.connect(
+            self.rail,
+            self.mul,
+        )
+
+        if pre_deint:
+            self.deint = deint.Deinterleave()
+            self.pdutos = gr.pdu.pdu_to_stream_f(gr.pdu.EARLY_BURST_APPEND, 64)
+
+            self.connect(self.mul, self.deint)
+            self.msg_connect((self.deint, 'out'), (self.pdutos, 'pdus'))
+            self.connect(self.pdutos, self.deframer0)
+            if is_qpsk:
+                self.connect(self.pdutos, self.deframer1)
+        else:
+            self.connect(self.mul, self.deframer0)
+            if is_qpsk:
+                self.connect(self.mul, self.deframer1)
+
+        self.msg_connect((self.deframer0, 'out'), (self.out, 'in'))
+        if is_qpsk:
+            self.msg_connect((self.deframer1, 'out'), (self.out, 'in'))
 
     def start(self):
-        super(LrptDecoder, self).start()
+        super().start()
+        self.out.set_out_f(self.tmp_file)
 
     def finalize(self, executor, fin_key: str):
         super(LrptDecoder, self).finalize(executor, fin_key)
@@ -373,7 +454,8 @@ class SstvDecoder(Decoder):
                  observer: Observer = None,
                  do_sync=True,
                  wsr=16000):
-        super(SstvDecoder, self).__init__('SSTV Decoder', sat_name, subname, samp_rate, out_dir)
+        super(SstvDecoder, self).__init__('SSTV Decoder', sat_name, subname,
+                                          samp_rate, out_dir, utils.Decode.SSTV)
 
         self.observer = observer
         self.do_sync = do_sync
@@ -448,6 +530,7 @@ class SstvDecoder(Decoder):
                        sat_name: str,
                        subname: str,
                        out_dir: pathlib.Path,
+                       dtype: utils.Decode,
                        observer_latlonalt: Optional[tuple[str, str, Union[int, float]]],
                        sstv_rr: list[sstv.SstvRecognizer],
                        fin_key: str,
@@ -488,7 +571,7 @@ class SstvDecoder(Decoder):
 
         log.info('finish %s images (%s)', len(fn_dt), utils.numbi_disp(sz_sum))
 
-        return utils.Decode.SSTV, sat_name, fin_key, fn_dt
+        return dtype, sat_name, fin_key, fn_dt
 
 
 class SatellitesDecoder(Decoder):
@@ -499,7 +582,8 @@ class SatellitesDecoder(Decoder):
                  out_dir: pathlib.Path,
                  config: dict,
                  is_iq=True):
-        super(SatellitesDecoder, self).__init__('GR Satellites Decoder', sat_name, subname, samp_rate, out_dir)
+        super(SatellitesDecoder, self).__init__('GR Satellites Decoder', sat_name, subname,
+                                                samp_rate, out_dir, utils.Decode.SATS)
         opt_str = (
             f' --file_output_path="{out_dir}"'
             # f' --codec2_ip='
@@ -546,6 +630,7 @@ class SatellitesDecoder(Decoder):
                        sat_name: str,
                        files: dict[str, list[pathlib.Path]],
                        fin_key: str,
+                       dtype: utils.Decode,
                        **kw) -> tuple[utils.Decode, str, str, dict[str, list[pathlib.Path]]]:
 
         f_cnt = 0
@@ -554,4 +639,4 @@ class SatellitesDecoder(Decoder):
 
         log.info('finish %s files', f_cnt)
 
-        return utils.Decode.SATS, sat_name, fin_key, files
+        return dtype, sat_name, fin_key, files

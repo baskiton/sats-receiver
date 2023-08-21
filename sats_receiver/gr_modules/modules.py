@@ -192,6 +192,13 @@ class SatRecorder(gr.gr.hier_block2):
             self.decoders.append(decoders.ConstelSoftDecoder(up.name, self.subname, self.bandwidth,
                                                              up.output_directory, self.mode.value))
 
+        elif self.decode == utils.Decode.CCSDSCC:
+            self.decoders.append(decoders.CcsdsConvConcatDecoder(up.name, self.subname, self.bandwidth,
+                                                                 up.output_directory, self.mode.value,
+                                                                 self.ccc_frame_size, self.ccc_pre_deint,
+                                                                 self.ccc_diff, self.ccc_rs_dualbasis,
+                                                                 self.ccc_rs_interleaving, self.ccc_derandomize))
+
         elif self.decode == utils.Decode.RAW:
             for ch in channels:
                 self.decoders.append(decoders.RawDecoder(up.name, self.subname, ch, up.output_directory))
@@ -301,6 +308,30 @@ class SatRecorder(gr.gr.hier_block2):
     @property
     def grs_tlm_decode(self) -> bool:
         return self.config.get('grs_tlm_decode', True)
+
+    @property
+    def ccc_frame_size(self) -> int:
+        return self.config.get('ccc_frame_size', 892)
+
+    @property
+    def ccc_pre_deint(self) -> bool:
+        return self.config.get('ccc_pre_deint', False)
+
+    @property
+    def ccc_diff(self) -> bool:
+        return self.config.get('ccc_diff', True)
+
+    @property
+    def ccc_rs_dualbasis(self) -> bool:
+        return self.config.get('ccc_rs_dualbasis', False)
+
+    @property
+    def ccc_rs_interleaving(self) -> int:
+        return self.config.get('ccc_rs_interleaving', 4)
+
+    @property
+    def ccc_derandomize(self) -> bool:
+        return self.config.get('ccc_derandomize', True)
 
 
 class Satellite(gr.gr.hier_block2):

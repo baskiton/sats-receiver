@@ -98,16 +98,32 @@
                     "doppler": true,
                     "frequencies": [
                         {
-                            "enabled": true,
-                            "freq": 137100000,
+                            "enabled": false,
+                            "subname": "137.9_72k",
+                            "freq": 137900000,
                             "freq_correction": 0,
                             "bandwidth": 168000,
                             "mode": "OQPSK",
-                            "decode": "CSOFT",
                             "qpsk_baudrate": 72000,
                             "qpsk_excess_bw": 0.6,
                             "qpsk_ntaps": 31,
-                            "qpsk_costas_bw": 0.002
+                            "qpsk_costas_bw": 0.002,
+                            "decode": "CCSDSCC",
+                            "ccc_pre_deint": false
+                        },
+                        {
+                            "enabled": true,
+                            "subname": "137.9_80k",
+                            "freq": 137900000,
+                            "freq_correction": 0,
+                            "bandwidth": 168000,
+                            "mode": "OQPSK",
+                            "qpsk_baudrate": 80000,
+                            "qpsk_excess_bw": 0.6,
+                            "qpsk_ntaps": 31,
+                            "qpsk_costas_bw": 0.002,
+                            "decode": "CCSDSCC",
+                            "ccc_pre_deint": true
                         }
                     ]
                 }

@@ -87,6 +87,9 @@ class Executor(mp.Process):
                 elif decoder_type == utils.Decode.CSOFT:
                     _, sat_name, fin_key, res_filename, end_time = x
 
+                elif decoder_type == utils.Decode.CCSDSCC:
+                    _, sat_name, fin_key, res_filename, end_time = x
+
                 elif decoder_type == utils.Decode.APT:
                     _, sat_name, fin_key, res_filename, end_time = x
 

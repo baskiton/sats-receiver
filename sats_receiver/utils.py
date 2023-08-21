@@ -42,10 +42,18 @@ class Mode(enum.Enum):
 class Decode(enum.Enum):
     RAW = 'RAW'
     CSOFT = 'CSOFT'
+    CCSDSCC = 'CCSDSCC'
     APT = 'APT'
     LRPT = 'LRPT'
     SSTV = 'SSTV'
     SATS = 'SATS'
+
+
+class Phase(enum.IntEnum):
+    PHASE_0 = 0
+    PHASE_90 = 1
+    PHASE_180 = 2
+    PHASE_270 = 3
 
 
 Event = collections.namedtuple('Event', 't, prior, seq, fn, a, kw')
