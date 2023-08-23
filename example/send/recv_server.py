@@ -12,6 +12,7 @@ import socketserver as ss
 import subprocess as sp
 import threading
 import time
+import zlib
 
 import numpy as np
 
@@ -209,18 +210,22 @@ class MyTCPHandler(ss.StreamRequestHandler):
         sz_left = fsz
         t = time.monotonic()
         t_next = t + 1
+        zo = zlib.decompressobj(wbits=-9)
         with fp.open('wb') as f:
             while sz_left:
-                data = self.request.recv(4096)
+                data = self.request.recv(8192)
                 if not data:
                     raise ConnectionError('Connection lost')
-                sz_left -= len(data)
-                f.write(data)
+                # sz_left -= len(data)
+                sz_left -= f.write(zo.decompress(data))
+                sz_left -= f.write(zo.flush(zlib.Z_FULL_FLUSH))
 
                 t = time.monotonic()
                 if t > t_next:
                     t_next = t + 1
                     self.log.debug('%s %s/%s', fp.name, numbi_disp(fsz - sz_left), numfsz)
+
+            f.write(zo.flush(zlib.Z_FINISH))
 
         self.log.debug('%s %s/%s', fp.name, numbi_disp(fsz - sz_left), numfsz)
 

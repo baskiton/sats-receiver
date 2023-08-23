@@ -12,6 +12,7 @@ import select
 import socket as sk
 import threading
 import time
+import zlib
 
 from collections import deque
 
@@ -67,9 +68,16 @@ class Sender(threading.Thread):
             s.send(d_raw)
 
             while 1:
-                ret = s.recv(4096)
+                ret = s.recv(3)
                 if ret == b'RDY':
-                    s.sendfile(fp.open('rb'))
+                    zo = zlib.compressobj(wbits=-9)
+                    with fp.open('rb') as f:
+                        d = f.read(8192)
+                        while d:
+                            s.send(zo.compress(d))
+                            s.send(zo.flush(zlib.Z_FULL_FLUSH))
+                            d = f.read(8192)
+                        s.send(zo.flush(zlib.Z_FINISH))
 
                 else:
                     break
