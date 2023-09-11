@@ -85,3 +85,4 @@ if __name__ == '__main__':
 
     mng.wait()
     logging.info('Bye!')
+    sys.exit(mng.exit_code)

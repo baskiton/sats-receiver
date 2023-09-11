@@ -26,6 +26,7 @@ class ReceiverManager:
                  executor_cls=Executor):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
+        self.exit_code = 0
 
         self.sysu = utils.SysUsage(self.prefix, sysu_intv)
         self.config_filename = config_filename.expanduser().absolute()
@@ -79,14 +80,18 @@ class ReceiverManager:
         self.now = dt.datetime.now(dt.timezone.utc)
         return self.now
 
-    def stop(self):
+    def stop(self, exit_code=0):
         for rec in self.receivers.values():
             rec.stop()
 
         self.executor.stop()
         self.stopped = True
 
-        self.log.info('finish')
+        msg = 'finish'
+        if exit_code:
+            self.exit_code = exit_code
+            msg += ' with error'
+        self.log.info(msg)
 
     def wait(self):
         for rec in self.receivers.values():
@@ -207,4 +212,4 @@ class ReceiverManager:
 
         except Exception as e:
             self.log.exception('%s. Exit', e)
-            self.stop()
+            self.stop(1)
