@@ -239,7 +239,7 @@ class Executor(mp.Process):
 
                 elif decoder_type == utils.Decode.SATS:
                     _, sat_name, fin_key, files = x
-                    for ty_, files_ in files:
+                    for ty_, files_ in files.items():
                         for fn in files_:
                             self.sender.push(decoder_type=dty,
                                              sat_name=sat_name,
