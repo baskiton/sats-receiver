@@ -10,6 +10,7 @@ from typing import Mapping, Optional, Union
 import ephem
 
 from sats_receiver import HOMEDIR
+from sats_receiver.utils import hpa_to_mmhg
 
 
 class Observer:
@@ -132,8 +133,8 @@ class Observer:
             return
 
         self.set_weather(j)
-        self.log.info('weather updated: %s°C %shPa', self._observer.temp, self._observer.pressure)
-
+        self.log.info('weather updated: %.01f°C %.01fhPa (%.01fmmHg)',
+                      self._observer.temp, self._observer.pressure, hpa_to_mmhg(self._observer.pressure))
         return 1
 
     def set_weather(self, j):
@@ -142,9 +143,11 @@ class Observer:
         if self.fetch_elev:
             self._observer.elev = j.get('elevation', self._observer.elev)
 
+        hourly = (self.last_weather_time.replace(minute=0, second=0, microsecond=0)
+                  + dt.timedelta(hours=self.last_weather_time.minute // 30))
         press = None
         for i, val in enumerate(j['hourly']['time']):
-            if dt.datetime.fromisoformat(val).replace(tzinfo=dt.timezone.utc) == self.last_weather_time:
+            if dt.datetime.fromisoformat(val).replace(tzinfo=dt.timezone.utc) == hourly:
                 try:
                     press = float(j['hourly']['surface_pressure'][i])
                 except TypeError:

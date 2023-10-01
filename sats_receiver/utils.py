@@ -392,3 +392,8 @@ def img_add_exif(img: Image.Image,
     img.info['exif'] = exif.tobytes()
 
     return ImageOps.exif_transpose(img)
+
+
+_HPA_MMHG_CONST = 760 / 101325
+def hpa_to_mmhg(hpa: float):
+    return _HPA_MMHG_CONST * hpa * 100
