@@ -7,6 +7,7 @@ from typing import Optional, Union
 
 import dateutil.tz
 import ephem
+import hashlib
 import gnuradio as gr
 import gnuradio.analog
 import gnuradio.blocks
@@ -566,7 +567,8 @@ class SstvDecoder(Decoder):
             end_time = (dt.datetime.strptime(end_time, '%Y:%m:%d %H:%M:%S')
                         if end_time
                         else dt.datetime.utcnow())
-            res_fn = out_dir / end_time.strftime(f'{sat_name}_{sstv_mode}_%Y-%m-%d_%H-%M-%S,%f{subname}.png')
+            img_hash = hashlib.sha256(img.tobytes()).hexdigest()[:8]
+            res_fn = out_dir / end_time.strftime(f'{sat_name}_{sstv_mode}_%Y-%m-%d_%H-%M-%S{subname}_{img_hash}.png')
 
             img.save(res_fn, exif=exif)
 
