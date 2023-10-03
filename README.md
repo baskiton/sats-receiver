@@ -189,6 +189,7 @@ Each frequency object contain:
 | ccc_rs_dualbasis    | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Reed-Solomon Dualbasis. `false` by default   |
 | ccc_rs_interleaving | Number          | _Optional. Only for **CCSDSCC** decoder._ Reed-Solomon Interleaving. `4` by default    |
 | ccc_derandomize     | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Descrambling. `true` by default              |
+| quad_gain           | Number          | _Optional. Only for **QUAD** mode._ Quadrature demodulation gain. `1.0` by default     |
 
 
 #### modulations

@@ -87,10 +87,19 @@ class SatRecorder(gr.gr.hier_block2):
 
                         # 'channels',         # only for GMSK
 
-                        # 'sats_file',        # optional, only for SATS decode
-                        # 'sats_name',        # optional, only for SATS decode
-                        # 'sats_norad',       # optional, only for SATS decode
-                        # 'sats_tlm_decode',  # optional, only for SATS decode
+                        # 'grs_file',         # optional, only for SATS decode
+                        # 'grs_name',         # optional, only for SATS decode
+                        # 'grs_norad',        # optional, only for SATS decode
+                        # 'grs_tlm_decode',   # optional, only for SATS decode
+
+                        # 'ccc_frame_size'    # optional, only for CCSDSCC decode
+                        # 'ccc_pre_deint'     # optional, only for CCSDSCC decode
+                        # 'ccc_diff'          # optional, only for CCSDSCC decode
+                        # 'ccc_rs_dualbasis'  # optional, only for CCSDSCC decode
+                        # 'ccc_rs_interleaving'   # optional, only for CCSDSCC decode
+                        # 'ccc_derandomize'   # optional, only for CCSDSCC decode
+
+                        # 'quad_gain',        # optional, only for QUAD demode
                     ]))
             and (config['mode'] != utils.Mode.QPSK or 'qpsk_baudrate' in config)
             and (config['mode'] != utils.Mode.GMSK or 'channels' in config)
@@ -167,7 +176,7 @@ class SatRecorder(gr.gr.hier_block2):
             self.connect((self.demodulator, 1), (self.post_demod, 1))
 
         elif self.mode == utils.Mode.QUAD:
-            self.demodulator = gr.analog.quadrature_demod_cf(1)
+            self.demodulator = gr.analog.quadrature_demod_cf(self.quad_gain)
 
         elif self.mode in (utils.Mode.QPSK, utils.Mode.OQPSK):
             oqpsk = self.mode == utils.Mode.OQPSK
@@ -332,6 +341,10 @@ class SatRecorder(gr.gr.hier_block2):
     @property
     def ccc_derandomize(self) -> bool:
         return self.config.get('ccc_derandomize', True)
+
+    @property
+    def quad_gain(self) -> float:
+        return self.config.get('quad_gain', 1.0)
 
 
 class Satellite(gr.gr.hier_block2):
