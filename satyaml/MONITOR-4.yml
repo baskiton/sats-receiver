@@ -1,0 +1,52 @@
+name: MONITOR-4
+alternative_names:
+  - RS57S
+  - MONITOR-4 (RS57S)
+norad: 57182
+data:
+  &tlm Telemetry:
+    telemetry: usp
+transmitters:
+  2k4 FSK downlink:
+    frequency: 436.080e+6
+    modulation: FSK
+    baudrate: 2400
+    framing: USP
+    data:
+    - *tlm
+  4k8 FSK downlink:
+    frequency: 436.080e+6
+    modulation: FSK
+    baudrate: 4800
+    framing: USP
+    data:
+    - *tlm
+  9k6 FSK downlink:
+    frequency: 436.080e+6
+    modulation: FSK
+    baudrate: 9600
+    framing: USP
+    data:
+    - *tlm
+
+  2k4 GMSK downlink:
+    frequency: 436.080e+6
+    modulation: GMSK
+    baudrate: 2400
+    framing: USP
+    data:
+    - *tlm
+  4k8 GMSK downlink:
+    frequency: 436.080e+6
+    modulation: GMSK
+    baudrate: 4800
+    framing: USP
+    data:
+    - *tlm
+  9k6 GMSK downlink:
+    frequency: 436.080e+6
+    modulation: GMSK
+    baudrate: 9600
+    framing: USP
+    data:
+    - *tlm

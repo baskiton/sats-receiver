@@ -22,7 +22,7 @@ transmitters:
 
   9k6 GFSK downlink:
     frequency: 436.200e+6
-    modulation: GFSK
+    modulation: FSK
     baudrate: 9600
     framing: GEOSCAN
     data:
