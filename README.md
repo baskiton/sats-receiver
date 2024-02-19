@@ -145,7 +145,7 @@ Each receiver object contain:
 | serial           | String          | _Optional._ Serial number of the receiver. Empty by default                                                                                                                        |
 | biast            | Boolean         | _Optional._ Bias-T enable/disable (only for RTL-SDR at this time). `false` by default. **WARNING! Be careful when enabling this option! Use only if you know what it is and why!** |
 | gain             | Boolean         | _Optional._ Receiver gain, dB. `0` by default                                                                                                                                      |
-| freq_correction  | Number          | _Optional._ Receiver frequency correction. `0.0` by default                                                                                                                        |
+| freq_correction  | Number          | _Optional._ Receiver frequency correction, PPM. `0.0` by default                                                                                                                   |
 
 
 #### sats
@@ -209,7 +209,7 @@ Each frequency object contain:
 * `CCSDSCC` CCSDS Conv Concat Decoder - CADU data. Suitable for further processing, for example, in SatDump. _Only for constellation-mode._
 * `APT` Sats-Receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)
 * `SSTV` SSTV saved to PNG image with EXIF. Supported modes:
-  * Robot (24, 24, 72)
+  * Robot (24, 36, 72)
   * Martin (M1, M2, M3, M4)
   * PD (50, 90, 120, 160, 180, 240, 290)
   * Scottie (S1, S2, S3, S4)
