@@ -7,7 +7,8 @@
     },
     "tle": {
         "url": "http://r4uab.ru/satonline.txt",
-        "update_period": 1
+        "update_period": 1,
+        "ignore_checksum": false
     },
     "receivers": [
         {

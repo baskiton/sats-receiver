@@ -124,10 +124,11 @@ location of your choice and edit it.
 
 #### tle
 
-| Field         | Type   | Description               |
-|:--------------|:-------|:--------------------------|
-| url           | String | URL to TLE file           |
-| update_period | Number | TLE Update period, hours. |
+| Field           | Type    | Description                                         |
+|:----------------|:--------|:----------------------------------------------------|
+| url             | String  | URL to TLE file                                     |
+| update_period   | Number  | TLE Update period, hours.                           |
+| ignore_checksum | Boolean | _Optional._ Ignore TLE checksum. `false` by default |
 
 
 #### receivers

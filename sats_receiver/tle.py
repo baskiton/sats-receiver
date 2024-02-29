@@ -71,16 +71,23 @@ class Tle:
                 l1 = line.rstrip()
                 l2 = f.readline().rstrip()
                 for name in names:
-                    try:
-                        objects[name] = ephem.readtle(str(name), l1, l2), (str(name), l1, l2)
-                    except ValueError as e:
-                        if str(e).startswith('incorrect TLE checksum'):
-                            self.log.warning('%s: for `%s` expect %s:%s, got %s:%s',
-                                             e, name,
-                                             self.calc_checksum(l1), l1[-1],
-                                             self.calc_checksum(l2), l2[-1])
-                        else:
-                            raise e
+                    while 1:
+                        try:
+                            objects[name] = ephem.readtle(str(name), l1, l2), (str(name), l1, l2)
+                            break
+                        except ValueError as e:
+                            if str(e).startswith('incorrect TLE checksum'):
+                                cs1, cs2 = self.calc_checksum(l1), self.calc_checksum(l2)
+                                self.log.warning('%s: for `%s` expect %s:%s, got %s:%s%s',
+                                                 e, name,
+                                                 cs1, cs2, l1[-1], l2[-1],
+                                                 self.ignore_checksum and '. Ignore' or '')
+                                if not self.ignore_checksum:
+                                    break
+                                l1 = l1[:-1] + cs1
+                                l2 = l2[:-1] + cs2
+                            else:
+                                raise e
 
         self.objects = objects
         shutil.move(tle_f, self.tle_file)
@@ -161,6 +168,14 @@ class Tle:
         """
 
         return self.config['update_period']
+
+    @property
+    def ignore_checksum(self) -> bool:
+        """
+        Ignore TLE checksum
+        """
+
+        return self.config.get('ignore_checksum', False)
 
     def action(self, t: dt.datetime):
         if t >= self.t_next and self.fetch_tle(t):
