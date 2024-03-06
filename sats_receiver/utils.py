@@ -17,11 +17,17 @@ import time
 from typing import Any, Callable, Iterable, Mapping, Union
 
 import ephem
+import matplotlib
+import matplotlib.pyplot as plt
 import numpy as np
 import psutil
+import scipy.io.wavfile as sp_wav
 import shapefile
 
 from PIL import Image, ImageColor, ImageOps, ExifTags
+from scipy import fft
+
+plt.set_loglevel('info')
 
 
 THIRD_PI = math.pi / 3
@@ -217,6 +223,194 @@ class MapShapes:
             raise TypeError('Invalid color value type')
 
         return col
+
+
+class WfMode(enum.IntEnum):
+    MEAN = 0
+    MAX_HOLD = 1
+    DECIMATION = 2
+
+
+class Waterfall:
+    def __init__(self, in_fn, fft_size=4096, mode=WfMode.MEAN):
+        samp_rate, wav_arr = sp_wav.read(in_fn)
+        wav_arr = wav_arr.view(np.complex64).flatten()
+
+        self.mode = mode
+        self.fft_size = fft_size
+        self.samp_rate = samp_rate
+        self.rps = 10000
+        self.refresh = int((samp_rate / fft_size) / self.rps) or 1
+        self.data_dtypes = np.dtype([('tabs', 'int64'), ('spec', 'float32', (fft_size, ))])
+
+        self.fft_shift = math.ceil(fft_size / 2)
+        self.n_fft = len(wav_arr) // fft_size
+        self.duration = len(wav_arr) / samp_rate
+        self.dur_per_fft_us = (self.duration * 1000000) / self.n_fft
+
+        self._get_waterfall(wav_arr)
+
+    def _get_waterfall(self, raw_data):
+        if self.mode == WfMode.MEAN:
+            self._compute_mean(raw_data)
+        elif self.mode == WfMode.MAX_HOLD:
+            self._compute_max_hold(raw_data)
+        elif self.mode == WfMode.DECIMATION:
+            self._compute_decimation(raw_data)
+        else:
+            raise ValueError('Invalid waterfall mode')
+
+        nint = self.data['spec'].shape[0]
+        self.trel = np.arange(nint) * self.refresh * self.fft_size / float(self.samp_rate)
+        self.freq = np.linspace(-0.5 * self.samp_rate,
+                                0.5 * self.samp_rate,
+                                self.fft_size,
+                                endpoint=False)
+        # self.compressed = self._compress_waterfall()
+
+    def _compute_mean(self, raw_data):
+        fft_cnt = 0
+        hold_buffer = np.zeros(self.fft_size, dtype=np.complex64)
+        hold_buffer_f = hold_buffer.view(np.float32)
+        rbw = 1.0
+        inv_rbv = 1 / rbw
+        buf = []
+
+        for i in range(self.n_fft):
+            off = i * self.fft_size
+            fft_buf = fft.fft(raw_data[off:off + self.fft_size], self.fft_size)
+
+            # Accumulate the complex numbers
+            hold_buffer += np.concatenate((fft_buf[self.fft_shift:self.fft_shift + self.fft_size - self.fft_shift],
+                                           fft_buf[:self.fft_shift]))
+
+            fft_cnt += 1
+            if fft_cnt == self.refresh:
+                # Compute the energy in dB performing the proper normalization
+                # before any dB calculation, emulating the mean
+                #
+                # implement volk_32fc_s32f_x2_power_spectral_density_32f
+                inv_nrm_factor = 1 / (fft_cnt * self.fft_size)
+                iq = (hold_buffer_f * inv_nrm_factor).reshape((-1, 2))
+                wr_buf = 10.0 * np.log10((np.add(*np.hsplit(iq * iq, 2)) + 1e-20) * inv_rbv)
+
+                x = np.empty(1, dtype=self.data_dtypes)
+                x['tabs'][0] = i * self.dur_per_fft_us
+                x['spec'][0] = wr_buf.flatten()
+                buf.append(x)
+
+                fft_cnt = 0
+                hold_buffer.fill(0.0)
+
+        self.data = np.concatenate(buf)
+        if not self.data.size:
+            raise ValueError('Empty data array')
+
+    def _compute_max_hold(self, raw_data):
+        fft_cnt = 0
+        hold_buffer = np.zeros(self.fft_size, dtype=np.complex64)
+        hold_buffer_f = hold_buffer.view(np.float32)
+        buf = []
+
+        for i in range(self.n_fft):
+            off = i * self.fft_size
+            fft_buf = fft.fft(raw_data[off:off + self.fft_size], self.fft_size)
+            shift_buf = np.concatenate((fft_buf[self.fft_shift:self.fft_shift + self.fft_size - self.fft_shift],
+                                        fft_buf[:self.fft_shift]))
+
+            # Normalization factor
+            shift_buf *= 1 / self.fft_size
+
+            # Compute the mag^2
+            iq = shift_buf.view(np.float32).reshape((-1, 2))
+            tmp_buf = np.add(*np.hsplit(iq * iq, 2)).flatten()
+
+            # Max hold
+            np.fmax(hold_buffer_f[:self.fft_size], tmp_buf, out=hold_buffer_f[:self.fft_size])
+
+            fft_cnt += 1
+            if fft_cnt == self.refresh:
+                # Compute the energy in dB
+                wr_buf = 10.0 * np.log10(hold_buffer_f[:self.fft_size] + 1e-20)
+
+                x = np.empty(1, dtype=self.data_dtypes)
+                x['tabs'][0] = i * self.dur_per_fft_us
+                x['spec'][0] = wr_buf[:self.fft_size]
+                buf.append(x)
+
+                fft_cnt = 0
+                hold_buffer.fill(0.0)
+
+        self.data = np.concatenate(buf)
+        if not self.data.size:
+            raise ValueError('Empty data array')
+
+    def _compute_decimation(self, raw_data):
+        fft_cnt = 0
+        hold_buffer = np.zeros(self.fft_size, dtype=np.complex64)
+        hold_buffer_f = hold_buffer.view(np.float32)
+        rbw = 1.0
+        inv_rbv = 1 / rbw
+        buf = []
+
+        for i in range(self.n_fft):
+            fft_cnt += 1
+            if fft_cnt != self.refresh:
+                continue
+
+            off = i * self.fft_size
+            fft_buf = fft.fft(raw_data[off:off + self.fft_size], self.fft_size)
+            shift_buf = np.concatenate((fft_buf[self.fft_shift:self.fft_shift + self.fft_size - self.fft_shift],
+                                        fft_buf[:self.fft_shift]))
+
+            # Compute the energy in dB
+            #
+            # implement volk_32fc_s32f_x2_power_spectral_density_32f
+            inv_nrm_factor = 1 / self.fft_size
+            iq = (shift_buf * inv_nrm_factor).reshape((-1, 2))
+            hold_buffer_f[:self.fft_size] = (10.0 * np.log10((np.add(*np.hsplit(iq * iq, 2)) + 1e-20) * inv_rbv)).view(np.float32).flatten()
+
+            x = np.empty(1, dtype=self.data_dtypes)
+            x['tabs'][0] = i * self.dur_per_fft_us
+            x['spec'][0] = hold_buffer_f[:self.fft_size]
+            buf.append(x)
+
+            fft_cnt = 0
+
+        self.data = np.concatenate(buf)
+        if not self.data.size:
+            raise ValueError('Empty data array')
+
+    def plot(self, out_fn, vmin=None, vmax=None):
+        tmin = np.min(self.data['tabs'] / 1000000.0)
+        tmax = np.max(self.data['tabs'] / 1000000.0)
+        fmin = np.min(self.freq / 1000.0)
+        fmax = np.max(self.freq / 1000.0)
+        if vmin is None or vmax is None:
+            vmin = -100
+            vmax = -50
+            c_idx = self.data['spec'] > -200.0
+            if np.sum(c_idx) > 100:
+                data_mean = np.mean(self.data['spec'][c_idx])
+                data_std = np.std(self.data['spec'][c_idx])
+                vmin = data_mean - 2.0 * data_std
+                vmax = data_mean + 6.0 * data_std
+
+        plt.figure(figsize=(10, 20))
+        plt.imshow(self.data['spec'],
+                   origin='lower',
+                   aspect='auto',
+                   interpolation='None',
+                   extent=[fmin, fmax, tmin, tmax],
+                   vmin=vmin,
+                   vmax=vmax,
+                   cmap='viridis')
+        plt.xlabel('Frequency (kHz)')
+        plt.ylabel('Time (seconds)')
+        fig = plt.colorbar(aspect=50)
+        fig.set_label('Power (dB)')
+        plt.savefig(out_fn, bbox_inches='tight', dpi=200)
+        plt.close()
 
 
 def numbi_disp(number, zero=None):

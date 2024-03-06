@@ -19,7 +19,7 @@ import numpy as np
 from PIL import Image
 from sats_receiver.async_signal import AsyncSignal
 from sats_receiver.systems.apt import Apt
-from sats_receiver.utils import Decode, MapShapes, numbi_disp, close
+from sats_receiver.utils import Decode, MapShapes, numbi_disp, close, Waterfall, WfMode
 
 
 RECV_PATH = pathlib.Path('/media/MORE/sats_receiver/records')
@@ -56,6 +56,7 @@ class Worker(mp.Process):
 
         map_overlay = apt.map_overlay
         map_overlay = Image.fromarray(map_overlay, 'RGBA')
+        map_overlay.save(ret_fn.with_stem(ret_fn.stem + '_map_overlay'), 'png')
 
         img = img.convert('RGB')
         img.paste(map_overlay, (apt.IMAGE_A_START, 0), map_overlay)
@@ -157,6 +158,11 @@ class Worker(mp.Process):
 
             elif dtype == Decode.APT:
                 res = self.apt_to_png_map(fp, MAP_SHAPES)
+
+            elif dtype == Decode.RAW:
+                self.log.info('Draw Waterfall')
+                wf = Waterfall(fp)
+                wf.plot(fp.with_suffix('.png'))
 
             self.log.info('%s done: %s', params['sat_name'], res.name)
 
