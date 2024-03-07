@@ -232,6 +232,15 @@ class WfMode(enum.IntEnum):
 
 
 class Waterfall:
+    """
+    borrowed from gr-satnogs:
+        https://gitlab.com/librespacefoundation/satnogs/gr-satnogs
+
+    and satnogs-client:
+        https://gitlab.com/librespacefoundation/satnogs/satnogs-client
+
+    """
+
     def __init__(self, in_fn, fft_size=4096, mode=WfMode.MEAN):
         samp_rate, wav_arr = sp_wav.read(in_fn)
         wav_arr = wav_arr.view(np.complex64).flatten()
@@ -248,15 +257,12 @@ class Waterfall:
         self.duration = len(wav_arr) / samp_rate
         self.dur_per_fft_us = (self.duration * 1000000) / self.n_fft
 
-        self._get_waterfall(wav_arr)
-
-    def _get_waterfall(self, raw_data):
         if self.mode == WfMode.MEAN:
-            self._compute_mean(raw_data)
+            self._compute_mean(wav_arr)
         elif self.mode == WfMode.MAX_HOLD:
-            self._compute_max_hold(raw_data)
+            self._compute_max_hold(wav_arr)
         elif self.mode == WfMode.DECIMATION:
-            self._compute_decimation(raw_data)
+            self._compute_decimation(wav_arr)
         else:
             raise ValueError('Invalid waterfall mode')
 
