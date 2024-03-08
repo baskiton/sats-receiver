@@ -18,7 +18,9 @@ from typing import Any, Callable, Iterable, Mapping, Union
 
 import ephem
 import matplotlib
+import matplotlib.dates
 import matplotlib.pyplot as plt
+import matplotlib.ticker
 import numpy as np
 import psutil
 import scipy.io.wavfile as sp_wav
@@ -241,7 +243,7 @@ class Waterfall:
 
     """
 
-    def __init__(self, in_fn, fft_size=4096, mode=WfMode.MEAN):
+    def __init__(self, in_fn, fft_size=4096, mode=WfMode.MEAN, end_timestamp=0):
         samp_rate, wav_arr = sp_wav.read(in_fn)
         wav_arr = wav_arr.view(np.complex64).flatten()
 
@@ -256,6 +258,7 @@ class Waterfall:
         self.n_fft = len(wav_arr) // fft_size
         self.duration = len(wav_arr) / samp_rate
         self.dur_per_fft_us = (self.duration * 1000000) / self.n_fft
+        self.start_timestamp = end_timestamp and end_timestamp - self.duration
 
         if self.mode == WfMode.MEAN:
             self._compute_mean(wav_arr)
@@ -388,8 +391,10 @@ class Waterfall:
             raise ValueError('Empty data array')
 
     def plot(self, out_fn, vmin=None, vmax=None):
-        tmin = np.min(self.data['tabs'] / 1000000.0)
-        tmax = np.max(self.data['tabs'] / 1000000.0)
+        tmin = matplotlib.dates.date2num(dt.datetime.utcfromtimestamp(
+            self.start_timestamp + np.min(self.data['tabs'] / 1000000.0)))
+        tmax = matplotlib.dates.date2num(dt.datetime.utcfromtimestamp(
+            self.start_timestamp + np.max(self.data['tabs'] / 1000000.0)))
         fmin = np.min(self.freq / 1000.0)
         fmax = np.max(self.freq / 1000.0)
         if vmin is None or vmax is None:
@@ -411,10 +416,12 @@ class Waterfall:
                    vmin=vmin,
                    vmax=vmax,
                    cmap='viridis')
-        plt.xlabel('Frequency (kHz)')
-        plt.ylabel('Time (seconds)')
+        plt.gca().yaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M'))
+        plt.gca().yaxis.set_major_locator(matplotlib.ticker.MultipleLocator(1 / 1440))
+        plt.xlabel('Frequency, kHz')
+        plt.ylabel('Time UTC')
         fig = plt.colorbar(aspect=50)
-        fig.set_label('Power (dB)')
+        fig.set_label('Power, dB')
         plt.savefig(out_fn, bbox_inches='tight', dpi=200)
         plt.close()
 

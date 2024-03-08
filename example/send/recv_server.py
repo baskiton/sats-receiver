@@ -1,4 +1,5 @@
 import atexit
+import datetime as dt
 import io
 import json
 import logging
@@ -161,8 +162,8 @@ class Worker(mp.Process):
 
             elif dtype == Decode.RAW:
                 self.log.info('Draw Waterfall')
-                wf = Waterfall(fp)
-                wf.plot(fp.with_suffix('.png'))
+                wf = Waterfall(fp, end_timestamp=dt.datetime.fromisoformat(params['end_time']).timestamp())
+                wf.plot(fp.with_stem(fp.stem + '_wf').with_suffix('.png'))
 
             self.log.info('%s done: %s', params['sat_name'], res.name)
 
