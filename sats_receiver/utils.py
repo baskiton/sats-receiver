@@ -391,10 +391,8 @@ class Waterfall:
             raise ValueError('Empty data array')
 
     def plot(self, out_fn, vmin=None, vmax=None):
-        tmin = matplotlib.dates.date2num(dt.datetime.utcfromtimestamp(
-            self.start_timestamp + np.min(self.data['tabs'] / 1000000.0)))
-        tmax = matplotlib.dates.date2num(dt.datetime.utcfromtimestamp(
-            self.start_timestamp + np.max(self.data['tabs'] / 1000000.0)))
+        tmin = self.start_timestamp + np.min(self.data['tabs'] / 1000000.0)
+        tmax = self.start_timestamp + np.max(self.data['tabs'] / 1000000.0)
         fmin = np.min(self.freq / 1000.0)
         fmax = np.max(self.freq / 1000.0)
         if vmin is None or vmax is None:
@@ -416,12 +414,19 @@ class Waterfall:
                    vmin=vmin,
                    vmax=vmax,
                    cmap='viridis')
-        plt.gca().yaxis.set_major_formatter(matplotlib.dates.DateFormatter('%H:%M'))
-        plt.gca().yaxis.set_major_locator(matplotlib.ticker.MultipleLocator(1 / 1440))
+
+        plt.gca().yaxis.set_major_formatter(lambda x, pos=None: dt.datetime.utcfromtimestamp(x).strftime('%H:%M'))
+        plt.gca().yaxis.set_major_locator(matplotlib.ticker.MultipleLocator(60))
+        ax2 = plt.gca().secondary_yaxis('right', functions=(lambda x: x - self.start_timestamp,
+                                                            lambda x: x + self.start_timestamp))
+        ax2.set_ylabel('Time, s')
+
         plt.xlabel('Frequency, kHz')
         plt.ylabel('Time UTC')
-        fig = plt.colorbar(aspect=50)
+
+        fig = plt.colorbar(aspect=50, pad=0.1)
         fig.set_label('Power, dB')
+
         plt.savefig(out_fn, bbox_inches='tight', dpi=200)
         plt.close()
 
