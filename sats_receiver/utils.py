@@ -42,6 +42,7 @@ class Mode(enum.Enum):
     WFM = 'WFM'
     WFM_STEREO = 'WFM_STEREO'
     QUAD = 'QUAD'
+    SSTV_QUAD = 'SSTV_QUAD'
     QPSK = 'QPSK'
     OQPSK = 'OQPSK'
     GMSK = 'GMSK'

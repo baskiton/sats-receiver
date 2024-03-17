@@ -178,6 +178,9 @@ class SatRecorder(gr.gr.hier_block2):
         elif self.mode == utils.Mode.QUAD:
             self.demodulator = gr.analog.quadrature_demod_cf(self.quad_gain)
 
+        elif self.mode == utils.Mode.SSTV_QUAD:
+            self.demodulator = demodulators.SstvQuadDemod(self.bandwidth, self.demode_out_sr, self.quad_gain)
+
         elif self.mode in (utils.Mode.QPSK, utils.Mode.OQPSK):
             oqpsk = self.mode == utils.Mode.OQPSK
             self.demodulator = demodulators.QpskDemod(self.bandwidth, self.qpsk_baudrate, self.qpsk_excess_bw,
@@ -213,7 +216,7 @@ class SatRecorder(gr.gr.hier_block2):
                 self.decoders.append(decoders.RawDecoder(up.name, self.subname, ch, up.output_directory))
 
         elif self.decode == utils.Decode.SSTV:
-            self.decoders.append(decoders.SstvDecoder(up.name, self.subname, self.bandwidth, up.output_directory,
+            self.decoders.append(decoders.SstvDecoder(up.name, self.subname, self.demode_out_sr, up.output_directory,
                                                       up.observer, self.sstv_sync, self.sstv_wsr))
 
         elif self.decode == utils.Decode.SATS:
@@ -261,6 +264,10 @@ class SatRecorder(gr.gr.hier_block2):
     @property
     def bandwidth(self) -> Union[int, float]:
         return self.config['bandwidth']
+
+    @property
+    def demode_out_sr(self) -> Union[int, float]:
+        return self.config.get('demode_out_sr', self.bandwidth)
 
     @property
     def mode(self) -> utils.Mode:

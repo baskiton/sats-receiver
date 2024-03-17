@@ -151,8 +151,9 @@
                             "enabled": true,
                             "freq": 145800000,
                             "freq_correction": 0,
-                            "bandwidth": 16000,
-                            "mode": "QUAD",
+                            "bandwidth": 48000,
+                            "demode_out_sr": 16000,
+                            "mode": "SSTV_QUAD",
                             "decode": "SSTV",
                             "sstv_wsr": 16000,
                             "sstv_sync": true

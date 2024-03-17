@@ -6,6 +6,7 @@ import gnuradio as gr
 import gnuradio.analog
 import gnuradio.blocks
 import gnuradio.digital
+import gnuradio.fft
 import gnuradio.filter
 import gnuradio.gr
 
@@ -142,3 +143,42 @@ class GmskDemod(gr.gr.hier_block2):
     @property
     def channels(self):
         return self._channels
+
+
+class SstvQuadDemod(gr.gr.hier_block2):
+    def __init__(self,
+                 samp_rate: Union[int, float],
+                 out_rate: Union[int, float],
+                 quad_gain: Union[int, float] = 1.0):
+        super(SstvQuadDemod, self).__init__(
+            'SSTV Quad Demodulator',
+            gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
+            gr.gr.io_signature(1, 1, gr.gr.sizeof_float)
+        )
+
+        self.out_rate = out_rate
+        dev_factor = 8
+        deviation_hz = out_rate / dev_factor
+        carson_cutoff = abs(deviation_hz) + out_rate / 2
+        resamp_gcd = math.gcd(samp_rate, out_rate)
+
+        self.lpf = gr.filter.fir_filter_ccf(
+            1,
+            gr.filter.firdes.low_pass(
+                gain=1,
+                sampling_freq=samp_rate,
+                cutoff_freq=carson_cutoff,
+                transition_width=(carson_cutoff * 0.1),
+                window=gr.fft.window.WIN_HAMMING,
+                param=6.76,
+            )
+        )
+        self.resamp = gr.filter.rational_resampler_ccc(
+            interpolation=(out_rate // resamp_gcd),
+            decimation=(samp_rate // resamp_gcd),
+            taps=[],
+            fractional_bw=0,
+        )
+        self.quad = gr.analog.quadrature_demod_cf(quad_gain)
+
+        self.connect(self, self.lpf, self.resamp, self.quad, self)

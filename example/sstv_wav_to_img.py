@@ -84,6 +84,7 @@ class DecoderTopBlock(gr.gr.top_block):
         self.ftc = gr.blocks.float_to_complex(1)
         self.decoder = SstvDecoder(
             sat_name='WavFile',
+            subname='',
             samp_rate=samp_rate,
             out_dir=out_dp,
         )
