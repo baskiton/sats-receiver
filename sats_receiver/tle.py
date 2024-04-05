@@ -71,7 +71,7 @@ class Tle:
                 l1 = line.rstrip()
                 l2 = f.readline().rstrip()
                 for name in names:
-                    while 1:
+                    for i in range(2):
                         try:
                             objects[name] = ephem.readtle(str(name), l1, l2), (str(name), l1, l2)
                             break
