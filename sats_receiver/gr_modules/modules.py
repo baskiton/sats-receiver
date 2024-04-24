@@ -85,7 +85,8 @@ class SatRecorder(gr.gr.hier_block2):
                         # 'sstv_wsr',         # optional, only in SSTV decode
                         # 'sstv_sync',        # optional, only in SSTV decode
 
-                        # 'channels',         # only for GMSK
+                        # 'channels',         # only for FSK, GFSK, GMSK
+                        # 'deviation_factor', # only for FSK, GFSK, GMSK
 
                         # 'grs_file',         # optional, only for SATS decode
                         # 'grs_name',         # optional, only for SATS decode
@@ -102,7 +103,8 @@ class SatRecorder(gr.gr.hier_block2):
                         # 'quad_gain',        # optional, only for QUAD demode
                     ]))
             and (config['mode'] != utils.Mode.QPSK or 'qpsk_baudrate' in config)
-            and (config['mode'] != utils.Mode.GMSK or 'channels' in config)
+            and (config['mode'] not in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK)
+                 or ('channels' in config and 'deviation_factor' in config))
             and (config['mode'] != utils.Mode.RAW or config['decode'] == utils.Decode.SATS)
             # and (config['mode'] != utils.Mode.RAW or
             #      (config['decode'] != utils.Decode.SATS or (set(config.keys()) & {'grs_file', 'grs_name', 'grs_norad'})))
@@ -187,8 +189,14 @@ class SatRecorder(gr.gr.hier_block2):
                                                       self.qpsk_ntaps, self.qpsk_costas_bw, oqpsk)
             self.post_demod = None
 
+        elif self.mode == utils.Mode.FSK:
+            self.demodulator = demodulators.FskDemod(self.bandwidth, self.channels, self.deviation_factor)
+
+        elif self.mode == utils.Mode.GFSK:
+            self.demodulator = demodulators.GfskDemod(self.bandwidth, self.channels, self.deviation_factor)
+
         elif self.mode == utils.Mode.GMSK:
-            self.demodulator = demodulators.GmskDemod(self.bandwidth, self.channels)
+            self.demodulator = demodulators.GmskDemod(self.bandwidth, self.channels, self.deviation_factor)
 
         channels = getattr(self.demodulator, 'channels', (self.bandwidth,))
         self.decoders = []
@@ -304,6 +312,10 @@ class SatRecorder(gr.gr.hier_block2):
     @property
     def channels(self) -> list[Union[int, float]]:
         return self.config['channels']
+
+    @property
+    def deviation_factor(self) -> Union[int, float]:
+        return self.config.get('deviation_factor', 5)
 
     @property
     def grs_file(self) -> Optional[pathlib.Path]:

@@ -1,6 +1,7 @@
+import logging
 import math
 
-from typing import Union
+from typing import Union, List
 
 import gnuradio as gr
 import gnuradio.analog
@@ -9,6 +10,7 @@ import gnuradio.digital
 import gnuradio.fft
 import gnuradio.filter
 import gnuradio.gr
+import satellites.components.demodulators as grs_demodulators
 
 from sats_receiver.gr_modules.epb import DelayOneImag
 
@@ -93,58 +95,6 @@ class QpskDemod(gr.gr.hier_block2):
         )
 
 
-class GmskDemod(gr.gr.hier_block2):
-    def __init__(self,
-                 samp_rate: Union[int, float],
-                 channels: list[int]):
-        chan_n = len(channels)
-        super(GmskDemod, self).__init__(
-            'GMSK Demodulator',
-            gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
-            gr.gr.io_signature(1, 1, gr.gr.sizeof_float)
-            if chan_n == 1
-            else gr.gr.io_signature.makev(chan_n, chan_n, [gr.gr.sizeof_float] * chan_n)
-        )
-
-        self.samp_rate = samp_rate
-        self._channels = channels
-        self.wsr = int(max(channels) * 2)
-        self.resamp_gcd = math.gcd(samp_rate, self.wsr)
-        self._chans = []
-
-        self.resamp = gr.filter.rational_resampler_ccc(
-            interpolation=(self.wsr // self.resamp_gcd),
-            decimation=(samp_rate // self.resamp_gcd),
-            taps=[],
-            fractional_bw=0,
-        )
-
-        self.connect(self, self.resamp)
-
-        for i, rate in enumerate(channels):
-            gmsk_demod = gr.digital.gmsk_demod(
-                samples_per_symbol=self.wsr // rate,
-                gain_mu=0.175,
-                mu=0.5,
-                omega_relative_limit=0.005,
-                freq_error=0.0,
-                verbose=False,
-                log=False
-            )
-            uchtf = gr.blocks.uchar_to_float()
-            self.connect(
-                self.resamp,
-                gmsk_demod,
-                uchtf,
-                (self, i),
-            )
-            self._chans.append((gmsk_demod, uchtf))
-
-    @property
-    def channels(self):
-        return self._channels
-
-
 class SstvQuadDemod(gr.gr.hier_block2):
     def __init__(self,
                  samp_rate: Union[int, float],
@@ -182,3 +132,51 @@ class SstvQuadDemod(gr.gr.hier_block2):
         self.quad = gr.analog.quadrature_demod_cf(quad_gain)
 
         self.connect(self, self.lpf, self.resamp, self.quad, self)
+
+
+class FskDemod(gr.gr.hier_block2):
+    def __init__(self,
+                 samp_rate: Union[int, float],
+                 channels: List[Union[int, float]] = None,
+                 deviation_factor: Union[int, float] = 5):
+        self.prefix = self.__class__.__name__
+        self.log = logging.getLogger(self.prefix)
+
+        if channels is None:
+            channels = [1200, 2400, 4800, 9600]
+        if not channels:
+            raise ValueError('No channels')
+
+        for baud in channels.copy():
+            if baud >= samp_rate:
+                self.log.warning('Invalid baud %s. Skip', baud)
+                channels.remove(baud)
+
+        self._channels = channels
+        chans = len(channels)
+        super(FskDemod, self).__init__(
+            self.prefix.partition('Demod')[0] + ' Demodulator',
+            gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
+            gr.gr.io_signature(1, 1, gr.gr.sizeof_float)
+            if chans == 1
+            else gr.gr.io_signature.makev(chans, chans, [gr.gr.sizeof_float] * chans)
+        )
+
+        self.channel_demod = {}
+        for i, baud in enumerate(channels):
+            deviation = baud / deviation_factor
+            demod = grs_demodulators.fsk_demodulator(baud, samp_rate, 1, deviation, dc_block=0)
+            self.channel_demod[baud] = demod
+            self.connect(self, demod, (self, i))
+
+    @property
+    def channels(self):
+        return self._channels
+
+
+class GfskDemod(FskDemod):
+    pass
+
+
+class GmskDemod(FskDemod):
+    pass

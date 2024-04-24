@@ -46,6 +46,10 @@ class Mode(enum.Enum):
     QPSK = 'QPSK'
     OQPSK = 'OQPSK'
     GMSK = 'GMSK'
+    GFSK = 'GFSK'
+    FSK = 'FSK'
+    # AFSK = 'AFSK'
+    # BPSK = 'BPSK'
 
 
 class Decode(enum.Enum):
