@@ -134,16 +134,18 @@ class ReceiverManager:
         self.observer.update_config(self.config['observer'])
         self.tle.update_config(self.config['tle'])
 
-        for cfg in self.config['receivers']:
-            receiver = self.receivers.get(cfg['name'])
-            if receiver:
+        configs = {cfg['name']: cfg for cfg in self.config['receivers']}
+        to_add = set(configs.keys()) - set(self.receivers.keys())
+        for name, receiver in self.receivers.copy().items():
+            cfg = configs.get(name)
+            if cfg:
                 if ((force or receiver.updated == RecUpdState.FORCE_NEED)
                         or (not receiver.is_runned and receiver.updated != RecUpdState.NO_NEED)):
                     if not cfg.get('enabled', True):
-                        self.log.debug('%s: stop by disabling', receiver.name)
+                        self.log.debug('%s: stop by disabling', name)
                         receiver.stop()
                         receiver.wait()
-                        self.receivers.pop(receiver.name)
+                        self.receivers.pop(name)
                         continue
 
                     try:
@@ -151,11 +153,17 @@ class ReceiverManager:
                     except RuntimeError as e:
                         receiver.stop()
                         receiver.wait()
-                        self.receivers.pop(receiver.name)
-                        self.log.error('%s: cannot update config: %s. Stop', receiver.name, e)
+                        self.receivers.pop(name)
+                        self.log.error('%s: cannot update config: %s. Stop', name, e)
 
             else:
-                self._add_receiver(cfg)
+                receiver.stop()
+                receiver.wait()
+                self.receivers.pop(name)
+                self.log.debug('%s: stop by deleting', name)
+
+        for name in to_add:
+            self._add_receiver(configs[name])
 
         return 1
 
