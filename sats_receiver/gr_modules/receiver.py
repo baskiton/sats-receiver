@@ -14,12 +14,6 @@ import gnuradio.soapy
 from sats_receiver.gr_modules import modules
 from sats_receiver.utils import num_disp
 
-try:
-    from sats_receiver import librtlsdr
-    LIBRTLSDR = None
-except OSError as e:
-    LIBRTLSDR = str(e)
-
 
 class RecUpdState(enum.IntEnum):
     UPD_NEED = enum.auto()
@@ -40,6 +34,7 @@ class SatsReceiver(gr.gr.top_block):
         self.satellites: dict[str, modules.Satellite] = {}
         self.is_runned = False
         self.updated = RecUpdState.UPD_NEED
+        self.src_settings_keys = set()
 
         self.signal_src = gr.blocks.null_source(gr.gr.sizeof_gr_complex)
         self.blocks_correctiq = gr.blocks.correctiq()
@@ -84,11 +79,7 @@ class SatsReceiver(gr.gr.top_block):
                 self.log.info('New source found')
 
             if self.is_runned:
-                self.signal_src.set_sample_rate(0, self.samp_rate)
-                self.signal_src.set_frequency(0, self.tune)
-                self.signal_src.set_frequency_correction(0, 0)
-                self.signal_src.set_gain_mode(0, False)
-                self.signal_src.set_gain(0, 'TUNER', self.gain)
+                self.soapy_apply(0)
             else:
                 self.set_biast(0)
 
@@ -235,17 +226,15 @@ class SatsReceiver(gr.gr.top_block):
             self.log.info('START tune=%sHz samp_rate=%sHz gain=%s biast=%s',
                           num_disp(self.tune, 3), num_disp(self.samp_rate, 3), self.gain, self.biast)
 
-            self.set_biast(self.biast)
-
             try:
                 self.signal_src = gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
                                                   'fc32', 1, '', '', [''], [''])
             except RuntimeError as e:
                 self.log.error('cannot start: %s', e)
 
+                self.set_biast(0, True)
                 self.stop()
                 self.wait()
-                self.set_biast(0, True)
 
                 t = self.up.now + dt.timedelta(minutes=5)
                 for sat in self.satellites.values():
@@ -255,11 +244,8 @@ class SatsReceiver(gr.gr.top_block):
 
                 return 1
 
-            self.signal_src.set_sample_rate(0, self.samp_rate)
-            self.signal_src.set_frequency(0, self.tune)
-            self.signal_src.set_frequency_correction(0, self.freq_correction)
-            self.signal_src.set_gain_mode(0, False)
-            self.signal_src.set_gain(0, 'TUNER', self.gain)
+            self.src_settings_keys = {a.key for a in self.signal_src.get_setting_info()}
+            self.soapy_apply(0)
 
             self.connect(
                 self.signal_src,
@@ -305,9 +291,9 @@ class SatsReceiver(gr.gr.top_block):
             for sat in self.satellites.values():
                 sat.correct_doppler(self.up.observer.get_obj())
         elif self.is_runned:
+            self.set_biast(0)
             self.stop(False)
             self.wait()
-            self.set_biast(0)
 
     def calculate_pass(self, sat: modules.Satellite):
         """
@@ -360,9 +346,18 @@ class SatsReceiver(gr.gr.top_block):
             self.calculate_pass(sat)
 
     def set_biast(self, v, silent=False):
-        if self.source == 'rtlsdr' and not LIBRTLSDR:
+        if (not isinstance(self.signal_src, gr.blocks.null_source)
+                and 'biastee' in self.src_settings_keys):
             try:
-                librtlsdr.set_bt(v, self.serial)
-            except librtlsdr.LibRtlSdrError as e:
+                self.signal_src.write_setting('biastee', v)
+            except (ValueError, AttributeError) as e:
                 if not silent:
-                    self.log.info('change bias-t error: %s', e)
+                    self.log.warning('change bias-t error: %s', e)
+
+    def soapy_apply(self, ch=0):
+        self.signal_src.set_sample_rate(ch, self.samp_rate)
+        self.signal_src.set_frequency(ch, self.tune)
+        self.signal_src.set_frequency_correction(ch, self.freq_correction)
+        self.signal_src.set_gain_mode(ch, False)
+        self.signal_src.set_gain(ch, self.gain)
+        self.set_biast(self.biast)
