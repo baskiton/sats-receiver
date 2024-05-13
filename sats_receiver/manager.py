@@ -18,6 +18,7 @@ from sats_receiver.tle import Tle
 
 class ReceiverManager:
     TD_ERR_DEF = dt.timedelta(seconds=5)
+    TD_ACTION = dt.timedelta(seconds=1)
 
     def __init__(self,
                  q: mp.Queue,
@@ -35,7 +36,7 @@ class ReceiverManager:
 
         self.receivers: dict[str, SatsReceiver] = {}
         self.stopped = False
-        self.now = dt.datetime.now(dt.timezone.utc)
+        self.now = self.t_next = dt.datetime.now(dt.timezone.utc)
         self.file_failed_t = 0
 
         self.t_err = self.now
@@ -204,18 +205,23 @@ class ReceiverManager:
 
         try:
             now = self.t
-            self.update_config()
-            self.scheduler.action()
+            self.scheduler.action(now)
+
+            if now >= self.t_next:
+                self.update_config()
+
+            # TODO: remake this. fetching weather block all system..
+            need_upd = 0
             recalc = self.observer.action(now)
-            need_upd = self.tle.action(now)
+            if now >= self.t_next:
+                need_upd = self.tle.action(now)
+                self.t_next = now + self.TD_ACTION
 
             for receiver in self.receivers.values():
                 if recalc:
                     receiver.recalculate_pass()
-
                 if need_upd:
                     receiver.updated = RecUpdState.UPD_NEED
-
                 receiver.action()
 
         except Exception as e:

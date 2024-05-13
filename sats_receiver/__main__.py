@@ -73,7 +73,7 @@ if __name__ == '__main__':
     mng = ReceiverManager(q, args.config, **kw)
 
     while not mng.action():
-        signame = asig.wait(1)
+        signame = asig.wait(0.1)
         if signame:
             if 'USR' in signame:
                 # TODO

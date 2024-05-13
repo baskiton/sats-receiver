@@ -112,26 +112,24 @@ class Scheduler:
         with self._lock:
             return not self._queue
 
-    def action(self):
+    def action(self, now=None):
         pop = heapq.heappop
+        if now is None:
+            now = dt.datetime.now(dt.timezone.utc)
+
         while True:
             with self._lock:
                 if not self._queue:
                     break
                 t, prior, seq, fn, a, kw = self._queue[0]
-                now = dt.datetime.now(dt.timezone.utc)
-
                 if t > now:
-                    delay = True
+                    return t - now
                 else:
-                    delay = False
                     pop(self._queue)
-
-            if delay:
-                return t - now
 
             fn(*a, **kw)
             # time.sleep(0)
+            now = dt.datetime.now(dt.timezone.utc)
 
 
 class SysUsage:

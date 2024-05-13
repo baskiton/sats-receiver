@@ -35,6 +35,7 @@ class SatsReceiver(gr.gr.top_block):
         self.is_runned = False
         self.updated = RecUpdState.UPD_NEED
         self.src_settings_keys = set()
+        self.ltz = dateutil.tz.tzlocal()
 
         self.signal_src = gr.blocks.null_source(gr.gr.sizeof_gr_complex)
         self.blocks_correctiq = gr.blocks.correctiq()
@@ -306,7 +307,6 @@ class SatsReceiver(gr.gr.top_block):
         if x:
             t = self.up.now
             tt = t + dt.timedelta(hours=24)
-            ltz = dateutil.tz.tzlocal()
 
             while t <= tt:
                 try:
@@ -326,7 +326,7 @@ class SatsReceiver(gr.gr.top_block):
                         self.up.scheduler.plan(set_tt, self.calculate_pass, sat)
                     ]
                     self.log.info('Sat `%s` planned on %s <-> %s',
-                                  sat.name, rise_t.astimezone(ltz), set_t.astimezone(ltz))
+                                  sat.name, rise_t.astimezone(self.ltz), set_t.astimezone(self.ltz))
                     break
 
                 t = set_tt
