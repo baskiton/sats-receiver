@@ -40,7 +40,7 @@ class RadioModule(gr.gr.hier_block2):
 
         self.blocks_copy = gr.blocks.copy(gr.gr.sizeof_gr_complex)
         self.blocks_copy.set_enabled(self.enabled)
-        self.freqshifter = gr.blocks.rotator_cc(2 * math.pi * -(main_tune - frequency) / samp_rate)
+        self.freqshifter = gr.blocks.rotator_cc(2 * math.pi * (main_tune - frequency) / samp_rate)
         self.resampler = gr.filter.rational_resampler_ccc(
             interpolation=bandwidth // resamp_gcd,
             decimation=samp_rate // resamp_gcd,

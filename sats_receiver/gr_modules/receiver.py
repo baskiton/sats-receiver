@@ -172,7 +172,7 @@ class SatsReceiver(gr.gr.top_block):
 
     @property
     def biast(self) -> bool:
-        return self.config.get('biast', False)
+        return bool(self.config.get('biast', False))
 
     @property
     def gain(self) -> Union[int, float]:
