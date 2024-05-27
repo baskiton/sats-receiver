@@ -232,7 +232,7 @@ class MyTCPHandler(ss.StreamRequestHandler):
 
                 t = time.monotonic()
                 if t > t_next:
-                    t_next = t + 1
+                    t_next = t + 10
                     self.log.debug('%s %s/%s', fp.name, numbi_disp(fsz - sz_left), numfsz)
 
             f.write(zo.flush(zlib.Z_FINISH))
@@ -276,6 +276,11 @@ class MyTCPHandler(ss.StreamRequestHandler):
         self.server.worker.put(params, fp, dtype)
 
 
+class MyTcpServer(ss.ThreadingTCPServer):
+    allow_reuse_address = 1
+    allow_reuse_port = 1
+
+
 def setup_logging(q, log_lvl):
     if not isinstance(log_lvl, int):
         raise ValueError('Invalid log level: %s' % log_lvl)
@@ -304,7 +309,7 @@ if __name__ == '__main__':
     logging.info('Hello!')
 
     asig = AsyncSignal(['SIGABRT', 'SIGHUP', 'SIGINT', 'SIGTERM', 'SIGUSR1', 'SIGUSR2', 'SIGBREAK'])
-    srv = ss.TCPServer(('0.0.0.0', 7373), MyTCPHandler)
+    srv = MyTcpServer(('0.0.0.0', 7373), MyTCPHandler)
     srv.worker = Worker(q)
     srv.worker.start()
     atexit.register(lambda x: (x.stop(), x.join()), srv.worker)
