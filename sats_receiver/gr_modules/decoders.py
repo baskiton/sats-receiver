@@ -85,7 +85,7 @@ class RawDecoder(Decoder):
             str(self.tmp_file),
             2,
             samp_rate,
-            gr.blocks.FORMAT_WAV,
+            gr.blocks.FORMAT_RF64,
             gr.blocks.FORMAT_FLOAT,
             False
         )
