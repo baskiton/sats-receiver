@@ -193,6 +193,8 @@ Each frequency object contain:
 | ccc_rs_interleaving | Number          | _Optional. Only for **CCSDSCC** decoder._ Reed-Solomon Interleaving. `4` by default                                  |
 | ccc_derandomize     | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Descrambling. `true` by default                                            |
 | quad_gain           | Number          | _Optional. Only for **QUAD**, **SSTV_QUAD** modes._ Quadrature demodulation gain. `1.0` by default                   |
+| raw_out_format      | String          | _Optional. Only for **RAW** decoder._ WAV output format. `WAV` by default                                            |
+| raw_out_subformat   | String          | _Optional. Only for **RAW** decoder._ WAV output subformat. `FLOAT` by default                                       |
 
 
 #### modulations
@@ -210,7 +212,17 @@ Each frequency object contain:
 * `GMSK`
 
 #### decoders
-* `RAW` Saved to 2-channel float32 WAV file with `bandwidth` sample rate
+* `RAW` Saved to 2-channel float32 WAV file with `bandwidth` sample rate. Other parameters:
+  * `raw_out_format` WAV output format:
+    * `WAV` default
+    * `WAV64`
+  * `raw_out_subformat` WAV output subformat:
+    * `FLOAT` default
+    * `DOUBLE`
+    * `PCM_16`
+    * `PCM_24`
+    * `PCM_32`
+    * `PCM_U8`
 * `CSOFT` Constellation Soft Decoder - 1-channel binary int8. Suitable for further processing, for example, in SatDump. _Only for constellation-mode._
 * `CCSDSCC` CCSDS Conv Concat Decoder - CADU data. Suitable for further processing, for example, in SatDump. _Only for constellation-mode._
 * `APT` Sats-Receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)

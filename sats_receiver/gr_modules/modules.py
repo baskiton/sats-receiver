@@ -101,6 +101,9 @@ class SatRecorder(gr.gr.hier_block2):
                         # 'ccc_derandomize'   # optional, only for CCSDSCC decode
 
                         # 'quad_gain',        # optional, only for QUAD demode
+
+                        # 'raw_out_format',   # optional, only for RAW decode
+                        # 'raw_out_subformat',# optional, only for RAW decode
                     ]))
             and (config['mode'] != utils.Mode.QPSK or 'qpsk_baudrate' in config)
             and (config['mode'] not in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK)
@@ -221,7 +224,8 @@ class SatRecorder(gr.gr.hier_block2):
 
         elif self.decode == utils.Decode.RAW:
             for ch in channels:
-                self.decoders.append(decoders.RawDecoder(up.name, self.subname, ch, up.output_directory))
+                self.decoders.append(decoders.RawDecoder(up.name, self.subname, ch, up.output_directory,
+                                                         self.raw_out_format, self.raw_out_subformat))
 
         elif self.decode == utils.Decode.SSTV:
             self.decoders.append(decoders.SstvDecoder(up.name, self.subname, self.demode_out_sr, up.output_directory,
@@ -364,6 +368,14 @@ class SatRecorder(gr.gr.hier_block2):
     @property
     def quad_gain(self) -> float:
         return self.config.get('quad_gain', 1.0)
+
+    @property
+    def raw_out_format(self) -> utils.RawOutFormat:
+        return utils.RawOutFormat(self.config.get('raw_out_format', utils.RawOutFormat.WAV.value))
+
+    @property
+    def raw_out_subformat(self) -> utils.RawOutSubFormat:
+        return utils.RawOutSubFormat(self.config.get('raw_out_subformat', utils.RawOutSubFormat.FLOAT.value))
 
 
 class Satellite(gr.gr.hier_block2):

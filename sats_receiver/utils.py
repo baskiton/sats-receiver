@@ -17,6 +17,8 @@ import time
 from typing import Any, Callable, Iterable, Mapping, Union
 
 import ephem
+import gnuradio as gr
+import gnuradio.blocks
 import matplotlib
 import matplotlib.dates
 import matplotlib.pyplot as plt
@@ -61,6 +63,20 @@ class Decode(enum.Enum):
     LRPT = 'LRPT'
     SSTV = 'SSTV'
     SATS = 'SATS'
+
+
+class RawOutFormat(enum.Enum):
+    WAV = gr.blocks.FORMAT_WAV
+    WAV64 = gr.blocks.FORMAT_RF64
+
+
+class RawOutSubFormat(enum.Enum):
+    DOUBLE = gr.blocks.FORMAT_DOUBLE
+    FLOAT = gr.blocks.FORMAT_FLOAT
+    PCM_16 = gr.blocks.FORMAT_PCM_16
+    PCM_24 = gr.blocks.FORMAT_PCM_24
+    PCM_32 = gr.blocks.FORMAT_PCM_32
+    PCM_U8 = gr.blocks.FORMAT_PCM_U8
 
 
 class Phase(enum.IntEnum):

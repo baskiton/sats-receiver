@@ -77,7 +77,9 @@ class RawDecoder(Decoder):
                  sat_name: str,
                  subname: str,
                  samp_rate: Union[int, float],
-                 out_dir: pathlib.Path):
+                 out_dir: pathlib.Path,
+                 out_format: utils.RawOutFormat,
+                 out_subformat: utils.RawOutSubFormat):
         super(RawDecoder, self).__init__('Raw Decoder', sat_name, subname, samp_rate, out_dir, utils.Decode.RAW)
 
         self.ctf = gr.blocks.complex_to_float(1)
@@ -85,8 +87,8 @@ class RawDecoder(Decoder):
             str(self.tmp_file),
             2,
             samp_rate,
-            gr.blocks.FORMAT_RF64,
-            gr.blocks.FORMAT_FLOAT,
+            out_format.value,
+            out_subformat.value,
             False
         )
         self.wav_sink.close()
