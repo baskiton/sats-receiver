@@ -243,13 +243,19 @@ class MyTCPHandler(ss.StreamRequestHandler):
         try:
             self._handle()
         except Exception:
-            self.log.error('_handle', exc_info=True)
+            self.log.error('_handle from %s', self.client_address, exc_info=True)
         finally:
             self.request.send(b'END')
 
     def _handle(self):
-        l = int.from_bytes(self.request.recv(4), 'little', signed=False)
-        params = json.loads(self.request.recv(l).decode())
+        lb = self.request.recv(4)
+        l = int.from_bytes(lb, 'little', signed=False)
+        data = self.request.recv(l)
+        try:
+            params = json.loads(data.decode())
+        except:
+            self.log.error('%s -> l=%s data=%s', self.client_address, l, lb + data)
+            return
 
         out_dir = RECV_PATH / params['sat_name']
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -257,10 +263,10 @@ class MyTCPHandler(ss.StreamRequestHandler):
         try:
             dtype = Decode(params['decoder_type'])
         except ValueError:
-            self.log.warning('Invalid dtype. Skip')
+            self.log.warning('%s -> Invalid dtype. Skip', self.client_address)
             return
 
-        self.log.info('Receiving %s for %s', dtype, params['sat_name'])
+        self.log.info('%s -> %s for %s', self.client_address, dtype, params['sat_name'])
 
         s = io.StringIO()
         s.write('\n')
