@@ -248,14 +248,27 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
     def handle(self):
         try:
             self._handle()
-        except Exception:
+        except KeyError as e:
+            self.log.error('%s -> Missing key: %s', self.client_address, e)
+        except:
             self.log.error('_handle from %s', self.client_address, exc_info=True)
         finally:
-            self.wfile.write(b'END')
+            try:
+                self.wfile.write(b'END')
+            except:
+                pass
 
     def _handle(self):
         hdr_b = self.rfile.read(SRV_HDR.size)
-        sign, ver, sz = hdr = SRV_HDR.unpack_from(hdr_b)
+        if not hdr_b:
+            return
+
+        try:
+            sign, ver, sz = hdr = SRV_HDR.unpack_from(hdr_b)
+        except struct.error as e:
+            self.log.debug('%s -> %s', self.client_address, e)
+            return
+
         if not (sign == SRV_HDR_SIGN and ver == SRV_HDR_VER):
             self.log.debug('%s -> Invalid HDR: %s (%s)', self.client_address, hdr, hdr_b)
             return
@@ -263,20 +276,20 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         data = self.rfile.read(sz)
         try:
             params = json.loads(data.decode())
-        except:
-            self.log.error('%s -> %s %s', self.client_address, hdr, data)
+        except json.JSONDecodeError as e:
+            self.log.error('%s -> %s %s Invalid JSON: %s', self.client_address, hdr, data, e)
             return
+
+        s = io.StringIO()
+        s.write(str(self.client_address) + '\n')
+        pprint.pprint(params, stream=s)
+        s.seek(0)
+        self.log.debug(s.read())
 
         clients = set(json.load(self.server.client_list.open()))
         if params['secret'] not in clients:
             self.log.debug('%s -> Unknown secret: %s', self.client_address, params['secret'])
             return
-
-        s = io.StringIO()
-        s.write('\n')
-        pprint.pprint(params, stream=s)
-        s.seek(0)
-        self.log.debug(s.read())
 
         try:
             dtype = Decode(params['decoder_type'])
@@ -319,8 +332,6 @@ class _TcpServer(socketserver.TCPServer):
         self.ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
         self.ssl_ctx.load_cert_chain(certfile, keyfile)
         self.worker = worker
-        self.worker.start()
-        atexit.register(lambda x: (x.stop(), x.join()), self.worker)
 
     def get_request(self):
         conn, addr = super().get_request()
