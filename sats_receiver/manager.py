@@ -24,7 +24,8 @@ class ReceiverManager:
                  q: mp.Queue,
                  config_filename: pathlib.Path,
                  sysu_intv=utils.SysUsage.DEFAULT_INTV,
-                 executor_cls=Executor):
+                 executor_cls=Executor,
+                 executor_cfg=None):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
         self.exit_code = 0
@@ -48,7 +49,7 @@ class ReceiverManager:
         self.observer = Observer(self.config['observer'])
         self.tle = Tle(self.config['tle'])
         self.scheduler = utils.Scheduler()
-        self.executor = executor_cls(q, sysu_intv)
+        self.executor = executor_cls(q, sysu_intv, executor_cfg)
         self.executor.start()
         atexit.register(lambda x: (x.stop(), x.join()), self.executor)
 

@@ -85,9 +85,11 @@ pip install sats-receiver
 First, activate conda environment:  
 `conda activate sats-receiver-env`
 
-`python -u -m sats_receiver [-h, --help] [--log LOG] [--sysu SYSU] config`  
+`python -u -m sats_receiver [-h, --help] [--exec EXECUTOR --exec_config CONFIG] [--log LOG] [--sysu SYSU] config`  
 * `config` Config file path. See [Configure](#Configure)
 * `-h, --help` Help message
+* `--exec EXECUTOR` Python script path containing specified executor named `Executor`
+* `--exec_config CONFIG` Executor specific config file path
 * `--log LOG` Logging level, INFO default
 * `--sysu SYSU` System Usages debug info timeout in seconds, 1 hour default
 

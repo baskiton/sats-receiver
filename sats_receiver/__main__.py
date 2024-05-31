@@ -49,6 +49,8 @@ if __name__ == '__main__':
     ap.add_argument('config', type=pathlib.Path, help='Config file path')
     ap.add_argument('--exec', type=pathlib.Path,
                     help='Python script containing specified executor named `Executor`')
+    ap.add_argument('--exec_config', type=pathlib.Path,
+                    help='Executor specific config file path')
     ap.add_argument('--log', default='INFO', type=(lambda x: getattr(logging, x.upper(), None)),
                     help='Logging level, INFO default')
     ap.add_argument('--sysu', default=SysUsage.DEFAULT_INTV, type=int,
@@ -68,6 +70,7 @@ if __name__ == '__main__':
     if args.exec:
         sys.path.append(str(args.exec.expanduser().absolute().parent))
         kw['executor_cls'] = __import__(args.exec.stem).Executor
+        kw['executor_cfg'] = args.exec_config
 
     asig = AsyncSignal(['SIGABRT', 'SIGHUP', 'SIGINT', 'SIGTERM', 'SIGUSR1', 'SIGUSR2', 'SIGBREAK'])
     mng = ReceiverManager(q, args.config, **kw)

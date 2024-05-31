@@ -1,0 +1,11 @@
+{
+    "host": "0.0.0.0",
+    "port": 7373,
+    "client_list": "/path/to/client/list.json",
+    "recv_path": "/path/to/store/result",
+    "cafile": "/path/to/ca.pem",
+    "keyfile": "/path/to/key.pem",
+    "map_shapes": "/path/to/map_shapes/file",
+    "satdump": "/path/to/SatDump.exe",
+    "buf_sz": 8192
+}

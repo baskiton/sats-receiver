@@ -1,9 +1,19 @@
+import atexit
+import datetime as dt
+import dateutil.tz
+import json
+import hashlib
 import logging
 import logging.handlers
 import multiprocessing as mp
 import pathlib
 
-from sats_receiver import utils
+from sats_receiver import utils, HOMEDIR
+
+from tools.client_server.client import TcpSender
+
+
+SENDF = HOMEDIR / 'send.json'
 
 
 class Executor(mp.Process):
@@ -13,6 +23,14 @@ class Executor(mp.Process):
         self.q = q
         self.sysu_intv = sysu_intv
         self.rd, self.wr = mp.Pipe(False)
+
+        config = json.load(config.expanduser().absolute().open())
+        self.addr = config['host'], config.get('port', 443)
+        self.cafile = pathlib.Path(config['cafile']).expanduser().absolute()
+        with pathlib.Path(config['secretfile']).expanduser().absolute().open('rb') as fsec:
+            self.secret = hashlib.sha256(fsec.read().strip()).hexdigest()
+        self.buf_sz = config.get('buf_sz', 8192)
+        self.remove_success = config.get('remove_success', False)
 
     def _setup_process(self):
         logger = logging.getLogger()
@@ -24,6 +42,10 @@ class Executor(mp.Process):
             # logging.basicConfig(level=mp.get_logger().level, handlers=[qh])
         self.log = logging.getLogger(self.name)
         self.sysu = utils.SysUsage(self.name, self.sysu_intv)
+
+        self.sender = TcpSender(SENDF, self.addr, self.cafile, self.secret, self.buf_sz, self.remove_success)
+        self.sender.start()
+        atexit.register(lambda x: x.stop(), self.sender)
 
     def start(self) -> None:
         super(Executor, self).start()
@@ -40,6 +62,7 @@ class Executor(mp.Process):
             self.log.exception('Exception:')
         finally:
             try:
+                self.sender.stop()
                 self.stop()
             except:
                 self.log.exception('stop Exception:')
@@ -47,7 +70,7 @@ class Executor(mp.Process):
         self.log.debug('finish')
 
     def action(self):
-        while 1:
+        while self.sender.is_alive():
             self.sysu.collect()
 
             try:
@@ -82,23 +105,38 @@ class Executor(mp.Process):
                     continue
 
                 decoder_type = x[0]
-                if decoder_type == utils.Decode.RAW:
-                    _, sat_name, fin_key, res_filename, end_time = x
+                dty = decoder_type.value
 
-                elif decoder_type == utils.Decode.CSOFT:
-                    _, sat_name, fin_key, res_filename, end_time = x
+                if decoder_type == utils.Decode.NONE:
+                    continue
 
-                elif decoder_type == utils.Decode.CCSDSCC:
+                elif decoder_type in (utils.Decode.RAW, utils.Decode.CSOFT, utils.Decode.CCSDSCC, utils.Decode.APT):
                     _, sat_name, fin_key, res_filename, end_time = x
-
-                elif decoder_type == utils.Decode.APT:
-                    _, sat_name, fin_key, res_filename, end_time = x
+                    self.sender.push(decoder_type=dty,
+                                     sat_name=sat_name,
+                                     fin_key=fin_key,
+                                     filename=str(res_filename),
+                                     end_time=str(end_time))
 
                 elif decoder_type == utils.Decode.SSTV:
                     _, sat_name, fin_key, fn_dt = x
+                    for fn, end_time in fn_dt:
+                        self.sender.push(decoder_type=dty,
+                                         sat_name=sat_name,
+                                         fin_key=fin_key,
+                                         filename=str(fn),
+                                         end_time=str(end_time))
 
                 elif decoder_type == utils.Decode.SATS:
                     _, sat_name, fin_key, files = x
+                    for ty_, files_ in files.items():
+                        for fn in files_:
+                            self.sender.push(decoder_type=dty,
+                                             sat_name=sat_name,
+                                             fin_key=fin_key,
+                                             filename=str(fn),
+                                             end_time=str(dt.datetime.fromtimestamp(
+                                                 fn.stat().st_mtime, dateutil.tz.tzutc())))
 
     def execute(self, fn, *args, **kwargs):
         if self.wr:

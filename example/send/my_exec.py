@@ -135,7 +135,7 @@ class Sender(threading.Thread):
 
 
 class Executor(mp.Process):
-    def __init__(self, q: mp.Queue = None, sysu_intv=utils.SysUsage.DEFAULT_INTV):
+    def __init__(self, q: mp.Queue = None, sysu_intv=utils.SysUsage.DEFAULT_INTV, config: pathlib.Path = None):
         super().__init__(daemon=True, name=self.__class__.__name__)
 
         self.q = q

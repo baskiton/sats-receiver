@@ -1,0 +1,8 @@
+{
+    "host": "host",
+    "port": 443,
+    "cafile": "/path/to/ca.pem",
+    "secretfile": "/path/to/secret/file",
+    "buf_sz": 8192,
+    "remove_success": false
+}
