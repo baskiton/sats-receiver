@@ -450,6 +450,7 @@ class SstvDecoder(Decoder):
         self.observer = recorder.satellite.observer
         self.do_sync = recorder.sstv_sync
         self.wsr = recorder.sstv_wsr or 16000
+        self.live_exec = recorder.sstv_live_exec
 
         hdr_pix_width = int(self.wsr * sstv.Sstv.HDR_PIX_S)
         hdr = sstv.Sstv.HDR_SYNC_WORD.repeat(hdr_pix_width)
@@ -479,7 +480,9 @@ class SstvDecoder(Decoder):
         self.out_multiply_const = gr.blocks.multiply_const_ff(self._FREQ_1 / (750 + 450))
         self.ctr_corr = gr.blocks.complex_to_real()
         self.corr_peak_detector = gr.blocks.peak_detector2_fb(0.1, hdr.size, 0.001)
-        self.sstv_epb = sstv_epb.SstvEpb(self.wsr, self.do_sync, self.log, self.sat_name, self.out_dir)
+        if self.live_exec:
+            self.live_exec = self.recorder.satellite.executor, (self._sstv_finalize,), self.base_kw
+        self.sstv_epb = sstv_epb.SstvEpb(self.wsr, self.do_sync, self.log, self.sat_name, self.out_dir, self.live_exec)
 
         self.connect(
             self,

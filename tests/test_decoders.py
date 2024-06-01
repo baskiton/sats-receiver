@@ -144,7 +144,8 @@ class TestDecoders(TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.sat_nt = nt('Satellite', 'name output_directory executor observer sat_ephem_tle')
-        cls.rec_nt = nt('SatRecorder', 'satellite subname sstv_sync sstv_wsr mode '
+        cls.rec_nt = nt('SatRecorder', 'satellite subname mode '
+                                       'sstv_sync sstv_wsr sstv_live_exec '
                                        'ccc_pre_deint ccc_frame_size ccc_diff ccc_rs_dualbasis ccc_rs_interleaving ccc_derandomize')
 
         cls.out_dir = tempfile.TemporaryDirectory('.d', 'sats-receiver-test-', ignore_cleanup_errors=True)
@@ -166,7 +167,8 @@ class TestDecoders(TestCase):
             Observer(dict(latitude=11.111, longitude=-22.222, elevation=-33.333, weather=0)),
             self.tle.get('TEST SAT'),
         )
-        self.recorder = self.rec_nt(self.satellite, 'test', 1, 16000, utils.Mode.OQPSK,
+        self.recorder = self.rec_nt(self.satellite, 'test', utils.Mode.OQPSK,
+                                    1, 16000, 0,
                                     1, 892, 1, 0, 4, 1)
 
     def tearDown(self) -> None:

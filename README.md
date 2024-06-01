@@ -188,6 +188,7 @@ Each frequency object contain:
 | qpsk_costas_bw      | Number          | _Optional. Only for **(O)QPSK** mode._ (O)QPSK Costas bandwidth. `0.005` by default                                  |
 | sstv_wsr            | Number          | _Optional. Only for **SSTV** decoder._ SSTV work samplerate. `16000` by default                                      |
 | sstv_sync           | Number          | _Optional. Only for **SSTV** decoder._ SSTV syncing. `true` by default                                               |
+| sstv_live_exec      | Number          | _Optional. Only for **SSTV** decoder._ SSTV live executing. `false` by default                                       |
 | ccc_frame_size      | Number          | _Optional. Only for **CCSDSCC** decoder._ Frame size, bytes. `892` by default                                        |
 | ccc_pre_deint       | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Pre-Deinterleaving. `false` by default                                     |
 | ccc_diff            | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Differential Decoding. `true` by default                                   |

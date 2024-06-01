@@ -84,6 +84,7 @@ class SatRecorder(gr.gr.hier_block2):
 
                         # 'sstv_wsr',         # optional, only in SSTV decode
                         # 'sstv_sync',        # optional, only in SSTV decode
+                        # 'sstv_live_exec',   # optional, only in SSTV decode
 
                         # 'channels',         # only for FSK, GFSK, GMSK
                         # 'deviation_factor', # only for FSK, GFSK, GMSK
@@ -315,6 +316,10 @@ class SatRecorder(gr.gr.hier_block2):
     @property
     def sstv_sync(self) -> bool:
         return self.config.get('sstv_sync', True)
+
+    @property
+    def sstv_live_exec(self) -> bool:
+        return self.config.get('sstv_live_exec', False)
 
     @property
     def channels(self) -> list[Union[int, float]]:
