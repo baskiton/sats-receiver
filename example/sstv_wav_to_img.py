@@ -7,6 +7,7 @@ import pathlib
 import time
 
 from hashlib import sha256
+from collections import namedtuple as nt
 
 import gnuradio as gr
 import gnuradio.blocks
@@ -51,6 +52,8 @@ def setup_logging(q: mp.Queue, log_lvl: int):
 
 
 class DecoderTopBlock(gr.gr.top_block):
+    sat_nt = nt('Satellite', 'name output_directory executor observer')
+
     def __init__(self,
                  wav_fp: pathlib.Path,
                  out_dp: pathlib.Path,  # out dir
@@ -61,6 +64,10 @@ class DecoderTopBlock(gr.gr.top_block):
         super(DecoderTopBlock, self).__init__('DecoderTopBlock', catch_exceptions=False)
 
         self.executor = Executor(q)
+        self.satellite = self.sat_nt('WavFile', out_dp, self.executor, None)
+        self.subname = ''
+        self.sstv_sync = 1
+        self.sstv_wsr = 16000
 
         samp_rate, wav_arr = sp_wav.read(wav_fp)
         self.log.debug('%s (%sHz)', wav_fp.name, utils.num_disp(samp_rate))
@@ -82,12 +89,7 @@ class DecoderTopBlock(gr.gr.top_block):
         self.vector_source = gr.blocks.vector_source_f(wav_arr, False, 1, [])
         self.prober = Prober(1)
         self.ftc = gr.blocks.float_to_complex(1)
-        self.decoder = SstvDecoder(
-            sat_name='WavFile',
-            subname='',
-            samp_rate=samp_rate,
-            out_dir=out_dp,
-        )
+        self.decoder = SstvDecoder(self, samp_rate)
 
         self.connect(
             self.vector_source,
@@ -100,9 +102,11 @@ class DecoderTopBlock(gr.gr.top_block):
         )
 
     def start(self, max_noutput_items=10000000):
+        observation_key = sha256((self.prefix + str(dt.datetime.now())).encode()).hexdigest()
         self.log.info('START')
         self.executor.start()
         atexit.register(lambda x: (x.stop(), x.join()), self.executor)
+        self.decoder.set_observation_key(observation_key)
         self.decoder.start()
         super(DecoderTopBlock, self).start(max_noutput_items)
 
@@ -110,8 +114,7 @@ class DecoderTopBlock(gr.gr.top_block):
         self.log.info('STOP')
         super(DecoderTopBlock, self).stop()
 
-        fin_key = sha256((self.prefix + str(dt.datetime.now())).encode()).hexdigest()
-        self.decoder.finalize(self.executor, fin_key)
+        self.decoder.finalize()
 
         self.executor.stop()
 

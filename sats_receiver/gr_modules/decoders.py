@@ -33,13 +33,11 @@ from sats_receiver.systems import apt, satellites as sats, sstv
 
 class Decoder(gr.gr.hier_block2):
     def __init__(self,
-                 name: str,
-                 sat_name: str,
-                 subname: str,
+                 recorder: 'SatRecorder',
                  samp_rate: Union[int, float],
-                 out_dir: pathlib.Path,
+                 name: str,
                  dtype: utils.Decode):
-        self.prefix = f'{self.__class__.__name__}: {sat_name}'
+        self.prefix = f'{self.__class__.__name__}: {recorder.satellite.name}'
         self.log = logging.getLogger(self.prefix)
 
         super(Decoder, self).__init__(
@@ -49,20 +47,27 @@ class Decoder(gr.gr.hier_block2):
         )
 
         self.now = dt.datetime.fromtimestamp(0)
-        self.sat_name = sat_name
-        self.subname = subname and '_' + subname
+        self.observation_key = ''
+        self.recorder = recorder
+        self.sat_name = recorder.satellite.name
+        self.subname = recorder.subname and '_' + recorder.subname
         self.samp_rate = samp_rate
-        self.out_dir = out_dir
+        self.out_dir = recorder.satellite.output_directory
         self.tmp_file = utils.mktmp(prefix='_'.join(name.lower().split()))
-        self.base_kw = dict(log=self.log, sat_name=sat_name, subname=self.subname,
-                            samp_rate=samp_rate, out_dir=out_dir, dtype=dtype)
+        self.base_kw = dict(log=self.log, sat_name=self.sat_name, subname=self.subname,
+                            samp_rate=samp_rate, out_dir=self.out_dir, dtype=dtype,
+                            observation_key='')
+
+    def set_observation_key(self, observation_key: str):
+        self.observation_key = observation_key
+        self.base_kw.update(observation_key=observation_key)
 
     def start(self):
         pfx = '_'.join([*self.name().lower().split(), self.t.strftime('%Y%m%d%H%M%S')])
         self.tmp_file = utils.mktmp(self.out_dir, pfx)
         self.base_kw.update(tmp_file=self.tmp_file)
 
-    def finalize(self, executor, fin_key: str):
+    def finalize(self):
         pass
 
     @property
@@ -74,21 +79,17 @@ class Decoder(gr.gr.hier_block2):
 
 class RawDecoder(Decoder):
     def __init__(self,
-                 sat_name: str,
-                 subname: str,
-                 samp_rate: Union[int, float],
-                 out_dir: pathlib.Path,
-                 out_format: utils.RawOutFormat,
-                 out_subformat: utils.RawOutSubFormat):
-        super(RawDecoder, self).__init__('Raw Decoder', sat_name, subname, samp_rate, out_dir, utils.Decode.RAW)
+                 recorder: 'SatRecorder',
+                 samp_rate: Union[int, float]):
+        super(RawDecoder, self).__init__(recorder, samp_rate, 'Raw Decoder', utils.Decode.RAW)
 
         self.ctf = gr.blocks.complex_to_float(1)
         self.wav_sink = gr.blocks.wavfile_sink(
             str(self.tmp_file),
             2,
             samp_rate,
-            out_format.value,
-            out_subformat.value,
+            recorder.raw_out_format.value,
+            recorder.raw_out_subformat.value,
             False
         )
         self.wav_sink.close()
@@ -102,10 +103,10 @@ class RawDecoder(Decoder):
 
         self.wav_sink.open(str(self.tmp_file))
 
-    def finalize(self, executor, fin_key: str):
+    def finalize(self):
         self.wav_sink.close()
         if self.tmp_file.exists():
-            executor.execute(self._raw_finalize, **self.base_kw, fin_key=fin_key)
+            self.recorder.satellite.executor.execute(self._raw_finalize, **self.base_kw)
 
     @staticmethod
     def _raw_finalize(log: logging.Logger,
@@ -114,7 +115,7 @@ class RawDecoder(Decoder):
                       out_dir: pathlib.Path,
                       dtype: utils.Decode,
                       tmp_file: pathlib.Path,
-                      fin_key: str,
+                      observation_key: str,
                       **kw) -> tuple[utils.Decode, str, str, pathlib.Path, dt.datetime]:
         log.debug('finalizing...')
 
@@ -126,28 +127,24 @@ class RawDecoder(Decoder):
             res_fn.unlink(True)
             return utils.Decode.NONE,
 
-        return dtype, sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        return dtype, sat_name, observation_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 
 
 class AptDecoder(Decoder):
     def __init__(self,
-                 sat_name: str,
-                 subname: str,
-                 samp_rate: Union[int, float],
-                 out_dir: pathlib.Path,
-                 sat_ephem_tle: tuple[ephem.EarthSatellite, tuple[str, str, str]],
-                 observer_lonlat: tuple[float, float]):
+                 recorder: 'SatRecorder',
+                 samp_rate: Union[int, float]):
         name = 'APT Decoder'
-        super(AptDecoder, self).__init__(name, sat_name, subname, samp_rate, out_dir, utils.Decode.APT)
+        super(AptDecoder, self).__init__(recorder, samp_rate, name, utils.Decode.APT)
 
         self.already_fins = 0
 
         pfx = '_'.join(name.lower().split())
-        self.corr_file = utils.mktmp(dir=out_dir, prefix=pfx, suffix='.corr')
-        self.peaks_file = utils.mktmp(dir=out_dir, prefix=pfx, suffix='.peaks')
-        self.sat_ephem_tle = sat_ephem_tle
-        self.observer_lonlat = observer_lonlat
-        self.base_kw.update(sat_tle=sat_ephem_tle[1], observer_lonlat=observer_lonlat)
+        self.corr_file = utils.mktmp(dir=self.out_dir, prefix=pfx, suffix='.corr')
+        self.peaks_file = utils.mktmp(dir=self.out_dir, prefix=pfx, suffix='.peaks')
+        self.sat_ephem_tle = recorder.satellite.sat_ephem_tle
+        self.observer_lonlat = recorder.satellite.observer.lonlat
+        self.base_kw.update(sat_tle=self.sat_ephem_tle[1], observer_lonlat=self.observer_lonlat)
 
         resamp_gcd = math.gcd(samp_rate, apt.Apt.WORK_RATE)
 
@@ -239,7 +236,7 @@ class AptDecoder(Decoder):
         self.out_peaks_sink.open(str(self.peaks_file))
         self.out_peaks_sink.set_unbuffered(False)
 
-    def finalize(self, executor, fin_key: str):
+    def finalize(self):
         if self.already_fins:
             self.log.debug('Already finalized. Skip')
             return
@@ -257,7 +254,7 @@ class AptDecoder(Decoder):
                 utils.unlink(self.tmp_file, self.corr_file, self.peaks_file)
                 return
 
-        executor.execute(self._apt_finalize, **self.base_kw, fin_key=fin_key)
+        self.recorder.satellite.executor.execute(self._apt_finalize, **self.base_kw)
 
     @staticmethod
     def _apt_finalize(log: logging.Logger,
@@ -270,7 +267,7 @@ class AptDecoder(Decoder):
                       peaks_file: pathlib.Path,
                       out_dir: pathlib.Path,
                       dtype: utils.Decode,
-                      fin_key: str,
+                      observation_key: str,
                       **kw) -> Optional[tuple[utils.Decode, str, str, pathlib.Path, dt.datetime]]:
         log.debug('finalizing...')
 
@@ -290,7 +287,7 @@ class AptDecoder(Decoder):
                 res_fn.unlink(True)
                 return utils.Decode.NONE,
 
-            return dtype, sat_name, fin_key, res_fn, a.end_time
+            return dtype, sat_name, observation_key, res_fn, a.end_time
 
 
 class ConstelSoftDecoder(Decoder):
@@ -306,21 +303,15 @@ class ConstelSoftDecoder(Decoder):
     }
 
     def __init__(self,
-                 sat_name: str,
-                 subname: str,
+                 recorder: 'SatRecorder',
                  samp_rate: Union[int, float],
-                 out_dir: pathlib.Path,
-                 constellation: str,
-                 dtype=utils.Decode.CSOFT,
-                 name='Constellation Soft Decoder'):
-        super(ConstelSoftDecoder, self).__init__(name, sat_name, subname, samp_rate, out_dir, dtype)
+                 name='Constellation Soft Decoder',
+                 dtype=utils.Decode.CSOFT):
+        super(ConstelSoftDecoder, self).__init__(recorder, samp_rate, name, dtype)
         self.base_kw['suff'] = 's'
 
-        if isinstance(constellation, str):
-            self.constellation = self.CONSTELLS[constellation.upper()]().base()
-        else:
-            raise TypeError(f'`constellation` expected str, got {type(constellation)} instead')
-
+        self.constell_mode = recorder.mode
+        self.constellation = self.CONSTELLS[self.constell_mode.value]().base()
         self.constellation.gen_soft_dec_lut(8)
         self.constel_soft_decoder = gr.digital.constellation_soft_decoder_cf(self.constellation)
         self.rail = gr.analog.rail_ff(-1, 1)
@@ -345,12 +336,12 @@ class ConstelSoftDecoder(Decoder):
             self.out_file_sink.open(str(self.tmp_file))
             self.out_file_sink.set_unbuffered(False)
 
-    def finalize(self, executor, fin_key: str):
+    def finalize(self):
         if self.out_file_sink:
             self.out_file_sink.do_update()
             self.out_file_sink.close()
         if self.tmp_file.exists():
-            executor.execute(self._constel_soft_finalize, **self.base_kw, fin_key=fin_key)
+            self.recorder.satellite.executor.execute(self._constel_soft_finalize, **self.base_kw)
 
     @staticmethod
     def _constel_soft_finalize(log: logging.Logger,
@@ -359,7 +350,7 @@ class ConstelSoftDecoder(Decoder):
                                out_dir: pathlib.Path,
                                dtype: utils.Decode,
                                tmp_file: pathlib.Path,
-                               fin_key: str,
+                               observation_key: str,
                                suff: str,
                                **kw) -> tuple[utils.Decode, str, str, pathlib.Path, dt.datetime]:
         log.debug('finalizing...')
@@ -372,27 +363,23 @@ class ConstelSoftDecoder(Decoder):
             res_fn.unlink(True)
             return utils.Decode.NONE,
 
-        return dtype, sat_name, fin_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        return dtype, sat_name, observation_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 
 
 class CcsdsConvConcatDecoder(ConstelSoftDecoder):
     def __init__(self,
-                 sat_name: str,
-                 subname: str,
-                 samp_rate: Union[int, float],
-                 out_dir: pathlib.Path,
-                 constellation: str,
-                 frame_size=892,
-                 pre_deint=False,
-                 diff=True,
-                 rs_dualbasis=False,
-                 rs_interleaving=4,
-                 derandomize=True,
-                 name='CCSDS Conv Concat Decoder'):
-        super().__init__(sat_name, subname, samp_rate, out_dir, constellation, utils.Decode.CCSDSCC, name)
+                 recorder: 'SatRecorder',
+                 samp_rate: Union[int, float]):
+        super().__init__(recorder, samp_rate, 'CCSDS Conv Concat Decoder', utils.Decode.CCSDSCC)
         self.base_kw['suff'] = 'cadu'
 
-        is_qpsk = constellation.upper().endswith('QPSK')
+        is_qpsk = self.constell_mode.value.endswith('QPSK')
+        frame_size = recorder.ccc_frame_size or 892
+        pre_deint = recorder.ccc_pre_deint
+        diff = recorder.ccc_diff and 'differential' or None
+        rs_dualbasis = recorder.ccc_rs_dualbasis and 'dual' or 'conventional'
+        rs_interleaving = recorder.ccc_rs_interleaving or 4
+        derandomize = recorder.ccc_derandomize and 'CCSDS' or 'none'
 
         self.disconnect(
             self.rail,
@@ -405,20 +392,20 @@ class CcsdsConvConcatDecoder(ConstelSoftDecoder):
         self.mul = gr.blocks.multiply_const_ff(not pre_deint or 127, 1)
         self.deframer0 = satellites.components.deframers.ccsds_concatenated_deframer(
             frame_size=frame_size,
-            precoding=diff and 'differential' or None,
-            rs_basis=rs_dualbasis and 'dual' or 'conventional',
+            precoding=diff,
+            rs_basis=rs_dualbasis,
             rs_interleaving=rs_interleaving,
-            scrambler=derandomize and 'CCSDS' or 'none',
+            scrambler=derandomize,
             convolutional='CCSDS',
             syncword_threshold=4,
         )
         if is_qpsk:
             self.deframer1 = satellites.components.deframers.ccsds_concatenated_deframer(
                 frame_size=892,
-                precoding=diff and 'differential' or None,
-                rs_basis=rs_dualbasis and 'dual' or 'conventional',
+                precoding=diff,
+                rs_basis=rs_dualbasis,
                 rs_interleaving=rs_interleaving,
-                scrambler=derandomize and 'CCSDS' or 'none',
+                scrambler=derandomize,
                 convolutional='CCSDS uninverted',
                 syncword_threshold=4,
             )
@@ -456,23 +443,17 @@ class SstvDecoder(Decoder):
     _FREQ_1 = (1900 - 1200) / 2
 
     def __init__(self,
-                 sat_name: str,
-                 subname: str,
-                 samp_rate: Union[int, float],
-                 out_dir: pathlib.Path,
-                 observer: Observer = None,
-                 do_sync=True,
-                 wsr=16000):
-        super(SstvDecoder, self).__init__('SSTV Decoder', sat_name, subname,
-                                          samp_rate, out_dir, utils.Decode.SSTV)
+                 recorder: 'SatRecorder',
+                 samp_rate: Union[int, float]):
+        super(SstvDecoder, self).__init__(recorder, samp_rate, 'SSTV Decoder', utils.Decode.SSTV)
 
-        self.observer = observer
-        self.do_sync = do_sync
-        self.wsr = wsr
+        self.observer = recorder.satellite.observer
+        self.do_sync = recorder.sstv_sync
+        self.wsr = recorder.sstv_wsr or 16000
 
-        hdr_pix_width = int(wsr * sstv.Sstv.HDR_PIX_S)
+        hdr_pix_width = int(self.wsr * sstv.Sstv.HDR_PIX_S)
         hdr = sstv.Sstv.HDR_SYNC_WORD.repeat(hdr_pix_width)
-        resamp_gcd = math.gcd(wsr, samp_rate)
+        resamp_gcd = math.gcd(self.wsr, samp_rate)
 
         self.bpf_input = gr.filter.fir_filter_ccc(
             1,
@@ -487,7 +468,7 @@ class SstvDecoder(Decoder):
         self.frs = gr.blocks.rotator_cc(2 * math.pi * -(1900 - self._FREQ_1) / samp_rate)
         self.quad_demod = gr.analog.quadrature_demod_cf((samp_rate / (2 * math.pi * self._FREQ_1)))
         self.rsp = gr.filter.rational_resampler_fcc(
-                interpolation=wsr // resamp_gcd,
+                interpolation=self.wsr // resamp_gcd,
                 decimation=samp_rate // resamp_gcd,
                 taps=[],
                 fractional_bw=0
@@ -498,7 +479,7 @@ class SstvDecoder(Decoder):
         self.out_multiply_const = gr.blocks.multiply_const_ff(self._FREQ_1 / (750 + 450))
         self.ctr_corr = gr.blocks.complex_to_real()
         self.corr_peak_detector = gr.blocks.peak_detector2_fb(0.1, hdr.size, 0.001)
-        self.sstv_epb = sstv_epb.SstvEpb(wsr, do_sync, self.log, sat_name, out_dir)
+        self.sstv_epb = sstv_epb.SstvEpb(self.wsr, self.do_sync, self.log, self.sat_name, self.out_dir)
 
         self.connect(
             self,
@@ -519,20 +500,20 @@ class SstvDecoder(Decoder):
             (self.sstv_epb, self.sstv_epb.PEAKS_IN),
         )
 
-        if observer is None:
+        if self.observer is None:
             latlonalt = None
         else:
-            latlonalt = str(observer.lat), str(observer.lon), observer.elev
+            latlonalt = str(self.observer.lat), str(self.observer.lon), self.observer.elev
         self.base_kw.update(observer_latlonalt=latlonalt)
 
     def start(self):
         # super(SstvDecoder, self).start()
         utils.unlink(self.tmp_file)
 
-    def finalize(self, executor, fin_key: str):
+    def finalize(self):
         self.sstv_epb.stop()
         sstv_rr: list[sstv.SstvRecognizer] = self.sstv_epb.finalize()
-        executor.execute(self._sstv_finalize, **self.base_kw, sstv_rr=sstv_rr, fin_key=fin_key)
+        self.recorder.satellite.executor.execute(self._sstv_finalize, **self.base_kw, sstv_rr=sstv_rr)
 
     @staticmethod
     def _sstv_finalize(log: logging.Logger,
@@ -542,7 +523,7 @@ class SstvDecoder(Decoder):
                        dtype: utils.Decode,
                        observer_latlonalt: Optional[tuple[str, str, Union[int, float]]],
                        sstv_rr: list[sstv.SstvRecognizer],
-                       fin_key: str,
+                       observation_key: str,
                        **kw) -> tuple[utils.Decode, str, str, list[tuple[pathlib.Path, dt.datetime]]]:
         log.debug('finalizing...')
 
@@ -581,21 +562,18 @@ class SstvDecoder(Decoder):
 
         log.info('finish %s images (%s)', len(fn_dt), utils.numbi_disp(sz_sum))
 
-        return dtype, sat_name, fin_key, fn_dt
+        return dtype, sat_name, observation_key, fn_dt
 
 
 class SatellitesDecoder(Decoder):
     def __init__(self,
-                 sat_name: str,
-                 subname: str,
+                 recorder: 'SatRecorder',
                  samp_rate: Union[int, float],
-                 out_dir: pathlib.Path,
                  config: dict,
                  is_iq=True):
-        super(SatellitesDecoder, self).__init__('GR Satellites Decoder', sat_name, subname,
-                                                samp_rate, out_dir, utils.Decode.SATS)
+        super(SatellitesDecoder, self).__init__(recorder, samp_rate, 'GR Satellites Decoder', utils.Decode.SATS)
         opt_str = (
-            f' --file_output_path="{out_dir}"'
+            f' --file_output_path="{self.out_dir}"'
             # f' --codec2_ip='
             # f' --codec2_port='
         )
@@ -604,10 +582,10 @@ class SatellitesDecoder(Decoder):
         if 'tlm_decode' in x:
             x.pop('tlm_decode')
         if all(map(lambda v: v is None, x.values())):
-            if sat_name.isnumeric():
-                config['norad'] = int(sat_name)
+            if self.sat_name.isnumeric():
+                config['norad'] = int(self.sat_name)
             else:
-                config['name'] = sat_name
+                config['name'] = self.sat_name
 
         self.sat_fg = sats.SatFlowgraph(self.log, samp_rate, opt_str, is_iq=is_iq, **config)
         if is_iq:
@@ -619,7 +597,7 @@ class SatellitesDecoder(Decoder):
     def start(self):
         utils.unlink(self.tmp_file)
 
-    def finalize(self, executor, fin_key: str):
+    def finalize(self):
         utils.close(f.f
                     for d in self.sat_fg.get_files().values()
                     for f in d.values())
@@ -633,13 +611,13 @@ class SatellitesDecoder(Decoder):
             d[dtype] = x
         self.sat_fg.clean()
 
-        executor.execute(self._sats_finalize, **self.base_kw, files=d, fin_key=fin_key)
+        self.recorder.satellite.executor.execute(self._sats_finalize, **self.base_kw, files=d)
 
     @staticmethod
     def _sats_finalize(log: logging.Logger,
                        sat_name: str,
                        files: dict[str, list[pathlib.Path]],
-                       fin_key: str,
+                       observation_key: str,
                        dtype: utils.Decode,
                        **kw) -> tuple[utils.Decode, str, str, dict[str, list[pathlib.Path]]]:
 
@@ -649,4 +627,4 @@ class SatellitesDecoder(Decoder):
 
         log.info('finish %s files', f_cnt)
 
-        return dtype, sat_name, fin_key, files
+        return dtype, sat_name, observation_key, files

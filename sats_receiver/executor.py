@@ -83,22 +83,22 @@ class Executor(mp.Process):
 
                 decoder_type = x[0]
                 if decoder_type == utils.Decode.RAW:
-                    _, sat_name, fin_key, res_filename, end_time = x
+                    _, sat_name, observation_key, res_filename, end_time = x
 
                 elif decoder_type == utils.Decode.CSOFT:
-                    _, sat_name, fin_key, res_filename, end_time = x
+                    _, sat_name, observation_key, res_filename, end_time = x
 
                 elif decoder_type == utils.Decode.CCSDSCC:
-                    _, sat_name, fin_key, res_filename, end_time = x
+                    _, sat_name, observation_key, res_filename, end_time = x
 
                 elif decoder_type == utils.Decode.APT:
-                    _, sat_name, fin_key, res_filename, end_time = x
+                    _, sat_name, observation_key, res_filename, end_time = x
 
                 elif decoder_type == utils.Decode.SSTV:
-                    _, sat_name, fin_key, fn_dt = x
+                    _, sat_name, observation_key, fn_dt = x
 
                 elif decoder_type == utils.Decode.SATS:
-                    _, sat_name, fin_key, files = x
+                    _, sat_name, observation_key, files = x
 
     def execute(self, fn, *args, **kwargs):
         if self.wr:

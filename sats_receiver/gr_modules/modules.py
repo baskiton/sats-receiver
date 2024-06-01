@@ -130,6 +130,7 @@ class SatRecorder(gr.gr.hier_block2):
             gr.gr.io_signature(0, 0, 0)
         )
 
+        self.satellite = up
         self.config = config
         self.radio = RadioModule(main_tune, samp_rate, self.bandwidth, self.frequency)
         self.demodulator = None
@@ -204,37 +205,28 @@ class SatRecorder(gr.gr.hier_block2):
         channels = getattr(self.demodulator, 'channels', (self.bandwidth,))
         self.decoders = []
         if self.decode == utils.Decode.APT:
-            self.decoders.append(decoders.AptDecoder(up.name, self.subname, self.bandwidth, up.output_directory,
-                                                     up.sat_ephem_tle, up.observer.lonlat))
+            self.decoders.append(decoders.AptDecoder(self, self.bandwidth))
 
         # elif self.decode == Decode.LRPT:
         #     # TODO
         #     # self.decoder =
 
         elif self.decode == utils.Decode.CSOFT:
-            self.decoders.append(decoders.ConstelSoftDecoder(up.name, self.subname, self.bandwidth,
-                                                             up.output_directory, self.mode.value))
+            self.decoders.append(decoders.ConstelSoftDecoder(self, self.bandwidth))
 
         elif self.decode == utils.Decode.CCSDSCC:
-            self.decoders.append(decoders.CcsdsConvConcatDecoder(up.name, self.subname, self.bandwidth,
-                                                                 up.output_directory, self.mode.value,
-                                                                 self.ccc_frame_size, self.ccc_pre_deint,
-                                                                 self.ccc_diff, self.ccc_rs_dualbasis,
-                                                                 self.ccc_rs_interleaving, self.ccc_derandomize))
+            self.decoders.append(decoders.CcsdsConvConcatDecoder(self, self.bandwidth))
 
         elif self.decode == utils.Decode.RAW:
             for ch in channels:
-                self.decoders.append(decoders.RawDecoder(up.name, self.subname, ch, up.output_directory,
-                                                         self.raw_out_format, self.raw_out_subformat))
+                self.decoders.append(decoders.RawDecoder(self, ch))
 
         elif self.decode == utils.Decode.SSTV:
-            self.decoders.append(decoders.SstvDecoder(up.name, self.subname, self.demode_out_sr, up.output_directory,
-                                                      up.observer, self.sstv_sync, self.sstv_wsr))
+            self.decoders.append(decoders.SstvDecoder(self, self.demode_out_sr))
 
         elif self.decode == utils.Decode.SATS:
             cfg = dict(file=self.grs_file, name=self.grs_name, norad=self.grs_norad, tlm_decode=self.grs_tlm_decode)
-            self.decoders.append(decoders.SatellitesDecoder(up.name, self.subname, self.bandwidth,
-                                                            up.output_directory, cfg))
+            self.decoders.append(decoders.SatellitesDecoder(self, self.bandwidth, cfg, 1))
 
         x = [self, self.radio]
         if self.demodulator:
@@ -245,6 +237,17 @@ class SatRecorder(gr.gr.hier_block2):
         self.connect(*x)
         for i, decoder in enumerate(self.decoders):
             self.connect((x[-1], i), decoder)
+
+    def start(self, observation_key: str):
+        for decoder in self.decoders:
+            decoder.set_observation_key(observation_key)
+            decoder.start()
+
+    def stop(self):
+        if self.is_runned:
+            self.radio.set_enabled(0)
+            for decoder in self.decoders:
+                decoder.finalize()
 
     def set_freq_offset(self, new_freq: Union[int, float]):
         self.radio.set_freq_offset(new_freq)
@@ -438,29 +441,26 @@ class Satellite(gr.gr.hier_block2):
 
     def start(self):
         if self.enabled and not self.is_runned:
-            self.log.info('START doppler=%s mode=%s decode=%s',
+            observation_key = sha256((self.name + str(dt.datetime.now())).encode()).hexdigest()
+            self.log.info('START doppler=%s mode=%s decode=%s key=%s',
                           self.doppler,
                           [r.mode.value for r in self.recorders],
-                          [r.decode.value for r in self.recorders])
+                          [r.decode.value for r in self.recorders],
+                          observation_key)
             self.output_directory.mkdir(parents=True, exist_ok=True)
             self.start_event = None
 
             for r in self.recorders:
-                for decoder in r.decoders:
-                    decoder.start()
+                r.start(observation_key)
                 r.radio.set_enabled(1)
 
     def stop(self):
         if self.is_runned:
             self.log.info('STOP')
             self.start_event = self.stop_event = None
-            fin_key = sha256((self.name + str(dt.datetime.now())).encode()).hexdigest()
 
             for r in self.recorders:
-                if r.is_runned:
-                    r.radio.set_enabled(0)
-                    for decoder in r.decoders:
-                        decoder.finalize(self.executor, fin_key)
+                r.stop()
 
     def correct_doppler(self, observer: ephem.Observer):
         if self.is_runned and self.doppler:

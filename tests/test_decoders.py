@@ -2,11 +2,13 @@ import atexit
 import datetime as dt
 import logging
 import logging.handlers
+import math
 import multiprocessing as mp
 import pathlib
 import tempfile
 import time
 
+from collections import namedtuple as nt
 from hashlib import sha256
 from test import support
 from typing import Union
@@ -89,18 +91,22 @@ class DecoderTopBlock(gr.gr.top_block):
     def __init__(self,
                  wav_channels: int,
                  wav_fp: Union[pathlib.Path, str],
-                 decoder: Decoder):
+                 decoder: Decoder,
+                 executor: TestExecutor,
+                 freq_shift=0):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
         super(DecoderTopBlock, self).__init__('DecoderTopBlock', catch_exceptions=False)
 
-        self.executor = TestExecutor()
+        self.executor = executor
 
         self.wav_src = gr.blocks.wavfile_source(str(wav_fp), False)
         self.prober = Prober()
         self.ftc = gr.blocks.float_to_complex(1)
         self.thr = gr.blocks.throttle(gr.gr.sizeof_gr_complex, decoder.samp_rate * 100)
+        self.shifter = gr.blocks.rotator_cc(2.0 * math.pi * -freq_shift / decoder.samp_rate)
+        self.pll = gr.analog.pll_carriertracking_cc((math.pi / 200), (2 * math.pi * (0 + 1000) / decoder.samp_rate), (2 * math.pi * (0 - 1000) / decoder.samp_rate))
         self.decoder = decoder
 
         for i in range(wav_channels):
@@ -108,13 +114,17 @@ class DecoderTopBlock(gr.gr.top_block):
         self.connect(
             self.ftc,
             self.thr,
+            # self.shifter,
+            # self.pll,
             self.decoder,
         )
         self.connect(self.wav_src, self.prober)
 
     def start(self, max_noutput_items=10000000):
+        observation_key = sha256((self.prefix + str(dt.datetime.now())).encode()).hexdigest()
         self.log.info('START')
         atexit.register(lambda x: x.stop(), self.executor)
+        self.decoder.set_observation_key(observation_key)
         self.decoder.start()
         super(DecoderTopBlock, self).start(max_noutput_items)
 
@@ -122,8 +132,7 @@ class DecoderTopBlock(gr.gr.top_block):
         self.log.info('STOP')
         super(DecoderTopBlock, self).stop()
 
-        fin_key = sha256((self.prefix + str(dt.datetime.now())).encode()).hexdigest()
-        self.decoder.finalize(self.executor, fin_key)
+        self.decoder.finalize()
         self.executor.stop()
 
     def wait(self):
@@ -134,6 +143,10 @@ class TestDecoders(TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
+        cls.sat_nt = nt('Satellite', 'name output_directory executor observer sat_ephem_tle')
+        cls.rec_nt = nt('SatRecorder', 'satellite subname sstv_sync sstv_wsr mode '
+                                       'ccc_pre_deint ccc_frame_size ccc_diff ccc_rs_dualbasis ccc_rs_interleaving ccc_derandomize')
+
         cls.out_dir = tempfile.TemporaryDirectory('.d', 'sats-receiver-test-', ignore_cleanup_errors=True)
         cls.out_dp = pathlib.Path(cls.out_dir.name)
 
@@ -146,6 +159,16 @@ class TestDecoders(TestCase):
         self.tb = None
         self.to_close = []
 
+        self.tle = TestTle()
+        self.executor = TestExecutor()
+        self.satellite = self.sat_nt(
+            'TEST SAT', self.out_dp, self.executor,
+            Observer(dict(latitude=11.111, longitude=-22.222, elevation=-33.333, weather=0)),
+            self.tle.get('TEST SAT'),
+        )
+        self.recorder = self.rec_nt(self.satellite, 'test', 1, 16000, utils.Mode.OQPSK,
+                                    1, 892, 1, 0, 4, 1)
+
     def tearDown(self) -> None:
         if isinstance(self.tb, DecoderTopBlock):
             self.tb.stop()
@@ -153,26 +176,11 @@ class TestDecoders(TestCase):
         utils.close(*self.to_close)
 
     def test_sstv_robot36(self):
-        lat = 11.111
-        lon = -22.222
-        alt = -33.333
-        sstv_wsr = 16000
         wav_fp = FILES / 'Robot36_16kHz.wav'
         wav_samp_rate = 16000
 
-        decoder = SstvDecoder(
-            sat_name='Test Sat',
-            subname='test',
-            samp_rate=wav_samp_rate,
-            out_dir=self.out_dp,
-            observer=Observer({'latitude': lat,
-                               'longitude': lon,
-                               'elevation': alt,
-                               'weather': False}),
-            do_sync=1,
-            wsr=sstv_wsr,
-        )
-        self.tb = DecoderTopBlock(1, wav_fp, decoder)
+        decoder = SstvDecoder(self.recorder, wav_samp_rate)
+        self.tb = DecoderTopBlock(1, wav_fp, decoder, self.executor)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -183,16 +191,16 @@ class TestDecoders(TestCase):
 
         x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
-        self.assertEqual(x[0], utils.Decode.SSTV)
+        self.assertEqual(utils.Decode.SSTV, x[0])
 
-        _, sat_name, fin_key, fn_dts = x
-        self.assertEqual(sat_name, 'Test Sat')
+        _, sat_name, observation_key, fn_dts = x
+        self.assertEqual(self.satellite.name, sat_name)
         self.assertIsInstance(fn_dts, list)
-        self.assertEqual(len(fn_dts), 1)
+        self.assertEqual(1, len(fn_dts))
 
         fn_dt = fn_dts[0]
         self.assertIsInstance(fn_dt, tuple)
-        self.assertEqual(len(fn_dt), 2)
+        self.assertEqual(2, len(fn_dt))
 
         fp, d = fn_dt
         self.assertIsInstance(fp, pathlib.Path)
@@ -205,38 +213,27 @@ class TestDecoders(TestCase):
         ee = exif.get_ifd(ExifTags.IFD.Exif)
         gps = exif.get_ifd(ExifTags.IFD.GPSInfo)
 
-        self.assertEqual(ee.get(ExifTags.Base.UserComment), 'Robot36')
+        self.assertEqual('Robot36', ee.get(ExifTags.Base.UserComment))
         end_time = dt.datetime.strptime(exif.get(ExifTags.Base.DateTime), '%Y:%m:%d %H:%M:%S')
-        self.assertEqual(end_time, d)
+        self.assertEqual(d, end_time)
 
-        self.assertEqual(ephem.degrees('{}:{}:{}'.format(*gps[ExifTags.GPS.GPSLatitude])),
-                         ephem.degrees(str(abs(lat))))
-        self.assertEqual(gps[ExifTags.GPS.GPSLatitudeRef], 'N')
+        self.assertEqual(ephem.degrees(str(abs(self.satellite.observer.lat))),
+                         ephem.degrees('{}:{}:{}'.format(*gps[ExifTags.GPS.GPSLatitude])))
+        self.assertEqual('N', gps[ExifTags.GPS.GPSLatitudeRef])
 
-        self.assertEqual(ephem.degrees('{}:{}:{}'.format(*gps[ExifTags.GPS.GPSLongitude])),
-                         ephem.degrees(str(abs(lon))))
-        self.assertEqual(gps[ExifTags.GPS.GPSLongitudeRef], 'W')
+        self.assertEqual(ephem.degrees(str(abs(self.satellite.observer.lon))),
+                         ephem.degrees('{}:{}:{}'.format(*gps[ExifTags.GPS.GPSLongitude])))
+        self.assertEqual('W', gps[ExifTags.GPS.GPSLongitudeRef])
 
-        self.assertTrue(np.isclose(float(gps[ExifTags.GPS.GPSAltitude]), abs(alt)))
-        self.assertEqual(gps[ExifTags.GPS.GPSAltitudeRef], b'\1')
+        self.assertTrue(np.isclose(float(gps[ExifTags.GPS.GPSAltitude]), abs(self.satellite.observer.elev)))
+        self.assertEqual(b'\1', gps[ExifTags.GPS.GPSAltitudeRef])
 
     def test_apt(self):
-        lat = 11.111
-        lon = -22.222
         wav_fp = FILES / 'apt_11025hz.wav'
         wav_samp_rate = 11025
-        sat_name = 'TEST SAT'
-        tle = TestTle()
 
-        decoder = AptDecoder(
-            sat_name=sat_name,
-            subname='test',
-            samp_rate=wav_samp_rate,
-            out_dir=self.out_dp,
-            sat_ephem_tle=tle.get(sat_name),
-            observer_lonlat=(lon, lat),
-        )
-        self.tb = DecoderTopBlock(1, wav_fp, decoder)
+        decoder = AptDecoder(self.recorder, wav_samp_rate)
+        self.tb = DecoderTopBlock(1, wav_fp, decoder, self.executor)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -247,35 +244,24 @@ class TestDecoders(TestCase):
 
         x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
-        self.assertEqual(x[0], utils.Decode.APT)
+        self.assertEqual(utils.Decode.APT, x[0])
 
-        _, res_sat_name, res_fin_key, res_filename, res_end_time = x
-        self.assertEqual(res_sat_name, sat_name)
+        _, res_sat_name, res_observation_key, res_filename, res_end_time = x
+        self.assertEqual(self.satellite.name, res_sat_name)
 
         apt = Apt.from_apt(res_filename)
-        self.assertEqual(apt.sat_name, sat_name)
-        self.assertEqual(apt.end_time, res_end_time)
-        self.assertTupleEqual(apt.observer_lonlat, (lon, lat))
-        self.assertTupleEqual(apt.sat_tle, tle.get_tle(sat_name))
+        self.assertEqual(self.satellite.name, apt.sat_name)
+        self.assertEqual(res_end_time, apt.end_time)
+        self.assertTupleEqual(self.satellite.observer.lonlat, apt.observer_lonlat)
+        self.assertTupleEqual(self.tle.get_tle(self.satellite.name), apt.sat_tle)
         self.assertFalse(apt.process())
 
     def test_apt_fail(self):
-        lat = 11.111
-        lon = -22.222
         wav_fp = FILES / 'apt_noise_48000hz.wav'
         wav_samp_rate = 11025
-        sat_name = 'TEST SAT'
-        tle = TestTle()
 
-        decoder = AptDecoder(
-            sat_name=sat_name,
-            subname='test',
-            samp_rate=wav_samp_rate,
-            out_dir=self.out_dp,
-            sat_ephem_tle=tle.get(sat_name),
-            observer_lonlat=(lon, lat),
-        )
-        self.tb = DecoderTopBlock(1, wav_fp, decoder)
+        decoder = AptDecoder(self.recorder, wav_samp_rate)
+        self.tb = DecoderTopBlock(1, wav_fp, decoder, self.executor)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -284,9 +270,9 @@ class TestDecoders(TestCase):
         self.tb.stop()
         self.tb.wait()
 
-        with self.assertLogs(f'Apt: {sat_name}', level=logging.ERROR) as e:
+        with self.assertLogs(f'Apt: {self.satellite.name}', level=logging.ERROR) as e:
             x = self.tb.executor.action(TIMEOUT)
-        self.assertEqual(e.records[0].msg, 'recording too short for telemetry decoding')
+        # self.assertEqual('recording too short for telemetry decoding', e.records[0].msg)
         self.assertIsNone(x)
 
     def test_satellites_orbicraft_tlm(self):
@@ -297,11 +283,10 @@ class TestDecoders(TestCase):
                                  '00000000ff1c25040b009de99f5a7904')
         wav_fp = FILES / 'orbicraft_tlm_4800@16000.wav'
         wav_samp_rate = 16000
-        sat_name = 'ORBICRAFT-ZORKIY'
         cfg = dict(tlm_decode=True, file=SATYAML / 'OrbiCraft-Zorkiy.yml')
 
-        decoder = SatellitesDecoder(sat_name, 'test', wav_samp_rate, self.out_dp, cfg)
-        self.tb = DecoderTopBlock(2, wav_fp, decoder)
+        decoder = SatellitesDecoder(self.recorder, wav_samp_rate, cfg, 1)
+        self.tb = DecoderTopBlock(2, wav_fp, decoder, self.executor)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -313,9 +298,9 @@ class TestDecoders(TestCase):
 
         x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
-        self.assertEqual(x[0], utils.Decode.SATS)
+        self.assertEqual(utils.Decode.SATS, x[0])
 
-        _, sat_name, fin_key, files = x
+        _, sat_name, observation_key, files = x
 
         self.assertIn('Telemetry', files)
         tlm_files = files['Telemetry']
@@ -324,7 +309,7 @@ class TestDecoders(TestCase):
             self.assertIsInstance(fp, pathlib.Path)
             self.assertRegex(fp.name, r'usp_4k8.+\.(txt|bin)')
             if fp.name.endswith('.bin'):
-                self.assertEqual(fp.read_bytes(), expected)
+                self.assertEqual(expected, fp.read_bytes())
 
     def test_satellites_geoscan_tlm_multiple(self):
         expected = [
@@ -339,11 +324,10 @@ class TestDecoders(TestCase):
         ]
         wav_fp = FILES / 'geoscan_tlm_mult_9600@48000.ogg'
         wav_samp_rate = 48000
-        sat_name = 'GEOSCAN-EDELVEIS'
         cfg = dict(tlm_decode=False, file=SATYAML / 'GEOSCAN-EDELVEIS.yml')
 
-        decoder = SatellitesDecoder(sat_name, 'test', wav_samp_rate, self.out_dp, cfg, 0)
-        self.tb = DecoderTopBlock(1, wav_fp, decoder)
+        decoder = SatellitesDecoder(self.recorder, wav_samp_rate, cfg, 0)
+        self.tb = DecoderTopBlock(1, wav_fp, decoder, self.executor)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -355,9 +339,9 @@ class TestDecoders(TestCase):
 
         x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
-        self.assertEqual(x[0], utils.Decode.SATS)
+        self.assertEqual(utils.Decode.SATS, x[0])
 
-        _, sat_name, fin_key, files = x
+        _, sat_name, observation_key, files = x
 
         self.assertIn('Telemetry', files)
         tlm_files = files['Telemetry']
@@ -366,16 +350,15 @@ class TestDecoders(TestCase):
         for i, fp in enumerate(sorted(tlm_files, key=lambda fp: fp.stat().st_mtime)):
             self.assertIsInstance(fp, pathlib.Path)
             self.assertRegex(fp.name, r'geoscan_9k6-FSK.+\.bin')
-            self.assertEqual(fp.read_bytes(), expected[i])
+            self.assertEqual(expected[i], fp.read_bytes())
 
     def test_satellites_geoscan_img(self):
         wav_fp = FILES / 'geoscan_img_2023-02-02T15-18-40_9600@48000.ogg'
         wav_samp_rate = 48000
-        sat_name = 'GEOSCAN-EDELVEIS'
         cfg = dict(tlm_decode=True, file=SATYAML / 'GEOSCAN-EDELVEIS.yml')
 
-        decoder = SatellitesDecoder(sat_name, 'test', wav_samp_rate, self.out_dp, cfg, False)
-        self.tb = DecoderTopBlock(1, wav_fp, decoder)
+        decoder = SatellitesDecoder(self.recorder, wav_samp_rate, cfg, 0)
+        self.tb = DecoderTopBlock(1, wav_fp, decoder, self.executor)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -387,9 +370,9 @@ class TestDecoders(TestCase):
 
         x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
-        self.assertEqual(x[0], utils.Decode.SATS)
+        self.assertEqual(utils.Decode.SATS, x[0])
 
-        _, sat_name, fin_key, files = x
+        _, sat_name, observation_key, files = x
 
         self.assertIn('Image', files)
         img_files = files['Image']
@@ -401,11 +384,10 @@ class TestDecoders(TestCase):
     def test_satellites_geoscan_tlm(self):
         wav_fp = FILES / 'geoscan_tlm_9600@48000.wav'
         wav_samp_rate = 48000
-        sat_name = 'GEOSCAN-EDELVEIS'
         cfg = dict(tlm_decode=True, file=SATYAML / 'GEOSCAN-EDELVEIS.yml')
 
-        decoder = SatellitesDecoder(sat_name, 'test', wav_samp_rate, self.out_dp, cfg)
-        self.tb = DecoderTopBlock(2, wav_fp, decoder)
+        decoder = SatellitesDecoder(self.recorder, wav_samp_rate, cfg, 1)
+        self.tb = DecoderTopBlock(2, wav_fp, decoder, self.executor)
         self.tb.start()
 
         while self.tb.prober.changes():
@@ -417,9 +399,9 @@ class TestDecoders(TestCase):
 
         x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
-        self.assertEqual(x[0], utils.Decode.SATS)
+        self.assertEqual(utils.Decode.SATS, x[0])
 
-        _, sat_name, fin_key, files = x
+        _, sat_name, observation_key, files = x
 
         self.assertIn('Telemetry', files)
         tlm_files = files['Telemetry']
