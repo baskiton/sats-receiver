@@ -20,10 +20,10 @@ jobs:
         shell: bash -el {0}
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Conda install
-        uses: conda-incubator/setup-miniconda@v2
+        uses: conda-incubator/setup-miniconda@v3
         with:
           auto-activate-base: false
           activate-environment: sats-receiver-test-venv
@@ -38,14 +38,14 @@ jobs:
         shell: bash
 
       - name: pip cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: pip-cache
         with:
           path: ${{ steps.get-vars.outputs.pip-cache-dir }}
           key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
 
       - name: Conda cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: conda-cache
         env:
           # Increase this value to reset cache if test-env.yml has not changed
@@ -77,4 +77,6 @@ jobs:
         run: coverage report -m
 
       - name: Send report to codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
