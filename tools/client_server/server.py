@@ -286,8 +286,9 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         s.seek(0)
         self.log.debug(s.read())
 
-        clients = set(json.load(self.server.client_list.open()))
-        if params['secret'] not in clients:
+        clients = json.load(self.server.client_list.open())
+        client_info = clients.get(params['secret'])
+        if not client_info:
             self.log.debug('%s -> Unknown secret: %s', self.client_address, params['secret'])
             return
 
