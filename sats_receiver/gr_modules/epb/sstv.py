@@ -66,7 +66,8 @@ class SstvEpb(gr.gr.sync_block):
             for rec in rr:
                 rec.stop()
             self.sstv_done = []
-            executor(*exec_a, **exec_kw, sstv_rr=rr)
+            if rr:
+                executor.execute(*exec_a, **exec_kw, sstv_rr=rr)
 
         return input_items[self.PEAKS_IN].size
 
