@@ -83,6 +83,7 @@ class Sender(threading.Thread):
                     break
 
         self.log.debug('send `%s` done', fp.name)
+        return fp
 
     def run(self):
         poller = select.poll()
@@ -101,9 +102,10 @@ class Sender(threading.Thread):
 
                 else:
                     try:
-                        self.send(data)
+                        fp = self.send(data)
                         self.err_dt_conn = 5
                         flush = 1
+                        fp.unlink(True)
 
                     except ConnectionError as e:
                         t = time.monotonic()
