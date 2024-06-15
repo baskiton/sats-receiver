@@ -102,13 +102,13 @@ class TcpSender(threading.Thread):
 
                 else:
                     try:
-                        fp = self.send(data)
+                        fp = self.send(data.copy())
                         self.err_dt_conn = 5
                         flush = 1
                         if self.remove_success:
                             fp.unlink(True)
 
-                    except (ssl.SSLError, ConnectionError) as e:
+                    except (ssl.SSLError, sk.gaierror, ConnectionError) as e:
                         t = time.monotonic()
                         if t > self.err_t_conn:
                             self.err_t_conn = t + self.err_dt_conn
