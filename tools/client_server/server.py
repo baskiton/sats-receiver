@@ -170,7 +170,7 @@ class Worker(mp.Process):
                 self.log.info('Draw Waterfall')
                 try:
                     wf = Waterfall(fp, end_timestamp=dt.datetime.fromisoformat(params['end_time']).timestamp())
-                    wf.plot(fp.with_stem(fp.stem + '_wf').with_suffix('.png'))
+                    wf.plot(fp.with_stem(fp.stem + '_wf').with_suffix('.png'), -110, -50)
                 except:
                     self.log.exception('waterfall')
 
@@ -229,7 +229,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         zo = zlib.decompressobj(wbits=-9)
         with fp.open('wb') as f:
             while sz_left:
-                data = self.rfile.read(self.server.buf_sz)
+                data = self.request.recv(self.server.buf_sz)
                 if not data:
                     raise ConnectionError('Connection lost')
                 # sz_left -= len(data)
