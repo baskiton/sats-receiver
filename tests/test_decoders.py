@@ -17,12 +17,14 @@ from unittest import TestCase
 import ephem
 import gnuradio as gr
 import gnuradio.blocks
+import gnuradio.analog
 import gnuradio.gr
 import numpy as np
 
 from PIL import Image, ExifTags
 from sats_receiver import utils
-from sats_receiver.gr_modules.decoders import Decoder, AptDecoder, SatellitesDecoder, SstvDecoder
+from sats_receiver.gr_modules.decoders import Decoder, AptDecoder, ProtoDecoder, SatellitesDecoder, SstvDecoder
+from sats_receiver.gr_modules.demodulators import FskDemod
 from sats_receiver.gr_modules.epb.prober import Prober
 from sats_receiver.observer import Observer
 from sats_receiver.systems.apt import Apt
@@ -93,7 +95,8 @@ class DecoderTopBlock(gr.gr.top_block):
                  wav_fp: Union[pathlib.Path, str],
                  decoder: Decoder,
                  executor: TestExecutor,
-                 freq_shift=0):
+                 freq_shift=0,
+                 demod=None):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
@@ -107,17 +110,20 @@ class DecoderTopBlock(gr.gr.top_block):
         self.thr = gr.blocks.throttle(gr.gr.sizeof_gr_complex, decoder.samp_rate * 100)
         self.shifter = gr.blocks.rotator_cc(2.0 * math.pi * -freq_shift / decoder.samp_rate)
         self.pll = gr.analog.pll_carriertracking_cc((math.pi / 200), (2 * math.pi * (0 + 1000) / decoder.samp_rate), (2 * math.pi * (0 - 1000) / decoder.samp_rate))
+        self.demod = demod
         self.decoder = decoder
 
         for i in range(wav_channels):
             self.connect((self.wav_src, i), (self.ftc, i))
-        self.connect(
+        modules = [
             self.ftc,
             self.thr,
             # self.shifter,
             # self.pll,
-            self.decoder,
-        )
+        ]
+        if demod:
+            modules.append(self.demod)
+        self.connect(*modules, self.decoder)
         self.connect(self.wav_src, self.prober)
 
     def start(self, max_noutput_items=10000000):
@@ -144,9 +150,11 @@ class TestDecoders(TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.sat_nt = nt('Satellite', 'name output_directory executor observer sat_ephem_tle')
-        cls.rec_nt = nt('SatRecorder', 'satellite subname mode '
-                                       'sstv_sync sstv_wsr sstv_live_exec '
-                                       'ccc_pre_deint ccc_frame_size ccc_diff ccc_rs_dualbasis ccc_rs_interleaving ccc_derandomize')
+        cls.rec_nt = nt('SatRecorder',
+                        'satellite subname mode '
+                        'sstv_sync sstv_wsr sstv_live_exec '
+                        'ccc_pre_deint ccc_frame_size ccc_diff ccc_rs_dualbasis ccc_rs_interleaving ccc_derandomize '
+                        'proto_deframer proto_options')
 
         cls.out_dir = tempfile.TemporaryDirectory('.d', 'sats-receiver-test-', ignore_cleanup_errors=True)
         cls.out_dp = pathlib.Path(cls.out_dir.name)
@@ -169,7 +177,8 @@ class TestDecoders(TestCase):
         )
         self.recorder = self.rec_nt(self.satellite, 'test', utils.Mode.OQPSK,
                                     1, 16000, 0,
-                                    1, 892, 1, 0, 4, 1)
+                                    1, 892, 1, 0, 4, 1,
+                                    utils.ProtoDeframer.USP, {})
 
     def tearDown(self) -> None:
         if isinstance(self.tb, DecoderTopBlock):
@@ -411,3 +420,27 @@ class TestDecoders(TestCase):
         for fp in tlm_files:
             self.assertIsInstance(fp, pathlib.Path)
             self.assertRegex(fp.name, r'geoscan_9k6-FSK.+\.(txt|bin)')
+
+    def test_proto(self):
+        wav_fp = FILES / 'orbicraft_tlm_4800@16000.wav'
+        wav_samp_rate = 16000
+
+        chs = [4800,]
+        decoder = ProtoDecoder(self.recorder, chs)
+        self.tb = DecoderTopBlock(2, wav_fp, decoder, self.executor, demod=FskDemod(wav_samp_rate, chs))
+        self.tb.start()
+
+        while self.tb.prober.changes():
+            time.sleep(self.tb.prober.measure_s)
+        time.sleep(self.tb.prober.measure_s)
+
+        self.tb.stop()
+        self.tb.wait()
+
+        x = self.tb.executor.action(TIMEOUT)
+        print(x)
+        self.assertIsInstance(x, tuple)
+        dtype, deftype, sat_name, observation_key, res_filename, end_time = x
+        self.assertEqual(utils.Decode.PROTO, dtype)
+        self.assertEqual(utils.ProtoDeframer.USP, deftype)
+        self.assertRegex(res_filename.name, r'.+\.(kss)')

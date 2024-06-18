@@ -138,6 +138,15 @@ class Executor(mp.Process):
                                              end_time=str(dt.datetime.fromtimestamp(
                                                  fn.stat().st_mtime, dateutil.tz.tzutc())))
 
+                elif decoder_type == utils.Decode.PROTO:
+                    _, deftype, sat_name, observation_key, res_filename, end_time = x
+                    self.sender.push(decoder_type=dty,
+                                     deframer_type=deftype.value,
+                                     sat_name=sat_name,
+                                     observation_key=observation_key,
+                                     filename=str(res_filename),
+                                     end_time=str(end_time))
+
     def execute(self, fn, *args, **kwargs):
         if self.wr:
             self.wr.send((fn, args, kwargs))

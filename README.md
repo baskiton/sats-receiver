@@ -198,6 +198,8 @@ Each frequency object contain:
 | quad_gain           | Number          | _Optional. Only for **QUAD**, **SSTV_QUAD** modes._ Quadrature demodulation gain. `1.0` by default                   |
 | raw_out_format      | String          | _Optional. Only for **RAW** decoder._ WAV output format. `WAV` by default                                            |
 | raw_out_subformat   | String          | _Optional. Only for **RAW** decoder._ WAV output subformat. `FLOAT` by default                                       |
+| proto_deframer      | String          | _Optional. Only for **PROTO** decoder._ Name of the gr-satellites deframer. See [proto](#proto) for detail.          |
+| proto_options       | String          | _Optional. Only for **PROTO** decoder._ Deframer options. See [proto](#proto) for detail.                            |
 
 
 #### modulations
@@ -235,6 +237,7 @@ Each frequency object contain:
   * PD (50, 90, 120, 160, 180, 240, 290)
   * Scottie (S1, S2, S3, S4)
 * `SATS` See [gr-satellites](#gr-satellites) for details
+* `PROTO` Satellite deframer based decoder. KISS file on output. See [proto](#proto) for detail. _Only for *FSK mode._
 * ~~`LRPT`~~ Not implemented yet
 
 ##### gr-satellites
@@ -252,6 +255,115 @@ Additionally supported satellites can be found in the [satyaml](satyaml) directo
 [grs-doc]: https://gr-satellites.readthedocs.io/en/latest/
 [grs-satyaml]: https://gr-satellites.readthedocs.io/en/latest/satyaml.html
 [grs-satlist]: https://gr-satellites.readthedocs.io/en/latest/supported_satellites.html
+
+##### proto
+**IMPORTANT:** For this decoder the `modulation` need to be set on `*FSK`!
+
+Supported deframers and their options:
+* `AALTO1`:
+  * `syncword_threshold`: number of bit errors allowed in syncword (int), `4` by default
+* `AAUSAT4`:
+  * `syncword_threshold`: `8` by default
+* `AISTECHSAT_2`:
+  * `syncword_threshold`: `4` by default
+* `AO40_FEC`:
+  * `syncword_threshold`: `8` by default
+  * `short_frames`: use short frames (used in SMOG-P) (bool), `false` by default
+  * `crc`: use CRC-16 ARC (used in SMOG-P) (bool), `false` by default
+* `AO40_UNCODED`:
+  * `syncword_threshold`: `3` by default
+* `ASTROCAST_FX25`:
+  * `syncword_threshold`: `8` by default
+  * `nrzi`: use NRZ-I instead of NRZ (bool), `true` by default
+* `AX100`:
+  * `mode`: mode to use ('RS' or 'ASM') (string) REQUIRED!
+  * `scrambler`: scrambler to use, either `CCSDS` or `none` (only for ASM mode) (str), `CCSDS` by default
+  * `syncword`: syncword to use (str), `10010011000010110101000111011110` by default
+  * `syncword_threshold`: `4` by default
+* `AX25`:
+  * `g3ruh_scrambler`: use G3RUH descrambling (boolean). REQUIRED!
+* `AX5043`
+* `BINAR1`:
+  * `syncword_threshold`: `0` by default
+* `CCSDS_CONCATENATED`:
+  * `frame_size`: frame size (not including parity check bytes) (int) `223` by default
+  * `precoding`: either `none` or `differential` for differential precoding (str) `none` by default
+  * `rs_en`: If Reed-Solomon should be enabled or not (bool) `true` by default
+  * `rs_basis`: Reed-Solomon basis, either `conventional` or `dual` (str) `dual` by default
+  * `rs_interleaving`: Reed-Solomon interleaving depth (int) `1` by default
+  * `scrambler`: scrambler to use, either `CCSDS` or `none` (str) `CCSDS` by default
+  * `convolutional`: convolutional code to use (str) `CCSDS` by default. One of the following:
+    * `CCSDS`
+    * `NASA-DSN`
+    * `CCSDS uninverted`
+    * `NASA-DSN uninverted`
+  * `syncword_threshold`: `4` by default
+* `CCSDS_RS`:
+  * `frame_size`: frame size (not including parity check bytes) (int) `223` by default
+  * `precoding`: either `none` or `differential` for differential precoding (str) `none` by default
+  * `rs_en`: If Reed-Solomon should be enabled or not (bool) `true` by default
+  * `rs_basis`: Reed-Solomon basis, either `conventional` or `dual` (str) `dual` by default
+  * `rs_interleaving`: Reed-Solomon interleaving depth (int) `1` by default
+  * `scrambler`: scrambler to use, either `CCSDS` or `none` (str) `CCSDS` by default
+  * `syncword_threshold`: `4` by default
+* `DIY1`
+* `ENDUROSAT`:
+  * `syncword_threshold`: `0` by default
+* `ESEO`:
+  * `syncword_threshold`: `0` by default
+* `FOSSASAT`:
+  * `syncword_threshold`: `0` by default
+* `GEOSCAN`:
+  * `syncword_threshold`: `4` by default
+* `GRIZU263A`:
+  * `syncword_threshold`: `8` by default
+* `HADES`:
+  * `syncword_threshold`: `0` by default
+* `HSU_SAT1`
+* `IDEASSAT`
+* `K2SAT`:
+  * `syncword_threshold`: `0` by default
+* `LILACSAT_1`:
+  * `syncword_threshold`: `4` by default
+* `LUCKY7`:
+  * `syncword_threshold`: `1` by default
+* ~~`MOBITEX`~~:
+  * ~~`nx`: use NX mode (bool) `false` by default~~
+* `NGHAM`:
+  * `decode_rs`: use Reed-Solomon decoding (bool) `false` by default
+  * `syncword_threshold`: `4` by default
+* `NUSAT`:
+  * `syncword_threshold`: `0` by default
+* `OPS_SAT`
+* `REAKTOR_HELLO_WORLD`:
+  * `syncword_threshold`: `4` by default
+  * `syncword`: `reaktor hello world` or `light-1` (str) `reaktor hello world` by default
+* `SANOSAT`:
+  * `syncword_threshold`: `0` by default
+* `SAT_3CAT_1`:
+  * `syncword_threshold`: `4` by default
+* `SMOGP_RA`:
+  * `frame_size`: size of the frame before FEC (int) REQUIRED!
+  * `variant`: variant of the protocol to use (`SMOG-P` (`0`), `SMOG-1` (`6`) or `MRC-100` (`4`)) (str) `SMOG-1` by default
+  * `syncword_threshold`: `-1` by default. Use `variant` defaults when <0
+* `SMOGP_SIGNALLING`:
+  * `new_protocol`: enable new protocol used in SMOG-1 (bool) `false` by default
+  * `syncword_threshold`: `8` by default
+* `SNET`:
+  * `buggy_crc`: use buggy CRC implementation of S-NET (bool) `true` by default
+  * `syncword_threshold`: `4` by default
+* `SPINO`:
+  * `syncword_threshold`: `0` by default
+* `SWIATOWID`:
+  * `syncword_threshold`: `0` by default
+* `TT64`:
+  * `syncword_threshold`: `1` by default
+* `U482C`:
+  * `syncword_threshold`: `4` by default
+* `UA01`
+* `USP`:
+  * `syncword_threshold`: `13` by default
+* `YUSAT`
 
 
 ### Map Shapes

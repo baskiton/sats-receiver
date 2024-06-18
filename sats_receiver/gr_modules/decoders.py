@@ -3,7 +3,7 @@ import logging
 import math
 import pathlib
 
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import dateutil.tz
 import ephem
@@ -36,14 +36,19 @@ class Decoder(gr.gr.hier_block2):
                  recorder: 'SatRecorder',
                  samp_rate: Union[int, float],
                  name: str,
-                 dtype: utils.Decode):
+                 dtype: utils.Decode,
+                 io_signatures: List = None):
         self.prefix = f'{self.__class__.__name__}: {recorder.satellite.name}'
         self.log = logging.getLogger(self.prefix)
 
+        if io_signatures is None:
+            io_signatures = [
+                gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
+                gr.gr.io_signature(0, 0, 0),
+            ]
         super(Decoder, self).__init__(
             name,
-            gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
-            gr.gr.io_signature(0, 0, 0)
+            *io_signatures,
         )
 
         self.now = dt.datetime.fromtimestamp(0)
@@ -631,3 +636,131 @@ class SatellitesDecoder(Decoder):
         log.info('finish %s files', f_cnt)
 
         return dtype, sat_name, observation_key, files
+
+
+# class _ProtoMsgDecoder(gr.gr.sync_block):
+#     def __init__(self, up: 'ProtoDecoder'):
+#         super().__init__(self.__class__.__name__, None, None)
+#         self.message_port_register_in(pmt.intern('in'))
+#         self.set_msg_handler(pmt.intern('in'), self.handle_msg)
+#         self.up = up
+#
+#     def handle_msg(self, msg):
+#         b = pmt.serialize_str(msg)
+
+
+class ProtoDecoder(Decoder):
+    deframer = {
+        utils.ProtoDeframer.AALTO1: satellites.components.deframers.aalto1_deframer,
+        utils.ProtoDeframer.AAUSAT4: satellites.components.deframers.aausat4_deframer,
+        utils.ProtoDeframer.AISTECHSAT_2: satellites.components.deframers.aistechsat_2_deframer,
+        utils.ProtoDeframer.AO40_FEC: satellites.components.deframers.ao40_fec_deframer,
+        utils.ProtoDeframer.AO40_UNCODED: satellites.components.deframers.ao40_uncoded_deframer,
+        utils.ProtoDeframer.ASTROCAST_FX25: satellites.components.deframers.astrocast_fx25_deframer,
+        utils.ProtoDeframer.AX100: satellites.components.deframers.ax100_deframer,
+        utils.ProtoDeframer.AX25: satellites.components.deframers.ax25_deframer,
+        utils.ProtoDeframer.AX5043: satellites.components.deframers.ax5043_deframer,
+        utils.ProtoDeframer.BINAR1: satellites.components.deframers.binar1_deframer,
+        utils.ProtoDeframer.CCSDS_CONCATENATED: satellites.components.deframers.ccsds_concatenated_deframer,
+        utils.ProtoDeframer.CCSDS_RS: satellites.components.deframers.ccsds_rs_deframer,
+        utils.ProtoDeframer.DIY1: satellites.components.deframers.diy1_deframer,
+        utils.ProtoDeframer.ENDUROSAT: satellites.components.deframers.endurosat_deframer,
+        utils.ProtoDeframer.ESEO: satellites.components.deframers.eseo_deframer,
+        utils.ProtoDeframer.FOSSASAT: satellites.components.deframers.fossasat_deframer,
+        utils.ProtoDeframer.GEOSCAN: satellites.components.deframers.geoscan_deframer,
+        utils.ProtoDeframer.GRIZU263A: satellites.components.deframers.grizu263a_deframer,
+        utils.ProtoDeframer.HADES: satellites.components.deframers.hades_deframer,
+        utils.ProtoDeframer.HSU_SAT1: satellites.components.deframers.hsu_sat1_deframer,
+        utils.ProtoDeframer.IDEASSAT: satellites.components.deframers.ideassat_deframer,
+        utils.ProtoDeframer.K2SAT: satellites.components.deframers.k2sat_deframer,
+        utils.ProtoDeframer.LILACSAT_1: satellites.components.deframers.lilacsat_1_deframer,
+        utils.ProtoDeframer.LUCKY7: satellites.components.deframers.lucky7_deframer,
+        # utils.ProtoDeframer.MOBITEX: satellites.components.deframers.mobitex_deframer,
+        utils.ProtoDeframer.NGHAM: satellites.components.deframers.ngham_deframer,
+        utils.ProtoDeframer.NUSAT: satellites.components.deframers.nusat_deframer,
+        utils.ProtoDeframer.OPS_SAT: satellites.components.deframers.ops_sat_deframer,
+        utils.ProtoDeframer.REAKTOR_HELLO_WORLD: satellites.components.deframers.reaktor_hello_world_deframer,
+        utils.ProtoDeframer.SANOSAT: satellites.components.deframers.sanosat_deframer,
+        utils.ProtoDeframer.SAT_3CAT_1: satellites.components.deframers.sat_3cat_1_deframer,
+        utils.ProtoDeframer.SMOGP_RA: satellites.components.deframers.smogp_ra_deframer,
+        utils.ProtoDeframer.SMOGP_SIGNALLING: satellites.components.deframers.smogp_signalling_deframer,
+        utils.ProtoDeframer.SNET: satellites.components.deframers.snet_deframer,
+        utils.ProtoDeframer.SPINO: satellites.components.deframers.spino_deframer,
+        utils.ProtoDeframer.SWIATOWID: satellites.components.deframers.swiatowid_deframer,
+        utils.ProtoDeframer.TT64: satellites.components.deframers.tt64_deframer,
+        utils.ProtoDeframer.U482C: satellites.components.deframers.u482c_deframer,
+        utils.ProtoDeframer.UA01: satellites.components.deframers.ua01_deframer,
+        utils.ProtoDeframer.USP: satellites.components.deframers.usp_deframer,
+        utils.ProtoDeframer.YUSAT: satellites.components.deframers.yusat_deframer,
+    }
+
+    def __init__(self,
+                 recorder: 'SatRecorder',
+                 channles: List[Union[int, float]]):
+
+        self.deftype = recorder.proto_deframer
+        name = self.deftype.value + ' Decoder'
+
+        chn = len(channles)
+        super(ProtoDecoder, self).__init__(
+            recorder,
+            max(channles),
+            name,
+            utils.Decode.PROTO,
+            [
+                gr.gr.io_signature(1, 1, gr.gr.sizeof_float)
+                if chn == 1
+                else gr.gr.io_signature.makev(chn, chn, [gr.gr.sizeof_float] * chn),
+                gr.gr.io_signature(0, 0, 0),
+            ],
+        )
+
+        self.base_kw['channles'] = channles
+        self.base_kw['deftype'] = self.deftype
+
+        self.deframers = []
+        self.out = satellites.components.datasinks.kiss_file_sink(str(self.tmp_file))
+        self.tmp_file.unlink(True)
+
+        defr = self.deframer[self.deftype]
+        opts = recorder.proto_options
+        for i, baud in enumerate(channles):
+            df = defr(**opts)
+            self.deframers.append(df)
+            self.connect((self, i), df)
+            self.msg_connect((df, 'out'), (self.out, 'in'))
+
+    def start(self):
+        super().start()
+        self.out.filesink.open(str(self.tmp_file))
+
+    def finalize(self):
+        self.out.filesink.do_update()
+        self.out.filesink.close()
+        self.recorder.satellite.executor.execute(self._proto_finalize, **self.base_kw)
+
+    @staticmethod
+    def _proto_finalize(log: logging.Logger,
+                        sat_name: str,
+                        subname: str,
+                        out_dir: pathlib.Path,
+                        dtype: utils.Decode,
+                        tmp_file: pathlib.Path,
+                        observation_key: str,
+                        deftype: utils.ProtoDeframer,
+                        **kw) -> tuple[utils.Decode, utils.ProtoDeframer, str, str, pathlib.Path, dt.datetime]:
+        log.debug('finalizing...')
+
+        st = tmp_file.stat()
+        d = dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f_{deftype.value}{subname}.kss'))
+        log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
+        if not st.st_size:
+            res_fn.unlink(True)
+            return utils.Decode.NONE,
+
+        return dtype, deftype, sat_name, observation_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+
+
+# needed for typehints
+# from sats_receiver.gr_modules.modules import SatRecorder

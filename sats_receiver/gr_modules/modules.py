@@ -89,6 +89,9 @@ class SatRecorder(gr.gr.hier_block2):
                         # 'channels',         # only for FSK, GFSK, GMSK
                         # 'deviation_factor', # only for FSK, GFSK, GMSK
 
+                        # 'proto_deframer',   # optional, only for PROTO
+                        # 'proto_options',    # optional, only for PROTO
+
                         # 'grs_file',         # optional, only for SATS decode
                         # 'grs_name',         # optional, only for SATS decode
                         # 'grs_norad',        # optional, only for SATS decode
@@ -112,6 +115,12 @@ class SatRecorder(gr.gr.hier_block2):
             and (config['mode'] != utils.Mode.RAW or config['decode'] == utils.Decode.SATS)
             # and (config['mode'] != utils.Mode.RAW or
             #      (config['decode'] != utils.Decode.SATS or (set(config.keys()) & {'grs_file', 'grs_name', 'grs_norad'})))
+            and (config.get('decode') != utils.Decode.PROTO
+                 or (config['mode'] in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK)
+                     and 'proto_deframer' in config
+                     and 'proto_options' in config
+                     )
+                 )
         )
 
     def __init__(self,
@@ -194,14 +203,14 @@ class SatRecorder(gr.gr.hier_block2):
                                                       self.qpsk_ntaps, self.qpsk_costas_bw, oqpsk)
             self.post_demod = None
 
-        elif self.mode == utils.Mode.FSK:
-            self.demodulator = demodulators.FskDemod(self.bandwidth, self.channels, self.deviation_factor)
-
-        elif self.mode == utils.Mode.GFSK:
-            self.demodulator = demodulators.GfskDemod(self.bandwidth, self.channels, self.deviation_factor)
-
-        elif self.mode == utils.Mode.GMSK:
-            self.demodulator = demodulators.GmskDemod(self.bandwidth, self.channels, self.deviation_factor)
+        elif self.mode in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK):
+            x = {
+                utils.Mode.FSK: demodulators.FskDemod,
+                utils.Mode.GFSK: demodulators.GfskDemod,
+                utils.Mode.GMSK: demodulators.GmskDemod,
+            }
+            self.demodulator = x[self.mode](self.bandwidth, self.channels, self.deviation_factor)
+            self.post_demod = None
 
         channels = getattr(self.demodulator, 'channels', (self.bandwidth,))
         self.decoders = []
@@ -228,6 +237,9 @@ class SatRecorder(gr.gr.hier_block2):
         elif self.decode == utils.Decode.SATS:
             cfg = dict(file=self.grs_file, name=self.grs_name, norad=self.grs_norad, tlm_decode=self.grs_tlm_decode)
             self.decoders.append(decoders.SatellitesDecoder(self, self.bandwidth, cfg, 1))
+
+        elif self.decode == utils.Decode.PROTO:
+            self.decoders.append(decoders.ProtoDecoder(self, self.channels))
 
         x = [self, self.radio]
         if self.demodulator:
@@ -328,6 +340,14 @@ class SatRecorder(gr.gr.hier_block2):
     @property
     def deviation_factor(self) -> Union[int, float]:
         return self.config.get('deviation_factor', 5)
+
+    @property
+    def proto_deframer(self) -> utils.ProtoDeframer:
+        return utils.ProtoDeframer(self.config['proto_deframer'])
+
+    @property
+    def proto_options(self) -> Mapping:
+        return self.config.get('proto_options', {})
 
     @property
     def grs_file(self) -> Optional[pathlib.Path]:
