@@ -12,7 +12,7 @@ from collections import namedtuple as nt
 from hashlib import sha256
 from test import support
 from typing import Union
-from unittest import TestCase
+from unittest import TestCase, skip
 
 import ephem
 import gnuradio as gr
@@ -23,7 +23,7 @@ import numpy as np
 
 from PIL import Image, ExifTags
 from sats_receiver import utils
-from sats_receiver.gr_modules.decoders import Decoder, AptDecoder, ProtoDecoder, SatellitesDecoder, SstvDecoder
+from sats_receiver.gr_modules.decoders import Decoder, AptDecoder, CcsdsConvConcatDecoder, ProtoDecoder, SatellitesDecoder, SstvDecoder
 from sats_receiver.gr_modules.demodulators import FskDemod
 from sats_receiver.gr_modules.epb.prober import Prober
 from sats_receiver.observer import Observer

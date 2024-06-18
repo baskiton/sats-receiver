@@ -3,10 +3,10 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.10
+  - python
   - pip
-  - pip:
-      - -r requirements.txt
   - coverage
   - gnuradio
   - gnuradio-satellites
+  - pip:
+      - -r requirements.txt

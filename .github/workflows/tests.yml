@@ -25,6 +25,7 @@ jobs:
       - name: Conda install
         uses: conda-incubator/setup-miniconda@v3
         with:
+          auto-update-conda: true
           auto-activate-base: false
           activate-environment: sats-receiver-test-venv
           channel-priority: strict
@@ -58,13 +59,14 @@ jobs:
             hashFiles('test-env.yml') }}-${{ env.CACHE_NUMBER }}
 
       - name: Update environment
-        run: conda env update -f test-env.yml
+        run: conda env update -n sats-receiver-test-venv -f test-env.yml
 
       - name: Prepare GNURadio
         run: |
           mkdir -p $HOME/.gnuradio/prefs
           chown -R $(id -u):$(id -g) $HOME/.gnuradio/
           echo "gr::vmcircbuf_sysv_shm_factory" > $HOME/.gnuradio/prefs/vmcircbuf_default_factory
+          conda list -n sats-receiver-test-venv
         shell: bash
 
       - name: Run tests and collect coverage
