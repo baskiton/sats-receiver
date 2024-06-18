@@ -109,18 +109,25 @@ class SatRecorder(gr.gr.hier_block2):
                         # 'raw_out_format',   # optional, only for RAW decode
                         # 'raw_out_subformat',# optional, only for RAW decode
                     ]))
-            and (config['mode'] != utils.Mode.QPSK or 'qpsk_baudrate' in config)
-            and (config['mode'] not in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK)
-                 or ('channels' in config and 'deviation_factor' in config))
-            and (config['mode'] != utils.Mode.RAW or config['decode'] == utils.Decode.SATS)
+            and (utils.Mode(config['mode']) != utils.Mode.QPSK or 'qpsk_baudrate' in config)
+            and (
+                    utils.Mode(config['mode']) not in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK)
+                    or (
+                            'channels' in config
+                            # and 'deviation_factor' in config
+                    )
+            )
+            # and (utils.Mode(config['mode']) != utils.Mode.RAW or utils.Decode(config.get('decode')) == utils.Decode.SATS)
             # and (config['mode'] != utils.Mode.RAW or
             #      (config['decode'] != utils.Decode.SATS or (set(config.keys()) & {'grs_file', 'grs_name', 'grs_norad'})))
-            and (config.get('decode') != utils.Decode.PROTO
-                 or (config['mode'] in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK)
-                     and 'proto_deframer' in config
-                     and 'proto_options' in config
-                     )
-                 )
+            and (
+                    utils.Decode(config.get('decode')) != utils.Decode.PROTO
+                    or (
+                            utils.Mode(config['mode']) in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK)
+                            and 'proto_deframer' in config
+                            # and 'proto_options' in config
+                    )
+            )
         )
 
     def __init__(self,
@@ -538,3 +545,14 @@ class Satellite(gr.gr.hier_block2):
     @recalc_event.setter
     def recalc_event(self, val: utils.Event):
         self.events[2] = val
+
+
+if __name__ == '__main__':
+    if not SatRecorder._validate_config({
+                            "enabled": True,
+                            "freq": 436500000,
+                            "bandwidth": 48000,
+                            "mode": "RAW",
+                            "decode": "RAW"
+    }):
+        raise ValueError
