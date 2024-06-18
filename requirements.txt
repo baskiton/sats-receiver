@@ -1,7 +1,8 @@
 construct
 ephem
+geographiclib
 matplotlib
-numpy
+numpy<2
 Pillow
 psutil
 pyshp
