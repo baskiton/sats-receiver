@@ -29,7 +29,6 @@ jobs:
           auto-activate-base: false
           activate-environment: sats-receiver-test-venv
           channel-priority: strict
-          use-only-tar-bz2: true # IMPORTANT: This needs to be set for caching to work properly!
 
       - name: Get Variables
         id: get-vars
