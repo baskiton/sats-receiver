@@ -96,7 +96,8 @@ class DecoderTopBlock(gr.gr.top_block):
                  decoder: Decoder,
                  executor: TestExecutor,
                  freq_shift=0,
-                 demod=None):
+                 demod=None,
+                 demod_channels=()):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
@@ -124,6 +125,8 @@ class DecoderTopBlock(gr.gr.top_block):
         if demod:
             modules.append(self.demod)
         self.connect(*modules, self.decoder)
+        for i in range(1, len(demod_channels)):
+            self.connect((self.demod, i), (self.decoder, i))
         self.connect(self.wav_src, self.prober)
 
     def start(self, max_noutput_items=10000000):
@@ -425,9 +428,9 @@ class TestDecoders(TestCase):
         wav_fp = FILES / 'orbicraft_tlm_4800@16000.wav'
         wav_samp_rate = 16000
 
-        chs = [4800,]
+        chs = [4800, 9600]
         decoder = ProtoDecoder(self.recorder, chs)
-        self.tb = DecoderTopBlock(2, wav_fp, decoder, self.executor, demod=FskDemod(wav_samp_rate, chs))
+        self.tb = DecoderTopBlock(2, wav_fp, decoder, self.executor, demod=FskDemod(wav_samp_rate, chs), demod_channels=chs)
         self.tb.start()
 
         while self.tb.prober.changes():

@@ -247,6 +247,8 @@ class SatRecorder(gr.gr.hier_block2):
 
         elif self.decode == utils.Decode.PROTO:
             self.decoders.append(decoders.ProtoDecoder(self, self.channels))
+            for i in range(1, len(channels)):
+                self.connect((self.demodulator, i), (self.decoders[0], i))
 
         x = [self, self.radio]
         if self.demodulator:
