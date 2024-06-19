@@ -310,7 +310,7 @@ class Waterfall:
     def __init__(self, in_fn, fft_size=4096, mode=WfMode.MEAN, end_timestamp=0):
         samp_rate, wav_arr = sp_wav.read(in_fn)
         if wav_arr.dtype != np.float32:
-            wav_arr = wav_arr.astype(np.float32)
+            wav_arr = wav_arr[:len(wav_arr) & -2].astype(np.float32)
         wav_arr = wav_arr.view(np.complex64).flatten()
 
         self.mode = mode

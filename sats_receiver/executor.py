@@ -100,6 +100,9 @@ class Executor(mp.Process):
                 elif decoder_type == utils.Decode.SATS:
                     _, sat_name, observation_key, files = x
 
+                elif decoder_type == utils.Decode.PROTO:
+                    _, deftype, sat_name, observation_key, res_filename, end_time = x
+
     def execute(self, fn, *args, **kwargs):
         if self.wr:
             self.wr.send((fn, args, kwargs))
