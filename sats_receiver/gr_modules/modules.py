@@ -111,16 +111,6 @@ class SatRecorder(gr.gr.hier_block2):
                     ]))
             and (utils.Mode(config['mode']) != utils.Mode.QPSK or 'qpsk_baudrate' in config)
             and (
-                    utils.Mode(config['mode']) not in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK)
-                    or (
-                            'channels' in config
-                            # and 'deviation_factor' in config
-                    )
-            )
-            # and (utils.Mode(config['mode']) != utils.Mode.RAW or utils.Decode(config.get('decode')) == utils.Decode.SATS)
-            # and (config['mode'] != utils.Mode.RAW or
-            #      (config['decode'] != utils.Decode.SATS or (set(config.keys()) & {'grs_file', 'grs_name', 'grs_norad'})))
-            and (
                     utils.Decode(config.get('decode')) != utils.Decode.PROTO
                     or (
                             utils.Mode(config['mode']) in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK)
@@ -246,7 +236,7 @@ class SatRecorder(gr.gr.hier_block2):
             self.decoders.append(decoders.SatellitesDecoder(self, self.bandwidth, cfg, 1))
 
         elif self.decode == utils.Decode.PROTO:
-            self.decoders.append(decoders.ProtoDecoder(self, self.channels))
+            self.decoders.append(decoders.ProtoDecoder(self, channels))
             for i in range(1, len(channels)):
                 self.connect((self.demodulator, i), (self.decoders[0], i))
 
@@ -344,7 +334,7 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def channels(self) -> list[Union[int, float]]:
-        return self.config['channels']
+        return self.config.get('channels')
 
     @property
     def deviation_factor(self) -> Union[int, float]:
