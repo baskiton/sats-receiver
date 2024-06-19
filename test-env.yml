@@ -6,7 +6,7 @@ dependencies:
   - python
   - pip
   - coverage
-  - gnuradio>=3.10.10
-  - gnuradio-satellites>=5.5
+  - gnuradio
+  - gnuradio-satellites
   - pip:
       - -r requirements.txt
