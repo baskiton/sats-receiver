@@ -198,6 +198,7 @@ Each frequency object contain:
 | quad_gain           | Number          | _Optional. Only for **QUAD**, **SSTV_QUAD** modes._ Quadrature demodulation gain. `1.0` by default                       |
 | raw_out_format      | String          | _Optional. Only for **RAW** decoder._ WAV output format. `WAV` by default                                                |
 | raw_out_subformat   | String          | _Optional. Only for **RAW** decoder._ WAV output subformat. `FLOAT` by default                                           |
+| raw_waterfall       | Object          | _Optional. Only for **RAW** decoder._ Write also waterfall. `none` by default                                            |
 | proto_deframer      | String          | _Optional. Only for **PROTO** decoder._ Name of the gr-satellites deframer. See [proto](#proto) for detail.              |
 | proto_options       | String          | _Optional. Only for **PROTO** decoder._ Deframer options. See [proto](#proto) for detail.                                |
 
@@ -219,6 +220,7 @@ Each frequency object contain:
 #### decoders
 * `RAW` Saved to 2-channel float32 WAV file with `bandwidth` sample rate. Other parameters:
   * `raw_out_format` WAV output format:
+    * `NONE` do no write
     * `WAV` default
     * `WAV64`
   * `raw_out_subformat` WAV output subformat:
@@ -228,6 +230,12 @@ Each frequency object contain:
     * `PCM_24`
     * `PCM_32`
     * `PCM_U8`
+  * `raw_waterfall` Create waterfall. Mapping with options (might be empty):
+    * `fft_size` FFT size (int) `4096` by default
+    * `mode` Waterfall mode:
+      * `MEAN` (default)
+      * `MAX_HOLD`
+      * `DECIMATION`
 * `CSOFT` Constellation Soft Decoder - 1-channel binary int8. Suitable for further processing, for example, in SatDump. _Only for constellation-mode._
 * `CCSDSCC` CCSDS Conv Concat Decoder - CADU data. Suitable for further processing, for example, in SatDump. _Only for constellation-mode._
 * `APT` Sats-Receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)

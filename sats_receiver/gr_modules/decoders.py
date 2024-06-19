@@ -70,7 +70,7 @@ class Decoder(gr.gr.hier_block2):
     def start(self):
         pfx = '_'.join([*self.name().lower().split(), self.t.strftime('%Y%m%d%H%M%S')])
         self.tmp_file = utils.mktmp(self.out_dir, pfx)
-        self.base_kw.update(tmp_file=self.tmp_file)
+        self.base_kw.update(tmp_file=self.tmp_file, start_dt=self.t)
 
     def finalize(self):
         pass
@@ -88,12 +88,19 @@ class RawDecoder(Decoder):
                  samp_rate: Union[int, float]):
         super(RawDecoder, self).__init__(recorder, samp_rate, 'Raw Decoder', utils.Decode.RAW)
 
+        out_fmt = recorder.raw_out_format
+        if recorder.raw_waterfall is not None:
+            if out_fmt == utils.RawOutFormat.NONE:
+                out_fmt = utils.RawOutFormat.WAV
+        self.base_kw['wf_cfg'] = recorder.raw_waterfall
+        self.base_kw['send_iq'] = out_fmt != utils.RawOutFormat.NONE
+
         self.ctf = gr.blocks.complex_to_float(1)
         self.wav_sink = gr.blocks.wavfile_sink(
             str(self.tmp_file),
             2,
             samp_rate,
-            recorder.raw_out_format.value,
+            out_fmt.value,
             recorder.raw_out_subformat.value,
             False
         )
@@ -121,18 +128,35 @@ class RawDecoder(Decoder):
                       dtype: utils.Decode,
                       tmp_file: pathlib.Path,
                       observation_key: str,
-                      **kw) -> tuple[utils.Decode, str, str, pathlib.Path, dt.datetime]:
+                      wf_cfg: dict,
+                      send_iq: bool,
+                      **kw) -> tuple[utils.Decode, str, str, dict[utils.RawFileType, pathlib.Path], dt.datetime]:
         log.debug('finalizing...')
 
-        d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
+        st = tmp_file.stat()
+        d = dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
         res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f{subname}_RAW.wav'))
-        st = res_fn.stat()
-        log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
-        if not st.st_size:
+        files = {}
+
+        if wf_cfg is not None:
+            wfp = res_fn.with_suffix('.wfc')
+            try:
+                wf = utils.Waterfall.from_wav(res_fn, end_timestamp=st.st_mtime, **wf_cfg)
+                files[utils.RawFileType.WFC] = wf.to_cfile(wfp)
+            except Exception as e:
+                log.warning('WF error: %s', e)
+                utils.unlink(wfp)
+
+        if send_iq or st.st_size:
+            files[utils.RawFileType.IQ] = res_fn
+        else:
             res_fn.unlink(True)
+
+        log.info('finish: %s (%s)', files, utils.numbi_disp(st.st_size))
+        if not files:
             return utils.Decode.NONE,
 
-        return dtype, sat_name, observation_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        return dtype, sat_name, observation_key, files, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
 
 
 class AptDecoder(Decoder):
@@ -360,9 +384,9 @@ class ConstelSoftDecoder(Decoder):
                                **kw) -> tuple[utils.Decode, str, str, pathlib.Path, dt.datetime]:
         log.debug('finalizing...')
 
-        d = dt.datetime.fromtimestamp(tmp_file.stat().st_mtime, dateutil.tz.tzutc())
+        st = tmp_file.stat()
+        d = dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
         res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f{subname}.{suff}'))
-        st = res_fn.stat()
         log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
         if not st.st_size:
             res_fn.unlink(True)

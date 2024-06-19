@@ -404,6 +404,10 @@ class SatRecorder(gr.gr.hier_block2):
     def raw_out_subformat(self) -> utils.RawOutSubFormat:
         return utils.RawOutSubFormat(self.config.get('raw_out_subformat', utils.RawOutSubFormat.FLOAT.value))
 
+    @property
+    def raw_waterfall(self) -> Mapping:
+        return self.config.get('raw_waterfall')
+
 
 class Satellite(gr.gr.hier_block2):
     @staticmethod

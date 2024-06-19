@@ -222,7 +222,17 @@ class Executor(mp.Process):
                 if decoder_type == utils.Decode.NONE:
                     continue
 
-                elif decoder_type in (utils.Decode.RAW, utils.Decode.CSOFT, utils.Decode.CCSDSCC, utils.Decode.APT):
+                elif decoder_type == utils.Decode.RAW:
+                    _, sat_name, observation_key, files, end_time = x
+                    for ty, fp in files.items():
+                        self.sender.push(decoder_type=dty,
+                                         file_type=ty.value,
+                                         sat_name=sat_name,
+                                         observation_key=observation_key,
+                                         filename=str(fp),
+                                         end_time=str(end_time))
+
+                elif decoder_type in (utils.Decode.CSOFT, utils.Decode.CCSDSCC, utils.Decode.APT):
                     _, sat_name, observation_key, res_filename, end_time = x
                     self.sender.push(decoder_type=dty,
                                      sat_name=sat_name,

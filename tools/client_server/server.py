@@ -23,7 +23,7 @@ import numpy as np
 from PIL import Image
 from sats_receiver.async_signal import AsyncSignal
 from sats_receiver.systems.apt import Apt
-from sats_receiver.utils import Decode, MapShapes, numbi_disp, close, Waterfall, WfMode
+from sats_receiver.utils import Decode, MapShapes, numbi_disp, close, Waterfall, WfMode, RawFileType
 
 
 SRV_HDR = struct.Struct('!4sBI')    # SREC, ver, sz
@@ -169,8 +169,16 @@ class Worker(mp.Process):
             elif dtype == Decode.RAW:
                 self.log.info('Draw Waterfall')
                 try:
-                    wf = Waterfall(fp, end_timestamp=dt.datetime.fromisoformat(params['end_time']).timestamp())
-                    wf.plot(fp.with_stem(fp.stem + '_wf').with_suffix('.png'), -110, -50)
+                    ftype = RawFileType(params['file_type'])
+                    if ftype == RawFileType.IQ:
+                        wf = Waterfall.from_wav(fp, end_timestamp=dt.datetime.fromisoformat(params['end_time']).timestamp())
+                    elif ftype == RawFileType.WFC:
+                        wf = Waterfall.from_cfile(fp)
+                    else:   # unreachable
+                        self.log.warning('Unknown filetype: %s', ftype)
+                        wf = 0
+                    if wf:
+                        wf.plot(fp.with_stem(f'{fp.stem}_{ftype.value}_wf').with_suffix('.png'))#, -110, -50)
                 except:
                     self.log.exception('waterfall')
 
