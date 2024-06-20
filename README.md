@@ -220,7 +220,7 @@ Each frequency object contain:
 #### decoders
 * `RAW` Saved to 2-channel float32 WAV file with `bandwidth` sample rate. Other parameters:
   * `raw_out_format` WAV output format:
-    * `NONE`|`none` do no write
+    * `NONE` do no write
     * `WAV` default
     * `WAV64`
   * `raw_out_subformat` WAV output subformat:

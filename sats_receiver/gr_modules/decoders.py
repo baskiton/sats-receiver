@@ -89,11 +89,10 @@ class RawDecoder(Decoder):
         super(RawDecoder, self).__init__(recorder, samp_rate, 'Raw Decoder', utils.Decode.RAW)
 
         out_fmt = recorder.raw_out_format
-        if recorder.raw_waterfall is not None:
-            if out_fmt == utils.RawOutFormat.NONE:
-                out_fmt = utils.RawOutFormat.WAV
         self.base_kw['wf_cfg'] = recorder.raw_waterfall
         self.base_kw['send_iq'] = out_fmt != utils.RawOutFormat.NONE
+        if out_fmt == utils.RawOutFormat.NONE:
+            out_fmt = utils.RawOutFormat.WAV
 
         self.ctf = gr.blocks.complex_to_float(1)
         self.wav_sink = gr.blocks.wavfile_sink(
@@ -147,7 +146,7 @@ class RawDecoder(Decoder):
                 log.warning('WF error: %s', e)
                 utils.unlink(wfp)
 
-        if send_iq or st.st_size:
+        if send_iq and st.st_size:
             files[utils.RawFileType.IQ] = res_fn
         else:
             res_fn.unlink(True)

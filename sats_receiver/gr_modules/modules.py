@@ -398,18 +398,13 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def raw_out_format(self) -> utils.RawOutFormat:
-        fmt = self.config.get('raw_out_format')
-        if not fmt:
-            fmt = utils.RawOutFormat.WAV
-        else:
-            d = {
-                None: utils.RawOutFormat.NONE,
-                'NONE': utils.RawOutFormat.NONE,
-                'WAV': utils.RawOutFormat.WAV,
-                'WAV64': utils.RawOutFormat.WAV64,
-            }
-            fmt = d[fmt]
-        return fmt
+        d = {
+            None: utils.RawOutFormat.WAV,
+            'NONE': utils.RawOutFormat.NONE,
+            'WAV': utils.RawOutFormat.WAV,
+            'WAV64': utils.RawOutFormat.WAV64,
+        }
+        return d[self.config.get('raw_out_format')]
 
     @property
     def raw_out_subformat(self) -> utils.RawOutSubFormat:
