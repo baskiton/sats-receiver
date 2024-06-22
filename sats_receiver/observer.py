@@ -1,4 +1,5 @@
 import datetime as dt
+import http.client
 import json
 import logging
 import urllib.error
@@ -119,7 +120,7 @@ class Observer:
                     msg = f'{msg}:\n"{e.url}"'
                 self.log.error('%s', msg)
             return
-        except urllib.error.URLError as e:
+        except (ConnectionError, http.client.error, urllib.error.URLError) as e:
             if t >= self.t_err:
                 self.t_err = t + self.td_err
                 self.td_err *= 2

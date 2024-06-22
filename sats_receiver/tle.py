@@ -1,4 +1,5 @@
 import datetime as dt
+import http.client
 import logging
 import pathlib
 import shutil
@@ -108,7 +109,7 @@ class Tle:
                     msg = f'{msg}: "{e.url}"'
                 self.log.error('%s', msg)
             return
-        except (urllib.error.URLError, ValueError) as e:
+        except (ConnectionError, http.client.error, urllib.error.URLError, ValueError) as e:
             if t >= self.t_err:
                 self.t_err = t + self.td_err
                 self.td_err *= 2
