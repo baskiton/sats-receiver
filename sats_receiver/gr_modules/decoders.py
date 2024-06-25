@@ -85,12 +85,13 @@ class Decoder(gr.gr.hier_block2):
 class RawDecoder(Decoder):
     def __init__(self,
                  recorder: 'SatRecorder',
-                 samp_rate: Union[int, float]):
+                 samp_rate: Union[int, float],
+                 force_nosend_iq=False):
         super(RawDecoder, self).__init__(recorder, samp_rate, 'Raw Decoder', utils.Decode.RAW)
 
         out_fmt = recorder.raw_out_format
-        self.base_kw['wf_cfg'] = recorder.raw_waterfall
-        self.base_kw['send_iq'] = out_fmt != utils.RawOutFormat.NONE
+        self.base_kw['wf_cfg'] = recorder.iq_waterfall
+        self.base_kw['send_iq'] = not force_nosend_iq and out_fmt != utils.RawOutFormat.NONE
         if out_fmt == utils.RawOutFormat.NONE:
             out_fmt = utils.RawOutFormat.WAV
 

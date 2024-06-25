@@ -176,6 +176,7 @@ Each frequency object contain:
 | freq_correction     | Boolean         | _Optional._ Correction for basic frequency, Hz. `0` by default                                                           |
 | mode                | String          | _Optional._ Modulation option (see [modulations](#modulations)). `RAW` by default                                        |
 | decode              | String          | _Optional._ Decoder option (see [decoders](#decoders)). `RAW` by default                                                 |
+| iq_waterfall        | Object          | _Optional._ Write also IQ waterfall for bandwidth. `none` by default. See below for object info                          |
 | channels            | Array of Number | _Required only for **FSK**, **GFSK**, **GMSK** mode._ Demodulation baudrates, bps. `[1200, 2400, 4800, 9600]` by default |
 | deviation_factor    | Number          | _Required only for **FSK**, **GFSK**, **GMSK** mode._ Deviation frequency factor (baudrate / factor), `5` by default     |
 | grs_file            | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                   |
@@ -198,10 +199,15 @@ Each frequency object contain:
 | quad_gain           | Number          | _Optional. Only for **QUAD**, **SSTV_QUAD** modes._ Quadrature demodulation gain. `1.0` by default                       |
 | raw_out_format      | String          | _Optional. Only for **RAW** decoder._ WAV output format. `WAV` by default                                                |
 | raw_out_subformat   | String          | _Optional. Only for **RAW** decoder._ WAV output subformat. `FLOAT` by default                                           |
-| raw_waterfall       | Object          | _Optional. Only for **RAW** decoder._ Write also waterfall. `none` by default                                            |
 | proto_deframer      | String          | _Optional. Only for **PROTO** decoder._ Name of the gr-satellites deframer. See [proto](#proto) for detail.              |
 | proto_options       | String          | _Optional. Only for **PROTO** decoder._ Deframer options. See [proto](#proto) for detail.                                |
 
+* `iq_waterfall` Create waterfall. Mapping with options (might be empty):
+  * `fft_size` FFT size (int) `4096` by default
+  * `mode` Waterfall mode:
+    * `MEAN` (default)
+    * `MAX_HOLD`
+    * `DECIMATION`
 
 #### modulations
 * `RAW`
@@ -230,12 +236,6 @@ Each frequency object contain:
     * `PCM_24`
     * `PCM_32`
     * `PCM_U8`
-  * `raw_waterfall` Create waterfall. Mapping with options (might be empty):
-    * `fft_size` FFT size (int) `4096` by default
-    * `mode` Waterfall mode:
-      * `MEAN` (default)
-      * `MAX_HOLD`
-      * `DECIMATION`
 * `CSOFT` Constellation Soft Decoder - 1-channel binary int8. Suitable for further processing, for example, in SatDump. _Only for constellation-mode._
 * `CCSDSCC` CCSDS Conv Concat Decoder - CADU data. Suitable for further processing, for example, in SatDump. _Only for constellation-mode._
 * `APT` Sats-Receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)
