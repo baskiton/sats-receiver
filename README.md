@@ -136,19 +136,21 @@ location of your choice and edit it.
 #### receivers
 Each receiver object contain:
 
-| Field            | Type            | Description                                                                                                                                        |
-|:-----------------|:----------------|:---------------------------------------------------------------------------------------------------------------------------------------------------|
-| name             | String          | Name of the Receiver                                                                                                                               |
-| source           | String          | String value for gr-soapy driver key, e.g. `rtlsdr`, `lime`, `uhd`, `remote`                                                                       |
-| tune             | Number          | Receiver tune frequency, Hz                                                                                                                        |
-| samp_rate        | Number          | Receiver sample rate, Hz                                                                                                                           |
-| output_directory | String          | Directory to save received files. You also might specify `~` symbol to specify User home directory                                                 |
-| sats             | Array of Object | List of Satellites configurations (see [sats](#sats))                                                                                              |
-| enabled          | Boolean         | _Optional._ Enable or Disable this Receiver. `true` by default                                                                                     |
-| serial           | String          | _Optional._ Serial number of the receiver. Empty by default                                                                                        |
-| biast            | Boolean         | _Optional._ Bias-T enable/disable. `false` by default. **WARNING! Be careful when enabling this option! Use only if you know what it is and why!** |
-| gain             | Boolean         | _Optional._ Receiver gain, dB. `0` by default                                                                                                      |
-| freq_correction  | Number          | _Optional._ Receiver frequency correction, PPM. `0.0` by default                                                                                   |
+| Field              | Type            | Description                                                                                                                                        |
+|:-------------------|:----------------|:---------------------------------------------------------------------------------------------------------------------------------------------------|
+| name               | String          | Name of the Receiver                                                                                                                               |
+| source             | String          | String value for gr-soapy driver key, e.g. `rtlsdr`, `lime`, `uhd`, `remote`                                                                       |
+| tune               | Number          | Receiver tune frequency, Hz                                                                                                                        |
+| samp_rate          | Number          | Receiver sample rate, Hz                                                                                                                           |
+| output_directory   | String          | Directory to save received files. You also might specify `~` symbol to specify User home directory                                                 |
+| sats               | Array of Object | List of Satellites configurations (see [sats](#sats))                                                                                              |
+| decim_power        | Integer         | _Optional._ Power (for 2) sample rate decimation. `0` by default                                                                                   |
+| enabled            | Boolean         | _Optional._ Enable or Disable this Receiver. `true` by default                                                                                     |
+| serial             | String          | _Optional._ Serial number of the receiver. Empty by default                                                                                        |
+| biast              | Boolean         | _Optional._ Bias-T enable/disable. `false` by default. **WARNING! Be careful when enabling this option! Use only if you know what it is and why!** |
+| gain               | Boolean         | _Optional._ Receiver gain, dB. `0` by default                                                                                                      |
+| freq_correction    | Number          | _Optional._ Receiver frequency correction, PPM. `0.0` by default                                                                                   |
+| freq_correction_hz | Integer         | _Optional._ Receiver frequency correction, Hz. `0` by default                                                                                      |
 
 
 #### sats

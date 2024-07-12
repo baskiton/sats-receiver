@@ -8,6 +8,7 @@ from typing import Mapping, Union
 
 import gnuradio as gr
 import gnuradio.blocks
+import gnuradio.filter
 import gnuradio.gr
 import gnuradio.soapy
 
@@ -38,6 +39,10 @@ class SatsReceiver(gr.gr.top_block):
         self.ltz = dateutil.tz.tzlocal()
 
         self.signal_src = gr.blocks.null_source(gr.gr.sizeof_gr_complex)
+        if self.decimation > 1:
+            self.decim = gr.blocks.nop(gr.gr.sizeof_gr_complex)
+        else:
+            self.decim = gr.filter.rational_resampler_ccc(interpolation=1, decimation=self.decimation, taps=[])
         self.blocks_correctiq = gr.blocks.correctiq()
         self.src_null_sink = gr.blocks.null_sink(gr.gr.sizeof_gr_complex)
 
@@ -148,6 +153,7 @@ class SatsReceiver(gr.gr.top_block):
             # 'serial',   # optional
             # 'biast',    # optional
             # 'gain',     # optional
+            # 'decimation', # optional
             'tune',
             'samp_rate',
             'output_directory',
@@ -188,15 +194,23 @@ class SatsReceiver(gr.gr.top_block):
         Receiver tune frequency, Hz
         """
 
-        return self.config['tune']
+        return self.config['tune'] + self.freq_correction_hz
 
     @property
     def freq_correction(self) -> Union[int, float]:
         """
-        Receiver frequency correction
+        Receiver frequency correction, PPM
         """
 
         return self.config.get('freq_correction', 0.0)
+
+    @property
+    def freq_correction_hz(self) -> int:
+        """
+        Receiver frequency correction, Hz
+        """
+
+        return self.config.get('freq_correction_hz', 0)
 
     @property
     def samp_rate(self) -> Union[int, float]:
@@ -204,7 +218,26 @@ class SatsReceiver(gr.gr.top_block):
         Receiver samplerate, Hz
         """
 
+        return self.config['samp_rate'] // self.decimation
+
+    @property
+    def src_samp_rate(self) -> Union[int, float]:
+        """
+        Source samplerate, Hz
+        """
+
         return self.config['samp_rate']
+
+    @property
+    def decim_power(self) -> int:
+        """
+        Input stream decimation power
+        """
+        return self.config.get('decim_power')
+
+    @property
+    def decimation(self) -> int:
+        return 1 << (self.decim_power or 0)
 
     @property
     def output_directory(self) -> pathlib.Path:
@@ -250,6 +283,7 @@ class SatsReceiver(gr.gr.top_block):
 
             self.connect(
                 self.signal_src,
+                self.decim,
                 self.blocks_correctiq,
                 self.src_null_sink,
             )
@@ -273,6 +307,7 @@ class SatsReceiver(gr.gr.top_block):
 
             self.disconnect(
                 self.signal_src,
+                self.decim,
                 self.blocks_correctiq,
                 self.src_null_sink,
             )
@@ -355,9 +390,10 @@ class SatsReceiver(gr.gr.top_block):
                     self.log.warning('change bias-t error: %s', e)
 
     def soapy_apply(self, ch=0):
-        self.signal_src.set_sample_rate(ch, self.samp_rate)
+        self.signal_src.set_sample_rate(ch, self.src_samp_rate)
         self.signal_src.set_frequency(ch, self.tune)
-        self.signal_src.set_frequency_correction(ch, self.freq_correction)
+        if self.signal_src.has_frequency_correction(ch):
+            self.signal_src.set_frequency_correction(ch, self.freq_correction)
         self.signal_src.set_gain_mode(ch, False)
         self.signal_src.set_gain(ch, self.gain)
         self.set_biast(self.biast)
