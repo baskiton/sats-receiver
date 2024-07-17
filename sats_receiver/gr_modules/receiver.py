@@ -194,7 +194,7 @@ class SatsReceiver(gr.gr.top_block):
         Receiver tune frequency, Hz
         """
 
-        return self.config['tune'] + self.freq_correction_hz
+        return self.config['tune']
 
     @property
     def freq_correction(self) -> Union[int, float]:
@@ -391,7 +391,7 @@ class SatsReceiver(gr.gr.top_block):
 
     def soapy_apply(self, ch=0):
         self.signal_src.set_sample_rate(ch, self.src_samp_rate)
-        self.signal_src.set_frequency(ch, self.tune)
+        self.signal_src.set_frequency(ch, self.tune + self.freq_correction_hz)
         if self.signal_src.has_frequency_correction(ch):
             self.signal_src.set_frequency_correction(ch, self.freq_correction)
         self.signal_src.set_gain_mode(ch, False)
