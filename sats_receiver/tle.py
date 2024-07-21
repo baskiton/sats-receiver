@@ -139,13 +139,14 @@ class Tle:
             self.tle_file = pathlib.Path(TLEDIR / fn)
             if self.tle_file.is_file():
                 self.last_update_tle = dt.datetime.fromtimestamp(self.tle_file.stat().st_mtime, dt.timezone.utc)
+                self.t_next = self.last_update_tle + dt.timedelta(days=self.update_period)
             else:
                 if self.tle_file.is_dir():
                     shutil.rmtree(self.tle_file, True)
                 else:
                     self.tle_file.unlink(True)
                 self.tle_file.touch()
-                self.last_update_tle = dt.datetime.fromtimestamp(0, dt.timezone.utc)
+                self.t_next = self.last_update_tle = dt.datetime.fromtimestamp(0, dt.timezone.utc)
 
             self.fill_objects(self.tle_file, dt.datetime.now(dt.timezone.utc))
 
