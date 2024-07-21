@@ -734,3 +734,33 @@ def img_add_exif(img: Image.Image,
 _HPA_MMHG_CONST = 760 / 101325
 def hpa_to_mmhg(hpa: float):
     return _HPA_MMHG_CONST * hpa * 100
+
+
+def tle_calc_checksum(full_line: str):
+    checksum = 0
+    for c in full_line[:-1]:
+        if c.isnumeric():
+            checksum += int(c)
+        elif c == '-':
+            checksum += 1
+    return str(checksum)[-1]
+
+
+def tle_generate(name, l1, l2, ignore_checksum=0, log=None):
+    for i in range(2):
+        try:
+            return ephem.readtle(name, l1, l2), (name, l1, l2)
+        except ValueError as e:
+            if str(e).startswith('incorrect TLE checksum'):
+                cs1, cs2 = tle_calc_checksum(l1), tle_calc_checksum(l2)
+                if log:
+                    log.warning('%s: for `%s` expect %s:%s, got %s:%s%s',
+                                e, name,
+                                cs1, cs2, l1[-1], l2[-1],
+                                ignore_checksum and '. Ignore' or '')
+                if not ignore_checksum:
+                    break
+                l1 = l1[:-1] + cs1
+                l2 = l2[:-1] + cs2
+            else:
+                raise e

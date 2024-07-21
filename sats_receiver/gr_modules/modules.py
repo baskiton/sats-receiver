@@ -529,6 +529,10 @@ class Satellite(gr.gr.hier_block2):
         return self.config.get('doppler', True)
 
     @property
+    def tle_strings(self) -> Optional[list[str, str]]:
+        return self.config.get('tle_strings')
+
+    @property
     def start_event(self) -> utils.Event:
         return self.events[0]
 

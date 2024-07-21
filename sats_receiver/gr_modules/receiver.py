@@ -13,7 +13,7 @@ import gnuradio.gr
 import gnuradio.soapy
 
 from sats_receiver.gr_modules import modules
-from sats_receiver.utils import num_disp
+from sats_receiver import utils
 
 
 class RecUpdState(enum.IntEnum):
@@ -258,7 +258,8 @@ class SatsReceiver(gr.gr.top_block):
     def start(self, max_noutput_items=10000000):
         if self.enabled and not self.is_runned:
             self.log.info('START tune=%sHz samp_rate=%sHz gain=%s biast=%s',
-                          num_disp(self.tune, 3), num_disp(self.samp_rate, 3), self.gain, self.biast)
+                          utils.num_disp(self.tune, 3), utils.num_disp(self.samp_rate, 3),
+                          self.gain, self.biast)
 
             try:
                 self.signal_src = gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
@@ -338,7 +339,14 @@ class SatsReceiver(gr.gr.top_block):
         :return: True when calculate success
         """
 
-        x = self.up.tle.get_ephem(sat.name)
+        x = 0
+        s = sat.tle_strings
+        if s and len(s) >= 2:
+            x = utils.tle_generate(sat.name, s[0], s[1], 1, self.log)
+            x = x and x[0]
+        if not x:
+            x = self.up.tle.get_ephem(sat.name)
+
         if x:
             t = self.up.now
             tt = t + dt.timedelta(hours=24)

@@ -163,6 +163,7 @@ Each satellite object contain:
 | enabled       | Boolean         | _Optional._ Enable/Disable this frequency. `true` by default                                               |
 | min_elevation | Number          | _Optional._ Elevation angle above the horizon, degrees. `0` by default. Negative number is equivalent to 0 |
 | doppler       | Boolean         | _Optional._ Enable/Disable doppler correction. `true` by default                                           |
+| tle_strings   | 2-String Array  | _Optional._ Specific TLE strings. `null` by default                                                        |
 
 
 #### frequencies

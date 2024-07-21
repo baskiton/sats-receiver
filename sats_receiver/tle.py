@@ -11,7 +11,7 @@ from typing import Mapping, Optional, Union
 
 import ephem
 
-from sats_receiver import TLEDIR
+from sats_receiver import TLEDIR, utils
 
 
 class Tle:
@@ -32,16 +32,6 @@ class Tle:
             raise ValueError(f'{self.prefix}: Invalid config!')
 
         self.t_next = self.last_update_tle + dt.timedelta(days=self.update_period)
-
-    @staticmethod
-    def calc_checksum(full_line: str):
-        checksum = 0
-        for c in full_line[:-1]:
-            if c.isnumeric():
-                checksum += int(c)
-            elif c == '-':
-                checksum += 1
-        return str(checksum)[-1]
 
     def fill_objects(self, tle_f: pathlib.Path, t: dt.datetime):
         if tle_f is None:
@@ -72,23 +62,9 @@ class Tle:
                 l1 = line.rstrip()
                 l2 = f.readline().rstrip()
                 for name in names:
-                    for i in range(2):
-                        try:
-                            objects[name] = ephem.readtle(str(name), l1, l2), (str(name), l1, l2)
-                            break
-                        except ValueError as e:
-                            if str(e).startswith('incorrect TLE checksum'):
-                                cs1, cs2 = self.calc_checksum(l1), self.calc_checksum(l2)
-                                self.log.warning('%s: for `%s` expect %s:%s, got %s:%s%s',
-                                                 e, name,
-                                                 cs1, cs2, l1[-1], l2[-1],
-                                                 self.ignore_checksum and '. Ignore' or '')
-                                if not self.ignore_checksum:
-                                    break
-                                l1 = l1[:-1] + cs1
-                                l2 = l2[:-1] + cs2
-                            else:
-                                raise e
+                    x = utils.tle_generate(str(name), l1, l2, self.ignore_checksum, self.log)
+                    if x:
+                        objects[name] = x
 
         self.objects = objects
         shutil.move(tle_f, self.tle_file)
