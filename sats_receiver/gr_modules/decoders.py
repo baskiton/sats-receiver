@@ -90,10 +90,12 @@ class RawDecoder(Decoder):
         super(RawDecoder, self).__init__(recorder, samp_rate, 'Raw Decoder', utils.Decode.RAW)
 
         out_fmt = recorder.raw_out_format
+        out_subfmt = recorder.raw_out_subformat
         self.base_kw['wf_cfg'] = recorder.iq_waterfall
         self.base_kw['send_iq'] = not force_nosend_iq and out_fmt != utils.RawOutFormat.NONE
         if out_fmt == utils.RawOutFormat.NONE:
             out_fmt = utils.RawOutFormat.WAV
+            out_subfmt = utils.RawOutDefaultSub.WAV
 
         self.ctf = gr.blocks.complex_to_float(1)
         self.wav_sink = gr.blocks.wavfile_sink(
@@ -101,7 +103,7 @@ class RawDecoder(Decoder):
             2,
             samp_rate,
             out_fmt.value,
-            recorder.raw_out_subformat.value,
+            out_subfmt.value,
             False
         )
         self.wav_sink.close()
@@ -321,14 +323,14 @@ class AptDecoder(Decoder):
 
 class ConstelSoftDecoder(Decoder):
     CONSTELLS = {
-        '16QAM': gr.digital.constellation_16qam,
-        '8PSK': gr.digital.constellation_8psk,
-        '8PSK_NATURAL': gr.digital.constellation_8psk_natural,
-        'BPSK': gr.digital.constellation_bpsk,
-        'DQPSK': gr.digital.constellation_dqpsk,
-        'PSK': gr.digital.constellation_psk,
-        'QPSK': gr.digital.constellation_qpsk,
-        'OQPSK': gr.digital.constellation_qpsk,
+        # '16QAM': gr.digital.constellation_16qam,
+        # '8PSK': gr.digital.constellation_8psk,
+        # '8PSK_NATURAL': gr.digital.constellation_8psk_natural,
+        # 'BPSK': gr.digital.constellation_bpsk,
+        # 'DQPSK': gr.digital.constellation_dqpsk,
+        # 'PSK': gr.digital.constellation_psk,
+        utils.Mode.QPSK: gr.digital.constellation_qpsk,
+        utils.Mode.OQPSK: gr.digital.constellation_qpsk,
     }
 
     def __init__(self,
@@ -340,7 +342,7 @@ class ConstelSoftDecoder(Decoder):
         self.base_kw['suff'] = 's'
 
         self.constell_mode = recorder.mode
-        self.constellation = self.CONSTELLS[self.constell_mode.value]().base()
+        self.constellation = self.CONSTELLS[self.constell_mode]().base()
         self.constellation.gen_soft_dec_lut(8)
         self.constel_soft_decoder = gr.digital.constellation_soft_decoder_cf(self.constellation)
         self.rail = gr.analog.rail_ff(-1, 1)
@@ -402,7 +404,7 @@ class CcsdsConvConcatDecoder(ConstelSoftDecoder):
         super().__init__(recorder, samp_rate, 'CCSDS Conv Concat Decoder', utils.Decode.CCSDSCC)
         self.base_kw['suff'] = 'cadu'
 
-        is_qpsk = self.constell_mode.value.endswith('QPSK')
+        is_qpsk = self.constell_mode.name.endswith('QPSK')
         frame_size = recorder.ccc_frame_size or 892
         pre_deint = recorder.ccc_pre_deint
         diff = recorder.ccc_diff and 'differential' or None
@@ -723,7 +725,7 @@ class ProtoDecoder(Decoder):
                  channles: List[Union[int, float]]):
 
         self.deftype = recorder.proto_deframer
-        name = self.deftype.value + ' Decoder'
+        name = self.deftype.name + ' Decoder'
 
         chn = len(channles)
         super(ProtoDecoder, self).__init__(
@@ -777,7 +779,7 @@ class ProtoDecoder(Decoder):
 
         st = tmp_file.stat()
         d = dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
-        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f_{deftype.value}{subname}.kss'))
+        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f_{deftype.name}{subname}.kss'))
         log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
         if not st.st_size:
             res_fn.unlink(True)

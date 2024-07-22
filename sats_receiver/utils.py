@@ -38,83 +38,85 @@ plt.set_loglevel('info')
 THIRD_PI = math.pi / 3
 
 
-class Mode(enum.Enum):
-    RAW = 'RAW'
-    AM = 'AM'
-    FM = 'FM'
-    WFM = 'WFM'
-    WFM_STEREO = 'WFM_STEREO'
-    QUAD = 'QUAD'
-    SSTV_QUAD = 'SSTV_QUAD'
-    QPSK = 'QPSK'
-    OQPSK = 'OQPSK'
-    GMSK = 'GMSK'
-    GFSK = 'GFSK'
-    FSK = 'FSK'
-    # AFSK = 'AFSK'
-    # BPSK = 'BPSK'
+
+class Mode(enum.StrEnum):
+    RAW = enum.auto()
+    AM = enum.auto()
+    FM = enum.auto()
+    WFM = enum.auto()
+    WFM_STEREO = enum.auto()
+    QUAD = enum.auto()
+    SSTV_QUAD = enum.auto()
+    QPSK = enum.auto()
+    OQPSK = enum.auto()
+    GMSK = enum.auto()
+    GFSK = enum.auto()
+    FSK = enum.auto()
+    # AFSK = enum.auto()
+    # BPSK = enum.auto()
 
 
-class Decode(enum.Enum):
-    NONE = 'NONE'
-    RAW = 'RAW'
-    CSOFT = 'CSOFT'
-    CCSDSCC = 'CCSDSCC'
-    APT = 'APT'
-    LRPT = 'LRPT'
-    SSTV = 'SSTV'
-    SATS = 'SATS'
-    PROTO = 'PROTO'
+class Decode(enum.StrEnum):
+    NONE = enum.auto()
+    RAW = enum.auto()
+    CSOFT = enum.auto()
+    CCSDSCC = enum.auto()
+    APT = enum.auto()
+    LRPT = enum.auto()
+    SSTV = enum.auto()
+    SATS = enum.auto()
+    PROTO = enum.auto()
 
 
-class ProtoDeframer(enum.Enum):
-    AALTO1 = 'AALTO1'
-    AAUSAT4 = 'AAUSAT4'
-    AISTECHSAT_2 = 'AISTECHSAT_2'
-    AO40_FEC = 'AO40_FEC'
-    AO40_UNCODED = 'AO40_UNCODED'
-    ASTROCAST_FX25 = 'ASTROCAST_FX25'
-    AX100 = 'AX100'
-    AX25 = 'AX25'
-    AX5043 = 'AX5043'
-    BINAR1 = 'BINAR1'
-    CCSDS_CONCATENATED = 'CCSDS_CONCATENATED'
-    CCSDS_RS = 'CCSDS_RS'
-    DIY1 = 'DIY1'
-    ENDUROSAT = 'ENDUROSAT'
-    ESEO = 'ESEO'
-    FOSSASAT = 'FOSSASAT'
-    GEOSCAN = 'GEOSCAN'
-    GRIZU263A = 'GRIZU263A'
-    HADES = 'HADES'
-    HSU_SAT1 = 'HSU_SAT1'
-    IDEASSAT = 'IDEASSAT'
-    K2SAT = 'K2SAT'
-    LILACSAT_1 = 'LILACSAT_1'
-    LUCKY7 = 'LUCKY7'
-    # MOBITEX = 'MOBITEX'
-    NGHAM = 'NGHAM'
-    NUSAT = 'NUSAT'
-    OPS_SAT = 'OPS_SAT'
-    REAKTOR_HELLO_WORLD = 'REAKTOR_HELLO_WORLD'
-    SANOSAT = 'SANOSAT'
-    SAT_3CAT_1 = 'SAT_3CAT_1'
-    SMOGP_RA = 'SMOGP_RA'
-    SMOGP_SIGNALLING = 'SMOGP_SIGNALLING'
-    SNET = 'SNET'
-    SPINO = 'SPINO'
-    SWIATOWID = 'SWIATOWID'
-    TT64 = 'TT64'
-    U482C = 'U482C'
-    UA01 = 'UA01'
-    USP = 'USP'
-    YUSAT = 'YUSAT'
+class ProtoDeframer(enum.StrEnum):
+    AALTO1 = enum.auto()
+    AAUSAT4 = enum.auto()
+    AISTECHSAT_2 = enum.auto()
+    AO40_FEC = enum.auto()
+    AO40_UNCODED = enum.auto()
+    ASTROCAST_FX25 = enum.auto()
+    AX100 = enum.auto()
+    AX25 = enum.auto()
+    AX5043 = enum.auto()
+    BINAR1 = enum.auto()
+    CCSDS_CONCATENATED = enum.auto()
+    CCSDS_RS = enum.auto()
+    DIY1 = enum.auto()
+    ENDUROSAT = enum.auto()
+    ESEO = enum.auto()
+    FOSSASAT = enum.auto()
+    GEOSCAN = enum.auto()
+    GRIZU263A = enum.auto()
+    HADES = enum.auto()
+    HSU_SAT1 = enum.auto()
+    IDEASSAT = enum.auto()
+    K2SAT = enum.auto()
+    LILACSAT_1 = enum.auto()
+    LUCKY7 = enum.auto()
+    # MOBITEX = enum.auto()
+    NGHAM = enum.auto()
+    NUSAT = enum.auto()
+    OPS_SAT = enum.auto()
+    REAKTOR_HELLO_WORLD = enum.auto()
+    SANOSAT = enum.auto()
+    SAT_3CAT_1 = enum.auto()
+    SMOGP_RA = enum.auto()
+    SMOGP_SIGNALLING = enum.auto()
+    SNET = enum.auto()
+    SPINO = enum.auto()
+    SWIATOWID = enum.auto()
+    TT64 = enum.auto()
+    U482C = enum.auto()
+    UA01 = enum.auto()
+    USP = enum.auto()
+    YUSAT = enum.auto()
 
 
 class RawOutFormat(enum.Enum):
     NONE = None
     WAV = gr.blocks.FORMAT_WAV
     WAV64 = gr.blocks.FORMAT_RF64
+    OGG = gr.blocks.FORMAT_OGG
 
 
 class RawOutSubFormat(enum.Enum):
@@ -124,11 +126,20 @@ class RawOutSubFormat(enum.Enum):
     PCM_24 = gr.blocks.FORMAT_PCM_24
     PCM_32 = gr.blocks.FORMAT_PCM_32
     PCM_U8 = gr.blocks.FORMAT_PCM_U8
+    VORBIS = gr.blocks.FORMAT_VORBIS
+    OPUS = gr.blocks.FORMAT_OPUS
 
 
-class RawFileType(enum.Enum):
-    IQ = 'IQ'
-    WFC = 'WFC'
+class RawOutDefaultSub(enum.Enum):
+    NONE = None
+    WAV = RawOutSubFormat.FLOAT
+    WAV64 = RawOutSubFormat.FLOAT
+    OGG = RawOutSubFormat.VORBIS
+
+
+class RawFileType(enum.StrEnum):
+    IQ = enum.auto()
+    WFC = enum.auto()
 
 
 class Phase(enum.IntEnum):
@@ -298,10 +309,10 @@ class MapShapes:
         return col
 
 
-class WfMode(enum.Enum):
-    MEAN = 'MEAN'
-    MAX_HOLD = 'MAX_HOLD'
-    DECIMATION = 'DECIMATION'
+class WfMode(enum.StrEnum):
+    MEAN = enum.auto()
+    MAX_HOLD = enum.auto()
+    DECIMATION = enum.auto()
 
 
 class Waterfall:
@@ -336,7 +347,7 @@ class Waterfall:
         start_timestamp = end_timestamp and end_timestamp - duration
 
         if isinstance(mode, str):
-            mode = WfMode(mode)
+            mode = WfMode[mode]
         if mode == WfMode.MEAN:
             compute = cls._compute_mean
         elif mode == WfMode.MAX_HOLD:

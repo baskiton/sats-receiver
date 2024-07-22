@@ -217,7 +217,7 @@ class Executor(mp.Process):
                     continue
 
                 decoder_type = x[0]
-                dty = decoder_type.value
+                dty = decoder_type.name
 
                 if decoder_type == utils.Decode.NONE:
                     continue
@@ -226,7 +226,7 @@ class Executor(mp.Process):
                     _, sat_name, observation_key, files, end_time = x
                     for ty, fp in files.items():
                         self.sender.push(decoder_type=dty,
-                                         file_type=ty.value,
+                                         file_type=ty.name,
                                          sat_name=sat_name,
                                          observation_key=observation_key,
                                          filename=str(fp),

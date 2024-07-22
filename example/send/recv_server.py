@@ -163,7 +163,7 @@ class Worker(mp.Process):
             elif dtype == Decode.RAW:
                 self.log.info('Draw Waterfall')
                 try:
-                    ftype = RawFileType(params['file_type'])
+                    ftype = RawFileType[params['file_type']]
                     if ftype == RawFileType.IQ:
                         wf = Waterfall.from_wav(fp, end_timestamp=dt.datetime.fromisoformat(params['end_time']).timestamp())
                     elif ftype == RawFileType.WFC:
@@ -172,7 +172,7 @@ class Worker(mp.Process):
                         self.log.warning('Unknown filetype: %s', ftype)
                         wf = 0
                     if wf:
-                        wf.plot(fp.with_stem(f'{fp.stem}_{ftype.value}_wf').with_suffix('.png'))
+                        wf.plot(fp.with_stem(f'{fp.stem}_{ftype.name}_wf').with_suffix('.png'))
                 except:
                     self.log.exception('waterfall')
 
@@ -269,7 +269,7 @@ class MyTCPHandler(ss.StreamRequestHandler):
         out_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            dtype = Decode(params['decoder_type'])
+            dtype = Decode[params['decoder_type']]
         except ValueError:
             self.log.warning('%s -> Invalid dtype. Skip', self.client_address)
             return

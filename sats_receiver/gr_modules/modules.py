@@ -109,11 +109,11 @@ class SatRecorder(gr.gr.hier_block2):
                         # 'raw_out_format',   # optional, only for RAW decode
                         # 'raw_out_subformat',# optional, only for RAW decode
                     ]))
-            and (utils.Mode(config['mode']) != utils.Mode.QPSK or 'qpsk_baudrate' in config)
+            and (utils.Mode[config['mode']] != utils.Mode.QPSK or 'qpsk_baudrate' in config)
             and (
-                    utils.Decode(config.get('decode')) != utils.Decode.PROTO
+                    utils.Decode[config.get('decode')] != utils.Decode.PROTO
                     or (
-                            utils.Mode(config['mode']) in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK)
+                            utils.Mode[config['mode']] in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK)
                             and 'proto_deframer' in config
                             # and 'proto_options' in config
                     )
@@ -302,11 +302,11 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def mode(self) -> utils.Mode:
-        return utils.Mode(self.config.get('mode', utils.Mode.RAW.value))
+        return utils.Mode[self.config.get('mode', utils.Mode.RAW.name)]
 
     @property
     def decode(self) -> utils.Decode:
-        return utils.Decode(self.config.get('decode', utils.Decode.RAW.value))
+        return utils.Decode[self.config.get('decode', utils.Decode.RAW.name)]
 
     @property
     def qpsk_baudrate(self) -> Union[int, float]:
@@ -346,7 +346,7 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def proto_deframer(self) -> utils.ProtoDeframer:
-        return utils.ProtoDeframer(self.config['proto_deframer'])
+        return utils.ProtoDeframer[self.config['proto_deframer']]
 
     @property
     def proto_options(self) -> Mapping:
@@ -402,17 +402,13 @@ class SatRecorder(gr.gr.hier_block2):
 
     @property
     def raw_out_format(self) -> utils.RawOutFormat:
-        d = {
-            None: utils.RawOutFormat.WAV,
-            'NONE': utils.RawOutFormat.NONE,
-            'WAV': utils.RawOutFormat.WAV,
-            'WAV64': utils.RawOutFormat.WAV64,
-        }
-        return d[self.config.get('raw_out_format')]
+        f = self.config.get('raw_out_format', utils.RawOutFormat.WAV.name)
+        return utils.RawOutFormat[f]
 
     @property
     def raw_out_subformat(self) -> utils.RawOutSubFormat:
-        return utils.RawOutSubFormat(self.config.get('raw_out_subformat', utils.RawOutSubFormat.FLOAT.value))
+        return utils.RawOutSubFormat[self.config.get('raw_out_subformat',
+                                                     utils.RawOutDefaultSub[self.raw_out_format.name].value.name)]
 
     @property
     def iq_waterfall(self) -> Mapping:
@@ -482,8 +478,8 @@ class Satellite(gr.gr.hier_block2):
             observation_key = sha256((self.name + str(dt.datetime.now())).encode()).hexdigest()
             self.log.info('START doppler=%s mode=%s decode=%s key=%s',
                           self.doppler,
-                          [r.mode.value for r in self.recorders],
-                          [r.decode.value for r in self.recorders],
+                          [r.mode.name for r in self.recorders],
+                          [r.decode.name for r in self.recorders],
                           observation_key)
             self.output_directory.mkdir(parents=True, exist_ok=True)
             self.start_event = None

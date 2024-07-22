@@ -232,6 +232,7 @@ Each frequency object contain:
     * `NONE` do no write
     * `WAV` default
     * `WAV64`
+    * `OGG`
   * `raw_out_subformat` WAV output subformat:
     * `FLOAT` default
     * `DOUBLE`
@@ -239,6 +240,8 @@ Each frequency object contain:
     * `PCM_24`
     * `PCM_32`
     * `PCM_U8`
+    * `VORBIS` codec, only for `OGG`
+    * `OPUS` codec, only for `OGG`
 * `CSOFT` Constellation Soft Decoder - 1-channel binary int8. Suitable for further processing, for example, in SatDump. _Only for constellation-mode._
 * `CCSDSCC` CCSDS Conv Concat Decoder - CADU data. Suitable for further processing, for example, in SatDump. _Only for constellation-mode._
 * `APT` Sats-Receiver APT binary file format. See [APT](sats_receiver/systems/README.md#APT)
