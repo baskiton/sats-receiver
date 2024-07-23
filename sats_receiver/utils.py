@@ -54,6 +54,9 @@ class Mode(enum.StrEnum):
     FSK = enum.auto()
     # AFSK = enum.auto()
     # BPSK = enum.auto()
+    LSB = enum.auto()
+    USB = enum.auto()
+    DSB = enum.auto()
 
 
 class Decode(enum.StrEnum):
@@ -141,6 +144,12 @@ class RawFileType(enum.StrEnum):
     IQ = enum.auto()
     WFC = enum.auto()
     AUDIO = enum.auto()
+
+
+class SsbMode(enum.StrEnum):
+    LSB = enum.auto()
+    USB = enum.auto()
+    DSB = enum.auto()
 
 
 class Phase(enum.IntEnum):

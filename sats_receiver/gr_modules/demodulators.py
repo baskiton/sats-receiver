@@ -13,6 +13,7 @@ import gnuradio.gr
 import satellites.components.demodulators as grs_demodulators
 
 from sats_receiver.gr_modules.epb import DelayOneImag
+from sats_receiver import utils
 
 
 class QpskDemod(gr.gr.hier_block2):
@@ -180,3 +181,74 @@ class GfskDemod(FskDemod):
 
 class GmskDemod(FskDemod):
     pass
+
+
+class SsbDemod(gr.gr.hier_block2):
+
+    def __init__(self,
+                 samp_rate: Union[int, float],
+                 mode: utils.SsbMode,
+                 bandwidth: Union[int, float] = None,
+                 out_rate: Union[int, float] = 8000):
+        super(SsbDemod, self).__init__(
+            f'{mode.name} Demodulator',
+            gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
+            gr.gr.io_signature(1, 1, gr.gr.sizeof_float)
+        )
+        self.channels = out_rate,
+
+        max_bw = 12000
+        min_bw = 500
+        if bandwidth is None:
+            if mode == utils.SsbMode.DSB:
+                min_bw = 1000
+                bandwidth = 4600
+            elif mode == utils.SsbMode.USB:
+                bandwidth = 2800
+            elif mode == utils.SsbMode.LSB:
+                bandwidth = 2800
+            else:
+                raise ValueError(f'Unknown mode: {mode}')
+
+        bandwidth = max(min(bandwidth, max_bw), min_bw)
+
+        if mode == utils.SsbMode.DSB:
+            left = -bandwidth // 2
+            right = bandwidth // 2
+        elif mode == utils.SsbMode.USB:
+            left = 0
+            right = bandwidth
+        elif mode == utils.SsbMode.LSB:
+            left = -bandwidth
+            right = 0
+        else:
+            raise ValueError(f'Unknown mode: {mode}')
+
+        decim = samp_rate // max(out_rate, bandwidth // 2)
+        work_rate = samp_rate // decim
+        resamp_gcd = math.gcd(work_rate, out_rate)
+
+        self.agc = gr.analog.agc2_cc(50, 5, 1.0, 1.0, 65536)
+        bpf = gr.filter.firdes.complex_band_pass(1, samp_rate, left, right, 100)
+        self.xlate_fir = gr.filter.freq_xlating_fir_filter_ccc(decim, bpf, 0, samp_rate)
+        self.ctf = gr.blocks.complex_to_float(1)
+        self.add = gr.blocks.add_vff(1)
+        self.mult_const = gr.blocks.multiply_const_ff(0.3)
+        self.resamp = gr.filter.rational_resampler_fff(
+            interpolation=(out_rate // resamp_gcd),
+            decimation=(work_rate // resamp_gcd),
+            taps=[],
+            fractional_bw=0,
+        )
+
+        self.connect(
+            self,
+            self.agc,
+            self.xlate_fir,
+            self.ctf,
+            self.add,
+            self.mult_const,
+            self.resamp,
+            self,
+        )
+        self.connect((self.ctf, 1), (self.add, 1))

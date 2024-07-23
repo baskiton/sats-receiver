@@ -204,6 +204,8 @@ Each frequency object contain:
 | raw_out_subformat   | String          | _Optional. Only for **RAW** decoder._ WAV output subformat. `FLOAT` by default                                           |
 | proto_deframer      | String          | _Optional. Only for **PROTO** decoder._ Name of the gr-satellites deframer. See [proto](#proto) for detail.              |
 | proto_options       | String          | _Optional. Only for **PROTO** decoder._ Deframer options. See [proto](#proto) for detail.                                |
+| ssb_bandwidth       | Number          | _Optional. Only for **SSB**-family mode._ SSB Bandwidth, Hz. `4600` for DSB nd `2800` foa another by default             |
+| ssb_out_sr          | Number          | _Optional. Only for **SSB**-family mode._ SSB out sample rate, Hz. `8000` by default                                     |
 
 * `iq_waterfall` Create waterfall. Mapping with options (might be empty):
   * `fft_size` FFT size (int) `4096` by default
@@ -225,6 +227,9 @@ Each frequency object contain:
 * `FSK`
 * `GFSK`
 * `GMSK`
+* `USB`
+* `LSB`
+* `DSB`
 
 #### decoders
 * `RAW` Saved to 2-channel float32 WAV file with `bandwidth` sample rate. Other parameters:

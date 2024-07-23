@@ -24,7 +24,7 @@ import numpy as np
 from PIL import Image, ExifTags
 from sats_receiver import utils
 from sats_receiver.gr_modules.decoders import Decoder, AptDecoder, CcsdsConvConcatDecoder, ProtoDecoder, RawDecoder, SatellitesDecoder, SstvDecoder
-from sats_receiver.gr_modules.demodulators import FskDemod, SstvQuadDemod
+from sats_receiver.gr_modules.demodulators import FskDemod, SstvQuadDemod, SsbDemod
 from sats_receiver.gr_modules.epb.prober import Prober
 from sats_receiver.observer import Observer
 from sats_receiver.systems.apt import Apt
@@ -118,7 +118,7 @@ class DecoderTopBlock(gr.gr.top_block):
             self.connect((self.wav_src, i), (self.ftc, i))
         modules = [
             self.ftc,
-            self.thr,
+            # self.thr,
             # self.shifter,
             # self.pll,
         ]
@@ -508,3 +508,34 @@ class TestDecoders(TestCase):
         wav = gr.blocks.wavfile_source(str(fp), False)
         self.assertEqual(2, wav.channels())
         self.assertEqual(wav_samp_rate, wav.sample_rate())
+
+    def test_ssb_usb(self):
+        wav_fp = FILES / 'KASHIWA_USB.wav'
+        wav_samp_rate = 48000
+        ssb_bandwidth = 2400
+        ssb_out_sr = 8000
+
+        demod = SsbDemod(wav_samp_rate, utils.SsbMode.USB, ssb_bandwidth, ssb_out_sr)
+        decoder = RawDecoder(self.recorder, ssb_out_sr, iq_in=0)
+        self.tb = DecoderTopBlock(2, wav_fp, decoder, self.executor, demod=demod)
+        self.tb.start()
+
+        while self.tb.prober.changes():
+            time.sleep(self.tb.prober.measure_s)
+        time.sleep(self.tb.prober.measure_s)
+
+        self.tb.stop()
+        self.tb.wait()
+
+        x = self.tb.executor.action(TIMEOUT)
+        self.assertIsInstance(x, tuple)
+        dtype, sat_name, observation_key, files, end_time = x
+        self.assertEqual(utils.Decode.RAW, dtype)
+        self.assertEqual(self.recorder.satellite.name, sat_name)
+        self.assertEqual(1, len(files))
+        self.assertIn(utils.RawFileType.AUDIO, files)
+
+        fp = files[utils.RawFileType.AUDIO]
+        wav = gr.blocks.wavfile_source(str(fp), False)
+        self.assertEqual(1, wav.channels())
+        self.assertEqual(ssb_out_sr, wav.sample_rate())

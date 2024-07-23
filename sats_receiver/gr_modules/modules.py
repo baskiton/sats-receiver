@@ -216,6 +216,11 @@ class SatRecorder(gr.gr.hier_block2):
             self.post_demod = None
             self.iq_demod = 0
 
+        elif self.mode in (utils.Mode.USB, utils.Mode.LSB, utils.Mode.DSB):
+            self.demodulator = demodulators.SsbDemod(self.bandwidth, utils.SsbMode[self.mode.name],
+                                                     self.ssb_bandwidth, self.ssb_out_sr)
+            self.iq_demod = 0
+
         channels = getattr(self.demodulator, 'channels', (self.bandwidth,))
         self.decoders = []
         if self.decode == utils.Decode.APT:
@@ -419,6 +424,14 @@ class SatRecorder(gr.gr.hier_block2):
     def raw_out_subformat(self) -> utils.RawOutSubFormat:
         return utils.RawOutSubFormat[self.config.get('raw_out_subformat',
                                                      utils.RawOutDefaultSub[self.raw_out_format.name].value.name)]
+
+    @property
+    def ssb_bandwidth(self):
+        return self.config.get('ssb_bandwidth')
+
+    @property
+    def ssb_out_sr(self):
+        return self.config.get('ssb_out_sr', 8000)
 
     @property
     def iq_waterfall(self) -> Mapping:
