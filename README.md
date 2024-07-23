@@ -180,6 +180,7 @@ Each frequency object contain:
 | mode                | String          | _Optional._ Modulation option (see [modulations](#modulations)). `RAW` by default                                        |
 | decode              | String          | _Optional._ Decoder option (see [decoders](#decoders)). `RAW` by default                                                 |
 | iq_waterfall        | Object          | _Optional._ Write also IQ waterfall for bandwidth. `none` by default. See below for object info                          |
+| iq_dump             | Boolean         | _Optional._ Dump and send IQ file for current bandwidth. `false` by default                                              |
 | channels            | Array of Number | _Required only for **FSK**, **GFSK**, **GMSK** mode._ Demodulation baudrates, bps. `[1200, 2400, 4800, 9600]` by default |
 | deviation_factor    | Number          | _Required only for **FSK**, **GFSK**, **GMSK** mode._ Deviation frequency factor (baudrate / factor), `5` by default     |
 | grs_file            | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                   |

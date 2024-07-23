@@ -104,7 +104,7 @@ class RawDecoder(Decoder):
         out_fmt = recorder.raw_out_format
         out_subfmt = recorder.raw_out_subformat
         self.base_kw['wf_cfg'] = recorder.iq_waterfall
-        self.base_kw['send_iq'] = not force_nosend_iq and out_fmt != utils.RawOutFormat.NONE
+        self.base_kw['send_iq'] = recorder.iq_dump or (not force_nosend_iq and out_fmt != utils.RawOutFormat.NONE)
         if out_fmt == utils.RawOutFormat.NONE:
             out_fmt = utils.RawOutFormat.WAV
             out_subfmt = utils.RawOutDefaultSub.WAV

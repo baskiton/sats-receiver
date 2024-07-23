@@ -159,7 +159,7 @@ class TestDecoders(TestCase):
                         'ccc_pre_deint ccc_frame_size ccc_diff ccc_rs_dualbasis ccc_rs_interleaving ccc_derandomize '
                         'proto_deframer proto_options '
                         'raw_out_format raw_out_subformat '
-                        'iq_waterfall')
+                        'iq_waterfall iq_dump')
 
         cls.out_dir = tempfile.TemporaryDirectory('.d', 'sats-receiver-test-', ignore_cleanup_errors=True)
         cls.out_dp = pathlib.Path(cls.out_dir.name)
@@ -185,7 +185,7 @@ class TestDecoders(TestCase):
                                     1, 892, 1, 0, 4, 1,
                                     utils.ProtoDeframer.USP, {},
                                     utils.RawOutFormat.WAV, utils.RawOutSubFormat.FLOAT,
-                                    None)
+                                    None, 0)
 
     def tearDown(self) -> None:
         if isinstance(self.tb, DecoderTopBlock):

@@ -265,8 +265,8 @@ class SatRecorder(gr.gr.hier_block2):
         for i, decoder in enumerate(self.decoders):
             self.connect((x[-1], i), decoder)
 
-        if self.iq_waterfall and self.decode != utils.Decode.RAW:
-            self.decoders.append(decoders.RawDecoder(self, self.bandwidth, 1))
+        if (self.iq_dump or self.iq_waterfall) and self.decode != utils.Decode.RAW:
+            self.decoders.append(decoders.RawDecoder(self, self.bandwidth, not self.iq_dump))
             self.connect(self.radio, self.decoders[-1])
 
     def start(self, observation_key: str):
@@ -436,6 +436,10 @@ class SatRecorder(gr.gr.hier_block2):
     @property
     def iq_waterfall(self) -> Mapping:
         return self.config.get('iq_waterfall')
+
+    @property
+    def iq_dump(self) -> bool:
+        return self.config.get('iq_dump', False)
 
 
 class Satellite(gr.gr.hier_block2):
