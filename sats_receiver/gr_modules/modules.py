@@ -142,6 +142,7 @@ class SatRecorder(gr.gr.hier_block2):
         self.radio = RadioModule(main_tune, samp_rate, self.bandwidth, self.frequency)
         self.demodulator = None
         self.post_demod = gr.blocks.float_to_complex()
+        self.iq_demod = 1
 
         try:
             self.mode == self.decode
@@ -159,6 +160,7 @@ class SatRecorder(gr.gr.hier_block2):
                 audio_pass=5000,
                 audio_stop=5500,
             )
+            self.iq_demod = 0
 
         elif self.mode == utils.Mode.FM:
             self.demodulator = gr.analog.fm_demod_cf(
@@ -170,12 +172,14 @@ class SatRecorder(gr.gr.hier_block2):
                 gain=1.0,
                 tau=0,
             )
+            self.iq_demod = 0
 
         elif self.mode == utils.Mode.WFM:
             self.demodulator = gr.analog.wfm_rcv(
                 quad_rate=self.bandwidth,
                 audio_decimation=1,
             )
+            self.iq_demod = 0
 
         elif self.mode == utils.Mode.WFM_STEREO:
             if self.bandwidth < 76800:
@@ -190,9 +194,11 @@ class SatRecorder(gr.gr.hier_block2):
 
         elif self.mode == utils.Mode.QUAD:
             self.demodulator = gr.analog.quadrature_demod_cf(self.quad_gain)
+            self.iq_demod = 0
 
         elif self.mode == utils.Mode.SSTV_QUAD:
             self.demodulator = demodulators.SstvQuadDemod(self.bandwidth, self.demode_out_sr, self.quad_gain)
+            self.iq_demod = 0
 
         elif self.mode in (utils.Mode.QPSK, utils.Mode.OQPSK):
             oqpsk = self.mode == utils.Mode.OQPSK
@@ -201,13 +207,14 @@ class SatRecorder(gr.gr.hier_block2):
             self.post_demod = None
 
         elif self.mode in (utils.Mode.FSK, utils.Mode.GFSK, utils.Mode.GMSK):
-            x = {
+            fsk_demod = {
                 utils.Mode.FSK: demodulators.FskDemod,
                 utils.Mode.GFSK: demodulators.GfskDemod,
                 utils.Mode.GMSK: demodulators.GmskDemod,
             }
-            self.demodulator = x[self.mode](self.bandwidth, self.channels, self.deviation_factor)
+            self.demodulator = fsk_demod[self.mode](self.bandwidth, self.channels, self.deviation_factor)
             self.post_demod = None
+            self.iq_demod = 0
 
         channels = getattr(self.demodulator, 'channels', (self.bandwidth,))
         self.decoders = []
@@ -225,8 +232,11 @@ class SatRecorder(gr.gr.hier_block2):
             self.decoders.append(decoders.CcsdsConvConcatDecoder(self, self.bandwidth))
 
         elif self.decode == utils.Decode.RAW:
+            if not self.iq_demod:
+                self.post_demod = None
+
             for ch in channels:
-                self.decoders.append(decoders.RawDecoder(self, ch))
+                self.decoders.append(decoders.RawDecoder(self, ch, iq_in=self.iq_demod))
 
         elif self.decode == utils.Decode.SSTV:
             self.decoders.append(decoders.SstvDecoder(self, self.demode_out_sr))

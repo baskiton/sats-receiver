@@ -23,8 +23,8 @@ import numpy as np
 
 from PIL import Image, ExifTags
 from sats_receiver import utils
-from sats_receiver.gr_modules.decoders import Decoder, AptDecoder, CcsdsConvConcatDecoder, ProtoDecoder, SatellitesDecoder, SstvDecoder
-from sats_receiver.gr_modules.demodulators import FskDemod
+from sats_receiver.gr_modules.decoders import Decoder, AptDecoder, CcsdsConvConcatDecoder, ProtoDecoder, RawDecoder, SatellitesDecoder, SstvDecoder
+from sats_receiver.gr_modules.demodulators import FskDemod, SstvQuadDemod
 from sats_receiver.gr_modules.epb.prober import Prober
 from sats_receiver.observer import Observer
 from sats_receiver.systems.apt import Apt
@@ -157,7 +157,9 @@ class TestDecoders(TestCase):
                         'satellite subname mode '
                         'sstv_sync sstv_wsr sstv_live_exec '
                         'ccc_pre_deint ccc_frame_size ccc_diff ccc_rs_dualbasis ccc_rs_interleaving ccc_derandomize '
-                        'proto_deframer proto_options')
+                        'proto_deframer proto_options '
+                        'raw_out_format raw_out_subformat '
+                        'iq_waterfall')
 
         cls.out_dir = tempfile.TemporaryDirectory('.d', 'sats-receiver-test-', ignore_cleanup_errors=True)
         cls.out_dp = pathlib.Path(cls.out_dir.name)
@@ -181,7 +183,9 @@ class TestDecoders(TestCase):
         self.recorder = self.rec_nt(self.satellite, 'test', utils.Mode.OQPSK,
                                     1, 16000, 0,
                                     1, 892, 1, 0, 4, 1,
-                                    utils.ProtoDeframer.USP, {})
+                                    utils.ProtoDeframer.USP, {},
+                                    utils.RawOutFormat.WAV, utils.RawOutSubFormat.FLOAT,
+                                    None)
 
     def tearDown(self) -> None:
         if isinstance(self.tb, DecoderTopBlock):
@@ -441,9 +445,66 @@ class TestDecoders(TestCase):
         self.tb.wait()
 
         x = self.tb.executor.action(TIMEOUT)
-        print(x)
         self.assertIsInstance(x, tuple)
         dtype, deftype, sat_name, observation_key, res_filename, end_time = x
         self.assertEqual(utils.Decode.PROTO, dtype)
         self.assertEqual(utils.ProtoDeframer.USP, deftype)
         self.assertRegex(res_filename.name, r'.+\.(kss)')
+
+    def test_raw_channels_1(self):
+        wav_fp = FILES / 'orbicraft_tlm_4800@16000.wav'
+        wav_samp_rate = 16000
+        out_sr = 8000
+
+        demod = SstvQuadDemod(wav_samp_rate, out_sr)
+        decoder = RawDecoder(self.recorder, out_sr, iq_in=0)
+        self.tb = DecoderTopBlock(2, wav_fp, decoder, self.executor, demod=demod)
+        self.tb.start()
+
+        while self.tb.prober.changes():
+            time.sleep(self.tb.prober.measure_s)
+        time.sleep(self.tb.prober.measure_s)
+
+        self.tb.stop()
+        self.tb.wait()
+
+        x = self.tb.executor.action(TIMEOUT)
+        self.assertIsInstance(x, tuple)
+        dtype, sat_name, observation_key, files, end_time = x
+        self.assertEqual(utils.Decode.RAW, dtype)
+        self.assertEqual(self.recorder.satellite.name, sat_name)
+        self.assertEqual(1, len(files))
+        self.assertIn(utils.RawFileType.AUDIO, files)
+
+        fp = files[utils.RawFileType.AUDIO]
+        wav = gr.blocks.wavfile_source(str(fp), False)
+        self.assertEqual(1, wav.channels())
+        self.assertEqual(out_sr, wav.sample_rate())
+
+    def test_raw_channels_2(self):
+        wav_fp = FILES / 'orbicraft_tlm_4800@16000.wav'
+        wav_samp_rate = 16000
+
+        decoder = RawDecoder(self.recorder, wav_samp_rate, iq_in=1)
+        self.tb = DecoderTopBlock(2, wav_fp, decoder, self.executor)
+        self.tb.start()
+
+        while self.tb.prober.changes():
+            time.sleep(self.tb.prober.measure_s)
+        time.sleep(self.tb.prober.measure_s)
+
+        self.tb.stop()
+        self.tb.wait()
+
+        x = self.tb.executor.action(TIMEOUT)
+        self.assertIsInstance(x, tuple)
+        dtype, sat_name, observation_key, files, end_time = x
+        self.assertEqual(utils.Decode.RAW, dtype)
+        self.assertEqual(self.recorder.satellite.name, sat_name)
+        self.assertEqual(1, len(files))
+        self.assertIn(utils.RawFileType.IQ, files)
+
+        fp = files[utils.RawFileType.IQ]
+        wav = gr.blocks.wavfile_source(str(fp), False)
+        self.assertEqual(2, wav.channels())
+        self.assertEqual(wav_samp_rate, wav.sample_rate())

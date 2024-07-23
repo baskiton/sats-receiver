@@ -140,6 +140,7 @@ class RawOutDefaultSub(enum.Enum):
 class RawFileType(enum.StrEnum):
     IQ = enum.auto()
     WFC = enum.auto()
+    AUDIO = enum.auto()
 
 
 class Phase(enum.IntEnum):

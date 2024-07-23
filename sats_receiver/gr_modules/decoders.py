@@ -86,8 +86,20 @@ class RawDecoder(Decoder):
     def __init__(self,
                  recorder: 'SatRecorder',
                  samp_rate: Union[int, float],
-                 force_nosend_iq=False):
-        super(RawDecoder, self).__init__(recorder, samp_rate, 'Raw Decoder', utils.Decode.RAW)
+                 force_nosend_iq=False,
+                 iq_in=True):
+        super(RawDecoder, self).__init__(
+            recorder,
+            samp_rate,
+            'Raw Decoder',
+            utils.Decode.RAW,
+            [
+                gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex)
+                if iq_in
+                else gr.gr.io_signature(1, 1, gr.gr.sizeof_float),
+                gr.gr.io_signature(0, 0, 0),
+            ],
+        )
 
         out_fmt = recorder.raw_out_format
         out_subfmt = recorder.raw_out_subformat
@@ -97,10 +109,18 @@ class RawDecoder(Decoder):
             out_fmt = utils.RawOutFormat.WAV
             out_subfmt = utils.RawOutDefaultSub.WAV
 
-        self.ctf = gr.blocks.complex_to_float(1)
+        self.base_kw['out_fmt'] = out_fmt
+        self.base_kw['iq_in'] = iq_in
+
+        pre_sink = self
+        if iq_in:
+            pre_sink = self.ctf = gr.blocks.complex_to_float(1)
+            self.connect(self, pre_sink)
+
+        ch_n = iq_in and 2 or 1
         self.wav_sink = gr.blocks.wavfile_sink(
             str(self.tmp_file),
-            2,
+            ch_n,
             samp_rate,
             out_fmt.value,
             out_subfmt.value,
@@ -109,8 +129,8 @@ class RawDecoder(Decoder):
         self.wav_sink.close()
         utils.unlink(self.tmp_file)
 
-        self.connect(self, self.ctf, self.wav_sink)
-        self.connect((self.ctf, 1), (self.wav_sink, 1))
+        for ch in range(ch_n):
+            self.connect((pre_sink, ch), (self.wav_sink, ch))
 
     def start(self):
         super(RawDecoder, self).start()
@@ -132,12 +152,15 @@ class RawDecoder(Decoder):
                       observation_key: str,
                       wf_cfg: dict,
                       send_iq: bool,
+                      out_fmt: utils.RawOutFormat,
+                      iq_in: bool,
                       **kw) -> tuple[utils.Decode, str, str, dict[utils.RawFileType, pathlib.Path], dt.datetime]:
         log.debug('finalizing...')
 
         st = tmp_file.stat()
         d = dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
-        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f{subname}_RAW.wav'))
+        suff = 'ogg' if out_fmt == utils.RawOutFormat.OGG else 'wav'
+        res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f{subname}_RAW.{suff}'))
         files = {}
 
         if wf_cfg is not None:
@@ -150,7 +173,8 @@ class RawDecoder(Decoder):
                 utils.unlink(wfp)
 
         if send_iq and st.st_size:
-            files[utils.RawFileType.IQ] = res_fn
+            k = utils.RawFileType.IQ if iq_in else utils.RawFileType.AUDIO
+            files[k] = res_fn
         else:
             res_fn.unlink(True)
 
