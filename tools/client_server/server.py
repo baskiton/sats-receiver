@@ -229,27 +229,34 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         self.log = logging.getLogger('Handler')
         super().__init__(request, client_address, server)
 
-    def recv_file(self, fp: pathlib.Path, fsz):
+    def recv_file(self, fp: pathlib.Path, fsz: int, compress: bool):
         numfsz = numbi_disp(fsz)
         sz_left = fsz
         t = time.monotonic()
         t_next = t + 1
-        zo = zlib.decompressobj(wbits=-9)
+
+        if compress:
+            zo = zlib.decompressobj(wbits=-9)
         with fp.open('wb') as f:
             while sz_left:
                 data = self.request.recv(self.server.buf_sz)
                 if not data:
+                    if compress:
+                        sz_left -= f.write(zo.flush(zlib.Z_FINISH))
+                    if f.tell() == fsz:
+                        break
                     raise ConnectionError('Connection lost')
-                # sz_left -= len(data)
-                sz_left -= f.write(zo.decompress(data))
-                sz_left -= f.write(zo.flush(zlib.Z_FULL_FLUSH))
+
+                if not compress:
+                    sz_left -= f.write(data)
+                else:
+                    sz_left -= f.write(zo.decompress(data))
+                    sz_left -= f.write(zo.flush(zlib.Z_FULL_FLUSH))
 
                 t = time.monotonic()
                 if t > t_next:
                     t_next = t + 10
                     self.log.debug('%s %s/%s', fp.name, numbi_disp(fsz - sz_left), numfsz)
-
-            f.write(zo.flush(zlib.Z_FINISH))
 
         self.log.debug('%s %s/%s', fp.name, numbi_disp(fsz - sz_left), numfsz)
 
@@ -313,7 +320,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         fp = out_dir / params['filename']
 
         self.wfile.write(b'RDY')
-        self.recv_file(fp, params['fsize'])
+        self.recv_file(fp, params['fsize'], params['compress'])
 
         self.server.worker.put(params, fp, dtype)
 
@@ -348,7 +355,8 @@ class _TcpServer(socketserver.TCPServer):
 
 
 class TcpServer(socketserver.ThreadingMixIn, _TcpServer):
-    pass
+    block_on_close = 0
+    daemon_threads = 1
 
 
 def setup_logging(q, log_lvl):

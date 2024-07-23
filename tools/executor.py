@@ -31,6 +31,7 @@ class Executor(mp.Process):
             self.secret = hashlib.sha256(fsec.read().strip()).hexdigest()
         self.buf_sz = config.get('buf_sz', 8192)
         self.remove_success = config.get('remove_success', False)
+        self.compress = config.get('compress', False)
 
     def _setup_process(self):
         logger = logging.getLogger()
@@ -43,7 +44,7 @@ class Executor(mp.Process):
         self.log = logging.getLogger(self.name)
         self.sysu = utils.SysUsage(self.name, self.sysu_intv)
 
-        self.sender = TcpSender(SENDF, self.addr, self.cafile, self.secret, self.buf_sz, self.remove_success)
+        self.sender = TcpSender(SENDF, self.addr, self.cafile, self.secret, self.buf_sz, self.remove_success, self.compress)
         self.sender.start()
         atexit.register(lambda x: x.stop(), self.sender)
 

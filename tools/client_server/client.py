@@ -17,7 +17,7 @@ from tools.client_server.server import SRV_HDR, SRV_HDR_SIGN, SRV_HDR_VER
 
 
 class TcpSender(threading.Thread):
-    def __init__(self, sendf, addr, cafile, secret, buffer_sz=8192, remove_success=False):
+    def __init__(self, sendf, addr, cafile, secret, buffer_sz=8192, remove_success=False, compress=False):
         super().__init__()
         self.log = logging.getLogger('Sender')
 
@@ -27,6 +27,7 @@ class TcpSender(threading.Thread):
         self.secret = secret
         self.buffer_sz = buffer_sz
         self.remove_success = remove_success
+        self.compress = compress
 
         try:
             self.sendf.touch(exist_ok=False)
@@ -59,6 +60,7 @@ class TcpSender(threading.Thread):
         data['fsize'] = fp.stat().st_size
         data['filename'] = fp.name
         data['secret'] = self.secret
+        data['compress'] = self.compress
         d_raw = json.dumps(data).encode()
 
         with self.ssl_ctx.wrap_socket(sk.create_connection(self.addr)) as ss:
@@ -67,23 +69,48 @@ class TcpSender(threading.Thread):
             ss.send(SRV_HDR.pack(SRV_HDR_SIGN, SRV_HDR_VER, len(d_raw)))
             ss.send(d_raw)
 
-            while 1:
-                ret = ss.recv(3)
-                if ret == b'RDY':
-                    zo = zlib.compressobj(wbits=-9)
-                    with fp.open('rb') as f:
-                        d = f.read(self.buffer_sz)
-                        while d:
-                            ss.send(zo.compress(d))
-                            ss.send(zo.flush(zlib.Z_FULL_FLUSH))
-                            d = f.read(self.buffer_sz)
+            if self._send_routine(ss, fp):
+                self.log.debug('send `%s` done', fp.name)
+                return fp
+
+    def _send_routine(self, ss: ssl.SSLSocket, fp: pathlib.Path):
+        poller = select.poll()
+        poller.register(ss, select.POLLIN)
+        poller.register(self._stop_rd, select.POLLIN)
+        to = None
+
+        while 1:
+            x = dict(poller.poll(to))
+            if x:
+                if self._stop_rd in x:
+                    self.log.debug('send `%s` stop', fp.name)
+                    return
+
+                if ss.fileno() in x:
+                    cmd = ss.recv(3)
+                    if cmd == b'RDY':
+                        to = 0
+                        f = fp.open('rb')
+                        if self.compress:
+                            zo = zlib.compressobj(wbits=-9)
+
+                    else:
+                        return 1
+
+            if to == 0:
+                d = f.read(self.buffer_sz)
+                if not d:
+                    # no more data
+                    if self.compress:
                         ss.send(zo.flush(zlib.Z_FINISH))
+                    f.close()
+                    return 1
 
+                if not self.compress:
+                    ss.send(d)
                 else:
-                    break
-
-        self.log.debug('send `%s` done', fp.name)
-        return fp
+                    ss.send(zo.compress(d))
+                    ss.send(zo.flush(zlib.Z_FULL_FLUSH))
 
     def run(self):
         poller = select.poll()
@@ -103,6 +130,9 @@ class TcpSender(threading.Thread):
                 else:
                     try:
                         fp = self.send(data.copy())
+                        if not fp:
+                            # terminate
+                            break
                         self.err_dt_conn = 5
                         flush = 1
                         if self.remove_success:
