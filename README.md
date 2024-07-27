@@ -145,6 +145,7 @@ Each receiver object contain:
 | output_directory   | String          | Directory to save received files. You also might specify `~` symbol to specify User home directory                                                 |
 | sats               | Array of Object | List of Satellites configurations (see [sats](#sats))                                                                                              |
 | decim_power        | Integer         | _Optional._ Power (for 2) sample rate decimation. `0` by default                                                                                   |
+| dc_block           | Boolean         | _Optional._ Enable DC correction. `false` by default                                                                                               |
 | enabled            | Boolean         | _Optional._ Enable or Disable this Receiver. `true` by default                                                                                     |
 | serial             | String          | _Optional._ Serial number of the receiver. Empty by default                                                                                        |
 | biast              | Boolean         | _Optional._ Bias-T enable/disable. `false` by default. **WARNING! Be careful when enabling this option! Use only if you know what it is and why!** |

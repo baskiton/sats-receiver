@@ -38,13 +38,20 @@ class SatsReceiver(gr.gr.top_block):
         self.src_settings_keys = set()
         self.ltz = dateutil.tz.tzlocal()
 
+        self.flow = []
         self.signal_src = gr.blocks.null_source(gr.gr.sizeof_gr_complex)
+        self.flow.append(self.signal_src)
+
+        if self.dc_block:
+            self.blocks_correctiq = gr.blocks.correctiq()
+            self.flow.append(self.blocks_correctiq)
+
         if self.decimation > 1:
-            self.decim = gr.blocks.nop(gr.gr.sizeof_gr_complex)
-        else:
             self.decim = gr.filter.rational_resampler_ccc(interpolation=1, decimation=self.decimation, taps=[])
-        self.blocks_correctiq = gr.blocks.correctiq()
+            self.flow.append(self.decim)
+
         self.src_null_sink = gr.blocks.null_sink(gr.gr.sizeof_gr_complex)
+        self.flow.append(self.src_null_sink)
 
         if not self.update_config(config):
             raise ValueError(f'{self.prefix}: Invalid config!')
@@ -111,7 +118,7 @@ class SatsReceiver(gr.gr.top_block):
                 self.up.scheduler.cancel(*sat.events)
                 sat.stop()
                 if self.is_runned:
-                    self.disconnect(self.blocks_correctiq, sat)
+                    self.disconnect(self.flow[-2], sat)
                 del self.satellites[sat_name]
 
             for sat_name in to_create_sats:
@@ -134,7 +141,7 @@ class SatsReceiver(gr.gr.top_block):
 
                 if self.calculate_pass(sat):
                     if self.is_runned:
-                        self.connect(self.blocks_correctiq, sat)
+                        self.connect(self.flow[-2], sat)
                     self.satellites[sat.name] = sat
 
             if to_remove_sats or to_create_sats:
@@ -240,6 +247,10 @@ class SatsReceiver(gr.gr.top_block):
         return 1 << (self.decim_power or 0)
 
     @property
+    def dc_block(self) -> bool:
+        return self.config.get('dc_block')
+
+    @property
     def output_directory(self) -> pathlib.Path:
         return pathlib.Path(self.config['output_directory']).expanduser()
 
@@ -264,6 +275,7 @@ class SatsReceiver(gr.gr.top_block):
             try:
                 self.signal_src = gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
                                                   'fc32', 1, '', '', [''], [''])
+                self.flow[0] = self.signal_src
             except RuntimeError as e:
                 self.log.error('cannot start: %s', e)
 
@@ -282,15 +294,10 @@ class SatsReceiver(gr.gr.top_block):
             self.src_settings_keys = {a.key for a in self.signal_src.get_setting_info()}
             self.soapy_apply(0)
 
-            self.connect(
-                self.signal_src,
-                self.decim,
-                self.blocks_correctiq,
-                self.src_null_sink,
-            )
+            self.connect(*self.flow)
 
             for sat in self.satellites.values():
-                self.connect(self.blocks_correctiq, sat)
+                self.connect(self.flow[-2], sat)
 
             super(SatsReceiver, self).start(max_noutput_items)
             self.is_runned = True
@@ -306,20 +313,17 @@ class SatsReceiver(gr.gr.top_block):
 
             super(SatsReceiver, self).stop()
 
-            self.disconnect(
-                self.signal_src,
-                self.decim,
-                self.blocks_correctiq,
-                self.src_null_sink,
-            )
+            self.disconnect(*self.flow)
+            from_disc = self.flow[-2]
             self.signal_src = gr.blocks.null_source(gr.gr.sizeof_gr_complex)
+            self.flow[0] = self.signal_src
 
         for sat in self.satellites.values():
             if sched_clear:
                 self.up.scheduler.cancel(*sat.events)
             sat.stop()
             if self.is_runned:
-                self.disconnect(self.blocks_correctiq, sat)
+                self.disconnect(from_disc, sat)
 
         self.is_runned = False
 
