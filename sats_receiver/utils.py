@@ -356,7 +356,7 @@ class Waterfall:
         dur_per_fft_us = (duration * 1000000) / n_fft
         start_timestamp = end_timestamp and end_timestamp - duration
 
-        if isinstance(mode, str):
+        if not isinstance(mode, WfMode) and isinstance(mode, str):
             mode = WfMode[mode]
         if mode == WfMode.MEAN:
             compute = cls._compute_mean
