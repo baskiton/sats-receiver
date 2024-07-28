@@ -170,44 +170,46 @@ Each satellite object contain:
 #### frequencies
 Each frequency object contain:
 
-| Field               | Type            | Description                                                                                                              |
-|:--------------------|:----------------|:-------------------------------------------------------------------------------------------------------------------------|
-| freq                | Number          | Basic signal frequency, Hz                                                                                               |
-| bandwidth           | Number          | Received signal bandwidth, Hz                                                                                            |
-| demode_out_sr       | Number          | _Optional._ Demodulator out samplerate. Equal to `bandwidth` by default                                                  |
-| enabled             | Boolean         | _Optional._ Enable/Disable this frequency. `true` by default                                                             |
-| subname             | String          | _Optional._ Subname added to result filename. Empty by default                                                           |
-| freq_correction     | Boolean         | _Optional._ Correction for basic frequency, Hz. `0` by default                                                           |
-| mode                | String          | _Optional._ Modulation option (see [modulations](#modulations)). `RAW` by default                                        |
-| decode              | String          | _Optional._ Decoder option (see [decoders](#decoders)). `RAW` by default                                                 |
-| iq_waterfall        | Object          | _Optional._ Write also IQ waterfall for bandwidth. `none` by default. See below for object info                          |
-| iq_dump             | Boolean         | _Optional._ Dump and send IQ file for current bandwidth. `false` by default                                              |
-| channels            | Array of Number | _Required only for **FSK**, **GFSK**, **GMSK** mode._ Demodulation baudrates, bps. `[1200, 2400, 4800, 9600]` by default |
-| deviation_factor    | Number          | _Required only for **FSK**, **GFSK**, **GMSK** mode._ Deviation frequency factor (baudrate / factor), `5` by default     |
-| grs_file            | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                   |
-| grs_name            | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                   |
-| grs_norad           | Integer         | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                   |
-| grs_tlm_decode      | Boolean         | _Optional. Only for **SATS** decoder._ Save decoded telemetry. `true` by default                                         |
-| qpsk_baudrate       | Number          | _Required only for **(O)QPSK** mode._ (O)QPSK Baudrate, bps                                                              |
-| qpsk_excess_bw      | Number          | _Optional. Only for **(O)QPSK** mode._ (O)QPSK Excess bandwidth. `0.35` by default                                       |
-| qpsk_ntaps          | Integer         | _Optional. Only for **(O)QPSK** mode._ (O)QPSK number of taps. `33` by default                                           |
-| qpsk_costas_bw      | Number          | _Optional. Only for **(O)QPSK** mode._ (O)QPSK Costas bandwidth. `0.005` by default                                      |
-| sstv_wsr            | Number          | _Optional. Only for **SSTV** decoder._ SSTV work samplerate. `16000` by default                                          |
-| sstv_sync           | Number          | _Optional. Only for **SSTV** decoder._ SSTV syncing. `true` by default                                                   |
-| sstv_live_exec      | Number          | _Optional. Only for **SSTV** decoder._ SSTV live executing. `false` by default                                           |
-| ccc_frame_size      | Number          | _Optional. Only for **CCSDSCC** decoder._ Frame size, bytes. `892` by default                                            |
-| ccc_pre_deint       | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Pre-Deinterleaving. `false` by default                                         |
-| ccc_diff            | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Differential Decoding. `true` by default                                       |
-| ccc_rs_dualbasis    | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Reed-Solomon Dualbasis. `false` by default                                     |
-| ccc_rs_interleaving | Number          | _Optional. Only for **CCSDSCC** decoder._ Reed-Solomon Interleaving. `4` by default                                      |
-| ccc_derandomize     | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Descrambling. `true` by default                                                |
-| quad_gain           | Number          | _Optional. Only for **QUAD**, **SSTV_QUAD** modes._ Quadrature demodulation gain. `1.0` by default                       |
-| raw_out_format      | String          | _Optional. Only for **RAW** decoder._ WAV output format. `WAV` by default                                                |
-| raw_out_subformat   | String          | _Optional. Only for **RAW** decoder._ WAV output subformat. `FLOAT` by default                                           |
-| proto_deframer      | String          | _Optional. Only for **PROTO** decoder._ Name of the gr-satellites deframer. See [proto](#proto) for detail.              |
-| proto_options       | String          | _Optional. Only for **PROTO** decoder._ Deframer options. See [proto](#proto) for detail.                                |
-| ssb_bandwidth       | Number          | _Optional. Only for **SSB**-family mode._ SSB Bandwidth, Hz. `4600` for DSB nd `2800` foa another by default             |
-| ssb_out_sr          | Number          | _Optional. Only for **SSB**-family mode._ SSB out sample rate, Hz. `8000` by default                                     |
+| Field               | Type            | Description                                                                                                                        |
+|:--------------------|:----------------|:-----------------------------------------------------------------------------------------------------------------------------------|
+| freq                | Number          | Basic signal frequency, Hz                                                                                                         |
+| bandwidth           | Number          | Received signal bandwidth, Hz                                                                                                      |
+| demode_out_sr       | Number          | _Optional._ Demodulator out samplerate. Equal to `bandwidth` by default                                                            |
+| enabled             | Boolean         | _Optional._ Enable/Disable this frequency. `true` by default                                                                       |
+| subname             | String          | _Optional._ Subname added to result filename. Empty by default                                                                     |
+| freq_correction     | Boolean         | _Optional._ Correction for basic frequency, Hz. `0` by default                                                                     |
+| mode                | String          | _Optional._ Modulation option (see [modulations](#modulations)). `RAW` by default                                                  |
+| decode              | String          | _Optional._ Decoder option (see [decoders](#decoders)). `RAW` by default                                                           |
+| iq_waterfall        | Object          | _Optional._ Write also IQ waterfall for bandwidth. `none` by default. See below for object info                                    |
+| iq_dump             | Boolean         | _Optional._ Dump and send IQ file for current bandwidth. `false` by default                                                        |
+| channels            | Array of Number | _Required only for **FSK**, **GFSK**, **GMSK** mode._ Demodulation baudrates, bps. `[1200, 2400, 4800, 9600]` by default           |
+| deviation_factor    | Number          | _Required only for **FSK**, **GFSK**, **GMSK**, **QUAD2FSK** mode._ Deviation frequency factor (baudrate / factor), `5` by default |
+| fsk_baudrate        | Integer         | _Optional. Required for **QUAD2FSK** mode._                                                                                        |
+| proto_mode          | String          | _Optional. Required for **QUAD2FSK** mode._                                                                                        |
+| grs_file            | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                             |
+| grs_name            | String          | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                             |
+| grs_norad           | Integer         | _Optional. Only for **SATS** decoder._ See [gr-satellites](#gr-satellites) for details                                             |
+| grs_tlm_decode      | Boolean         | _Optional. Only for **SATS** decoder._ Save decoded telemetry. `true` by default                                                   |
+| qpsk_baudrate       | Number          | _Required only for **(O)QPSK** mode._ (O)QPSK Baudrate, bps                                                                        |
+| qpsk_excess_bw      | Number          | _Optional. Only for **(O)QPSK** mode._ (O)QPSK Excess bandwidth. `0.35` by default                                                 |
+| qpsk_ntaps          | Integer         | _Optional. Only for **(O)QPSK** mode._ (O)QPSK number of taps. `33` by default                                                     |
+| qpsk_costas_bw      | Number          | _Optional. Only for **(O)QPSK** mode._ (O)QPSK Costas bandwidth. `0.005` by default                                                |
+| sstv_wsr            | Number          | _Optional. Only for **SSTV** decoder._ SSTV work samplerate. `16000` by default                                                    |
+| sstv_sync           | Number          | _Optional. Only for **SSTV** decoder._ SSTV syncing. `true` by default                                                             |
+| sstv_live_exec      | Number          | _Optional. Only for **SSTV** decoder._ SSTV live executing. `false` by default                                                     |
+| ccc_frame_size      | Number          | _Optional. Only for **CCSDSCC** decoder._ Frame size, bytes. `892` by default                                                      |
+| ccc_pre_deint       | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Pre-Deinterleaving. `false` by default                                                   |
+| ccc_diff            | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Differential Decoding. `true` by default                                                 |
+| ccc_rs_dualbasis    | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Reed-Solomon Dualbasis. `false` by default                                               |
+| ccc_rs_interleaving | Number          | _Optional. Only for **CCSDSCC** decoder._ Reed-Solomon Interleaving. `4` by default                                                |
+| ccc_derandomize     | Boolean         | _Optional. Only for **CCSDSCC** decoder._ Descrambling. `true` by default                                                          |
+| quad_gain           | Number          | _Optional. Only for **QUAD**, **SSTV_QUAD**, **QUAD2FSK** modes._ Quadrature demodulation gain. `1.0` by default                   |
+| raw_out_format      | String          | _Optional. Only for **RAW** decoder._ WAV output format. `WAV` by default                                                          |
+| raw_out_subformat   | String          | _Optional. Only for **RAW** decoder._ WAV output subformat. `FLOAT` by default                                                     |
+| proto_deframer      | String          | _Optional. Only for **PROTO** decoder._ Name of the gr-satellites deframer. See [proto](#proto) for detail.                        |
+| proto_options       | String          | _Optional. Only for **PROTO** decoder._ Deframer options. See [proto](#proto) for detail.                                          |
+| ssb_bandwidth       | Number          | _Optional. Only for **SSB**-family mode._ SSB Bandwidth, Hz. `4600` for DSB nd `2800` foa another by default                       |
+| ssb_out_sr          | Number          | _Optional. Only for **SSB**-family mode._ SSB out sample rate, Hz. `8000` by default                                               |
 
 * `iq_waterfall` Create waterfall. Mapping with options (might be empty):
   * `fft_size` FFT size (int) `4096` by default
@@ -223,6 +225,7 @@ Each frequency object contain:
 * `WFM`
 * `WFM_STEREO`
 * `QUAD`
+* `QUAD2FSK`
 * `SSTV_QUAD`
 * `QPSK`
 * `OQPSK`
@@ -259,6 +262,7 @@ Each frequency object contain:
   * Scottie (S1, S2, S3, S4)
 * `SATS` See [gr-satellites](#gr-satellites) for details
 * `PROTO` Satellite deframer based decoder. KISS file on output. See [proto](#proto) for detail. _Only for *FSK mode._
+* `PROTO_RAW` 
 * ~~`LRPT`~~ Not implemented yet
 
 ##### gr-satellites

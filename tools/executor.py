@@ -158,6 +158,20 @@ class Executor(mp.Process):
                                      filename=str(res_filename),
                                      end_time=str(end_time))
 
+                elif decoder_type == utils.Decode.PROTO_RAW:
+                    _, mode, proto_opt, deftype, channels, sat_name, observation_key, files, end_time = x
+                    for ty, fp in files.items():
+                        self.sender.push(decoder_type=dty,
+                                         proto_mode=mode.name,
+                                         proto_options=proto_opt,
+                                         deframer_type=deftype.name,
+                                         channels=list(channels),
+                                         file_type=ty.name,
+                                         sat_name=sat_name,
+                                         observation_key=observation_key,
+                                         filename=str(fp),
+                                         end_time=str(end_time))
+
     def execute(self, fn, *args, **kwargs):
         if self.wr:
             self.wr.send((fn, args, kwargs))

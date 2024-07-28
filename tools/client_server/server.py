@@ -18,12 +18,16 @@ import threading
 import time
 import zlib
 
+import gnuradio as gr
+import gnuradio.gr
 import numpy as np
 
 from PIL import Image
 from sats_receiver.async_signal import AsyncSignal
 from sats_receiver.systems.apt import Apt
 from sats_receiver.utils import Decode, MapShapes, numbi_disp, close, Waterfall, WfMode, RawFileType
+
+from tools.client_server import gr_decoder
 
 
 SRV_HDR = struct.Struct('!4sBI')    # SREC, ver, sz
@@ -167,22 +171,38 @@ class Worker(mp.Process):
                 res = self.apt_to_png_map(fp, self.map_shapes)
 
             elif dtype == Decode.RAW:
-                self.log.info('Draw Waterfall')
                 try:
-                    ftype = RawFileType[params['file_type']]
-                    if ftype == RawFileType.IQ:
-                        wf = Waterfall.from_wav(fp, end_timestamp=dt.datetime.fromisoformat(params['end_time']).timestamp())
-                    elif ftype == RawFileType.WFC:
-                        wf = Waterfall.from_cfile(fp)
-                    else:   # unreachable
-                        self.log.warning('Unknown filetype: %s', ftype)
-                        wf = 0
-                    if wf:
-                        wf.plot(fp.with_stem(f'{fp.stem}_{ftype.name}_wf').with_suffix('.png'), -110, -50)
+                    self._draw_wr(fp, params)
                 except:
                     self.log.exception('waterfall')
 
+            elif dtype == Decode.PROTO_RAW:
+                try:
+                    self._draw_wr(fp, params)
+                except:
+                    self.log.error('waterfall')
+
+                try:
+                    self.log.info('Decode processing')
+                    gr_decoder.process(fp, params)
+                except:
+                    self.log.error('gr_decoder')
+
             self.log.info('%s done: %s', params['sat_name'], res.name)
+
+    def _draw_wr(self, fp, params):
+        self.log.info('Draw Waterfall')
+
+        wf = 0
+        ftype = RawFileType[params['file_type']]
+        if ftype == RawFileType.IQ:
+            wf = Waterfall.from_wav(fp, end_timestamp=dt.datetime.fromisoformat(params['end_time']).timestamp())
+        elif ftype == RawFileType.WFC:
+            wf = Waterfall.from_cfile(fp)
+        elif ftype != RawFileType.AUDIO:
+            self.log.warning('Unknown filetype: %s', ftype)
+        if wf:
+            wf.plot(fp.with_stem(f'{fp.stem}_{ftype.name}_wf').with_suffix('.png'), -110, -50)
 
 
 class MyTCPHandler(socketserver.StreamRequestHandler):
@@ -379,6 +399,9 @@ def setup_logging(q, log_lvl):
     # PIL logging level
     pil_logger = logging.getLogger('PIL')
     pil_logger.setLevel(logging.DEBUG + 2)
+
+    gr_logger = gr.gr.logging()
+    gr_logger.set_default_level(gr.gr.log_levels.info)
 
 
 if __name__ == '__main__':

@@ -87,7 +87,9 @@ class SatRecorder(gr.gr.hier_block2):
                         # 'sstv_live_exec',   # optional, only in SSTV decode
 
                         # 'channels',         # only for FSK, GFSK, GMSK
-                        # 'deviation_factor', # only for FSK, GFSK, GMSK
+                        # 'deviation_factor', # only for FSK, GFSK, GMSK, QUAD2FSK
+                        # 'fsk_baudrate',     # only for FSK, GFSK, GMSK, QUAD2FSK
+                        # 'proto_mode',       # only for FSK, GFSK, GMSK, QUAD2FSK
 
                         # 'proto_deframer',   # optional, only for PROTO
                         # 'proto_options',    # optional, only for PROTO
@@ -104,7 +106,7 @@ class SatRecorder(gr.gr.hier_block2):
                         # 'ccc_rs_interleaving'   # optional, only for CCSDSCC decode
                         # 'ccc_derandomize'   # optional, only for CCSDSCC decode
 
-                        # 'quad_gain',        # optional, only for QUAD demode
+                        # 'quad_gain',        # optional, only for QUAD, QUAD2FSK demode
 
                         # 'raw_out_format',   # optional, only for RAW decode
                         # 'raw_out_subformat',# optional, only for RAW decode
@@ -117,6 +119,12 @@ class SatRecorder(gr.gr.hier_block2):
                             and 'proto_deframer' in config
                             # and 'proto_options' in config
                     )
+            )
+            and (utils.Mode[config['mode']] != utils.Mode.QUAD2FSK
+                 or (
+                         'fsk_baudrate' in config
+                         and 'proto_mode' in config
+                 )
             )
         )
 
@@ -221,6 +229,10 @@ class SatRecorder(gr.gr.hier_block2):
                                                      self.ssb_bandwidth, self.ssb_out_sr)
             self.iq_demod = 0
 
+        elif self.mode == utils.Mode.QUAD2FSK:
+            self.demodulator = demodulators.Quad2FskDemod(self.bandwidth, self.fsk_baudrate, self.deviation_factor, self.quad_gain)
+            self.iq_demod = 0
+
         channels = getattr(self.demodulator, 'channels', (self.bandwidth,))
         self.decoders = []
         if self.decode == utils.Decode.APT:
@@ -236,12 +248,17 @@ class SatRecorder(gr.gr.hier_block2):
         elif self.decode == utils.Decode.CCSDSCC:
             self.decoders.append(decoders.CcsdsConvConcatDecoder(self, self.bandwidth))
 
-        elif self.decode == utils.Decode.RAW:
+        elif self.decode in (utils.Decode.RAW, utils.Decode.PROTO_RAW):
+            _ = {
+                utils.Decode.RAW: decoders.RawDecoder,
+                utils.Decode.PROTO_RAW: decoders.ProtoRawDecoder,
+            }
+            _decoder = _[self.decode]
             if not self.iq_demod:
                 self.post_demod = None
 
             for ch in channels:
-                self.decoders.append(decoders.RawDecoder(self, ch, iq_in=self.iq_demod))
+                self.decoders.append(_decoder(self, ch, iq_in=self.iq_demod))
 
         elif self.decode == utils.Decode.SSTV:
             self.decoders.append(decoders.SstvDecoder(self, self.demode_out_sr))
@@ -266,7 +283,8 @@ class SatRecorder(gr.gr.hier_block2):
             self.connect((x[-1], i), decoder)
 
         if (self.iq_dump or self.iq_waterfall) and self.decode != utils.Decode.RAW:
-            self.decoders.append(decoders.RawDecoder(self, self.bandwidth, not self.iq_dump))
+            self.decoders.append(decoders.RawDecoder(self, self.bandwidth, not self.iq_dump, 1,
+                                                     out_fmt=utils.RawOutFormat.NONE))
             self.connect(self.radio, self.decoders[-1])
 
     def start(self, observation_key: str):
@@ -358,6 +376,14 @@ class SatRecorder(gr.gr.hier_block2):
     @property
     def deviation_factor(self) -> Union[int, float]:
         return self.config.get('deviation_factor', 5)
+
+    @property
+    def fsk_baudrate(self) -> int:
+        return self.config['fsk_baudrate']
+
+    @property
+    def proto_mode(self) -> utils.Mode:
+        return utils.Mode[self.config['proto_mode']]
 
     @property
     def proto_deframer(self) -> utils.ProtoDeframer:

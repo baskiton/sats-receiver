@@ -45,6 +45,7 @@ class Mode(enum.StrEnum):
     WFM = enum.auto()
     WFM_STEREO = enum.auto()
     QUAD = enum.auto()
+    QUAD2FSK = enum.auto()
     SSTV_QUAD = enum.auto()
     QPSK = enum.auto()
     OQPSK = enum.auto()
@@ -68,6 +69,7 @@ class Decode(enum.StrEnum):
     SSTV = enum.auto()
     SATS = enum.auto()
     PROTO = enum.auto()
+    PROTO_RAW = enum.auto()
 
 
 class ProtoDeframer(enum.StrEnum):

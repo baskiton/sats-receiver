@@ -139,7 +139,8 @@ class FskDemod(gr.gr.hier_block2):
     def __init__(self,
                  samp_rate: Union[int, float],
                  channels: List[Union[int, float]] = None,
-                 deviation_factor: Union[int, float] = 5):
+                 deviation_factor: Union[int, float] = 5,
+                 iq=True):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
@@ -157,7 +158,9 @@ class FskDemod(gr.gr.hier_block2):
         chans = len(channels)
         super(FskDemod, self).__init__(
             self.prefix.partition('Demod')[0] + ' Demodulator',
-            gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
+            gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex)
+            if iq
+            else gr.gr.io_signature(1, 1, gr.gr.sizeof_float),
             gr.gr.io_signature(1, 1, gr.gr.sizeof_float)
             if chans == 1
             else gr.gr.io_signature.makev(chans, chans, [gr.gr.sizeof_float] * chans)
@@ -166,7 +169,7 @@ class FskDemod(gr.gr.hier_block2):
         self.channel_demod = {}
         for i, baud in enumerate(channels):
             deviation = baud / deviation_factor
-            demod = grs_demodulators.fsk_demodulator(baud, samp_rate, 1, deviation, dc_block=0)
+            demod = grs_demodulators.fsk_demodulator(baud, samp_rate, iq, deviation, dc_block=0)
             self.channel_demod[baud] = demod
             self.connect(self, demod, (self, i))
 
@@ -184,7 +187,6 @@ class GmskDemod(FskDemod):
 
 
 class SsbDemod(gr.gr.hier_block2):
-
     def __init__(self,
                  samp_rate: Union[int, float],
                  mode: utils.SsbMode,
@@ -252,3 +254,42 @@ class SsbDemod(gr.gr.hier_block2):
             self,
         )
         self.connect((self.ctf, 1), (self.add, 1))
+
+
+class Quad2FskDemod(gr.gr.hier_block2):
+    def __init__(self,
+                 samp_rate: Union[int, float],
+                 baudrate: int,
+                 deviation_factor: Union[int, float] = 5,
+                 quad_gain: Union[int, float] = 1.0):
+        super(Quad2FskDemod, self).__init__(
+            'Quad for FSK Demodulator',
+            gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex),
+            gr.gr.io_signature(1, 1, gr.gr.sizeof_float)
+        )
+
+        fsk_deviation_hz = baudrate / deviation_factor
+        carson_cutoff = abs(fsk_deviation_hz) + baudrate / 2
+        # decim = int(samp_rate // (2 * (carson_cutoff + carson_cutoff * 0.1)))
+        # self.channels = [samp_rate // decim]
+
+        self.channels = [samp_rate]
+        self.flow = [self]
+
+        self.flow.append(
+            gr.filter.fir_filter_ccf(
+                1,
+                gr.filter.firdes.low_pass(
+                    gain=1,
+                    sampling_freq=samp_rate,
+                    cutoff_freq=carson_cutoff,
+                    transition_width=(carson_cutoff * 0.1)
+                )
+            )
+        )
+
+        self.demod = gr.analog.quadrature_demod_cf(quad_gain)
+        self.flow.append(self.demod)
+        self.flow.append(self)
+
+        self.connect(*self.flow)

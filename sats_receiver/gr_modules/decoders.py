@@ -87,12 +87,16 @@ class RawDecoder(Decoder):
                  recorder: 'SatRecorder',
                  samp_rate: Union[int, float],
                  force_nosend_iq=False,
-                 iq_in=True):
+                 iq_in=True,
+                 out_fmt=None,
+                 out_subfmt=None,
+                 name='Raw Decoder',
+                 dtype=utils.Decode.RAW):
         super(RawDecoder, self).__init__(
             recorder,
             samp_rate,
-            'Raw Decoder',
-            utils.Decode.RAW,
+            name,
+            dtype,
             [
                 gr.gr.io_signature(1, 1, gr.gr.sizeof_gr_complex)
                 if iq_in
@@ -101,13 +105,16 @@ class RawDecoder(Decoder):
             ],
         )
 
-        out_fmt = recorder.raw_out_format
-        out_subfmt = recorder.raw_out_subformat
+        if not out_fmt:
+            out_fmt = recorder.raw_out_format
+        if not out_subfmt:
+            out_subfmt = recorder.raw_out_subformat
+
         self.base_kw['wf_cfg'] = recorder.iq_waterfall
         self.base_kw['send_iq'] = recorder.iq_dump or (not force_nosend_iq and out_fmt != utils.RawOutFormat.NONE)
         if out_fmt == utils.RawOutFormat.NONE:
             out_fmt = utils.RawOutFormat.WAV
-            out_subfmt = utils.RawOutDefaultSub.WAV
+            out_subfmt = utils.RawOutDefaultSub.WAV.value
 
         self.base_kw['out_fmt'] = out_fmt
         self.base_kw['iq_in'] = iq_in
@@ -746,15 +753,15 @@ class ProtoDecoder(Decoder):
 
     def __init__(self,
                  recorder: 'SatRecorder',
-                 channles: List[Union[int, float]]):
+                 channels: List[Union[int, float]]):
 
         self.deftype = recorder.proto_deframer
         name = self.deftype.name + ' Decoder'
 
-        chn = len(channles)
+        chn = len(channels)
         super(ProtoDecoder, self).__init__(
             recorder,
-            max(channles),
+            max(channels),
             name,
             utils.Decode.PROTO,
             [
@@ -765,7 +772,7 @@ class ProtoDecoder(Decoder):
             ],
         )
 
-        self.base_kw['channles'] = channles
+        self.base_kw['channels'] = channels
         self.base_kw['deftype'] = self.deftype
 
         self.deframers = []
@@ -774,7 +781,7 @@ class ProtoDecoder(Decoder):
 
         defr = self.deframer[self.deftype]
         opts = recorder.proto_options
-        for i, baud in enumerate(channles):
+        for i, baud in enumerate(channels):
             df = defr(**opts)
             self.deframers.append(df)
             self.connect((self, i), df)
@@ -802,14 +809,40 @@ class ProtoDecoder(Decoder):
         log.debug('finalizing...')
 
         st = tmp_file.stat()
-        d = dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        d = kw.get('end_time')
+        if d:
+            d = dt.datetime.fromisoformat(d)
+        else:
+            d = dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
         res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f_{deftype.name}{subname}.kss'))
         log.info('finish: %s (%s)', res_fn, utils.numbi_disp(st.st_size))
         if not st.st_size:
             res_fn.unlink(True)
             return utils.Decode.NONE,
 
-        return dtype, deftype, sat_name, observation_key, res_fn, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        return dtype, deftype, sat_name, observation_key, res_fn, d
+
+
+class ProtoRawDecoder(RawDecoder):
+    def __init__(self,
+                 recorder: 'SatRecorder',
+                 samp_rate: Union[int, float],
+                 force_nosend_iq=False,
+                 iq_in=True):
+        super().__init__(recorder, samp_rate, force_nosend_iq, iq_in,
+                         name='Proto Raw Decoder', dtype=utils.Decode.PROTO_RAW)
+
+        self.base_kw['channels'] = recorder.channels
+        self.base_kw['deftype'] = recorder.proto_deframer
+        self.base_kw['proto_mode'] = recorder.proto_mode
+        self.base_kw['proto_options'] = recorder.proto_options
+
+    @staticmethod
+    def _raw_finalize(**kw):
+        dtype, *x = RawDecoder._raw_finalize(**kw)
+        if dtype == utils.Decode.NONE:
+            return dtype,
+        return dtype, kw['proto_mode'], kw['proto_options'], kw['deftype'], kw['channels'], *x
 
 
 # needed for typehints
