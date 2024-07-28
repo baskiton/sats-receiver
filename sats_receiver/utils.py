@@ -26,7 +26,6 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker
 import numpy as np
 import psutil
-import scipy.io.wavfile as sp_wav
 import shapefile
 
 from PIL import Image, ImageColor, ImageOps, ExifTags
@@ -319,6 +318,100 @@ class MapShapes:
         return col
 
 
+class WaveFormat(enum.IntEnum):
+    PCM = 0x0001
+    FLOAT = 0x0003
+    EXT = 0xFFFE
+
+
+class WavFile:
+    def __init__(self, fp: pathlib.Path):
+        self.chunks = {}
+
+        with fp.open('rb') as f:
+            fcc = f.read(4)
+            if fcc not in (b'RIFF', b'RF64', b'BF64'):
+                raise ValueError(f'Unknown format {fcc!r}')
+
+            fsz = struct.unpack('<i', f.read(4))[0]
+            if fsz != -1:
+                fsz += 8
+
+            x = f.read(4)
+            if x != b'WAVE':
+                raise ValueError(f'Unknown type {x!r}')
+
+            self._read_chunks(f)
+
+    def _read_chunks(self, f):
+        with_fmt = 0
+        while 1:
+            n = f.read(4)
+            if len(n) < 4:
+                raise ValueError(f'Incomplete chunk {n!r}')
+
+            chunk_sz, = struct.unpack('<I', f.read(4))
+
+            if n == b'data':
+                if not with_fmt:
+                    raise ValueError('No fmt chunk before data')
+
+                bytes_per_sample = self.bytes_per_block // self.channels
+
+                if self.audio_format == WaveFormat.PCM:
+                    if 1 <= self.bit_depth <= 8:
+                        dtype = 'u1'
+                    elif self.bit_depth in (3, 5, 6, 7):
+                        dtype = 'V1'
+                    elif self.bit_depth <= 64:
+                        dtype = f'<i{bytes_per_sample}'
+                    else:
+                        raise ValueError(f'Unsupported bit depth: {self.bit_depth}')
+
+                elif self.audio_format == WaveFormat.FLOAT:
+                    if self.bit_depth in (32, 64):
+                        dtype = f'<f{bytes_per_sample}'
+                    else:
+                        raise ValueError(f'Unsupported bit depth: {self.bit_depth}')
+
+                else:
+                    raise ValueError(f'Invalid format {self.audio_format.name}')
+
+                start = f.tell()
+                if bytes_per_sample not in (1, 2, 4, 8):
+                    raise ValueError(f'mmap not compatible with {bytes_per_sample}-bytes container')
+                self.data = np.memmap(f, dtype=dtype, mode='c', offset=start).reshape((-1, self.channels))
+                self.duration = len(self.data) / self.samp_rate
+                break
+
+            elif n == b'ds64':
+                self.chunks[n] = f.read(chunk_sz)
+
+            elif n == b'fmt ':
+                if chunk_sz < 16:
+                    raise ValueError('FMT chunk is not compliant')
+
+                self.audio_format, self.channels, self.samp_rate, self.bytes_per_sec, self.bytes_per_block, self.bit_depth, = struct.unpack('<HHIIHH', f.read(16))
+                self.audio_format = WaveFormat(self.audio_format)
+                if self.audio_format == WaveFormat.EXT and chunk_sz >= 18:
+                    ext_ch_sz, = struct.unpack('<H', f.read(2))
+                    if ext_ch_sz >= 22:
+                        ext_data = f.read(22)
+                        raw_guid = ext_data[6:6 + 16]
+                        if raw_guid.endswith(b'\x00\x00\x10\x00\x80\x00\x00\xAA\x00\x38\x9B\x71'):
+                            self.audio_format = WaveFormat(struct.unpack('<I', raw_guid[:4])[0])
+                    else:
+                        raise ValueError('FMT EXT chunk is not compliant')
+
+                with_fmt = 1
+
+            else:
+                print(f'Unknown chunk {n!r}', file=sys.stderr)
+                f.seek(chunk_sz, os.SEEK_CUR)
+                if chunk_sz % 2:
+                    f.seek(1, os.SEEK_CUR)
+
+
 class WfMode(enum.StrEnum):
     MEAN = enum.auto()
     MAX_HOLD = enum.auto()
@@ -341,20 +434,20 @@ class Waterfall:
 
     @classmethod
     def from_wav(cls, in_fn, fft_size=4096, mode=WfMode.MEAN, end_timestamp=0):
-        samp_rate, wav_arr = sp_wav.read(in_fn, mmap=True)
-        if wav_arr.dtype != np.float32:
-            wav_arr = wav_arr[:len(wav_arr) & -2].astype(np.float32)
-        wav_arr = wav_arr.view(np.complex64).flatten()
+        wav = WavFile(pathlib.Path(in_fn))
+        if wav.data.dtype != np.float32:
+            wav.data = wav.data[:len(wav.data) & -2].astype(np.float32)
+
+        data = wav.data.view(np.complex64).reshape(wav.data.shape[0])
 
         rps = 10000
-        refresh = int((samp_rate / fft_size) / rps) or 1
+        refresh = int((wav.samp_rate / fft_size) / rps) or 1
         data_dtypes = np.dtype([('tabs', 'int64'), ('spec', 'float32', (fft_size, ))])
 
         fft_shift = math.ceil(fft_size / 2)
-        n_fft = len(wav_arr) // fft_size
-        duration = len(wav_arr) / samp_rate
-        dur_per_fft_us = (duration * 1000000) / n_fft
-        start_timestamp = end_timestamp and end_timestamp - duration
+        n_fft = len(data) // fft_size
+        dur_per_fft_us = (wav.duration * 1000000) / n_fft
+        start_timestamp = end_timestamp and end_timestamp - wav.duration
 
         if not isinstance(mode, WfMode) and isinstance(mode, str):
             mode = WfMode[mode]
@@ -367,11 +460,11 @@ class Waterfall:
         else:
             raise ValueError('Invalid waterfall mode')
 
-        data = compute(wav_arr, fft_size, n_fft, fft_shift, refresh, dur_per_fft_us, data_dtypes)
+        data = compute(data, fft_size, n_fft, fft_shift, refresh, dur_per_fft_us, data_dtypes)
         if not data.size:
             raise ValueError('Empty data array')
 
-        return cls(start_timestamp, samp_rate, fft_size, refresh, n_fft, data)
+        return cls(start_timestamp, wav.samp_rate, fft_size, refresh, n_fft, data)
 
     @classmethod
     def from_cfile(cls, compressed_wf: pathlib.Path):
