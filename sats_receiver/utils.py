@@ -341,7 +341,7 @@ class Waterfall:
 
     @classmethod
     def from_wav(cls, in_fn, fft_size=4096, mode=WfMode.MEAN, end_timestamp=0):
-        samp_rate, wav_arr = sp_wav.read(in_fn)
+        samp_rate, wav_arr = sp_wav.read(in_fn, mmap=True)
         if wav_arr.dtype != np.float32:
             wav_arr = wav_arr[:len(wav_arr) & -2].astype(np.float32)
         wav_arr = wav_arr.view(np.complex64).flatten()
@@ -377,7 +377,6 @@ class Waterfall:
     def from_cfile(cls, compressed_wf: pathlib.Path):
         with compressed_wf.open('rb') as f:
             hdr = cls.FILE_HDR_FMT.unpack_from(f.read(cls.FILE_HDR_FMT.size))
-            print(hdr)
             fft_size = hdr[2]
             n_fft = hdr[4]
             tabs = np.fromfile(f, np.int64, n_fft)
