@@ -291,6 +291,7 @@ class SatRecorder(gr.gr.hier_block2):
         for decoder in self.decoders:
             decoder.set_observation_key(observation_key)
             decoder.start()
+        self.radio.set_enabled(1)
 
     def stop(self):
         if self.is_runned:
@@ -539,7 +540,6 @@ class Satellite(gr.gr.hier_block2):
 
             for r in self.recorders:
                 r.start(observation_key)
-                r.radio.set_enabled(1)
 
     def stop(self):
         if self.is_runned:

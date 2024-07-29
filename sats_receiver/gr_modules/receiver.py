@@ -39,15 +39,15 @@ class SatsReceiver(gr.gr.top_block):
         self.ltz = dateutil.tz.tzlocal()
 
         self.flow = []
-        self.signal_src = gr.blocks.null_source(gr.gr.sizeof_gr_complex)
+        self.connector = self.signal_src = gr.blocks.null_source(gr.gr.sizeof_gr_complex)
         self.flow.append(self.signal_src)
 
         if self.dc_block:
-            self.blocks_correctiq = gr.blocks.correctiq()
+            self.connector = self.blocks_correctiq = gr.blocks.correctiq()
             self.flow.append(self.blocks_correctiq)
 
         if self.decimation > 1:
-            self.decim = gr.filter.rational_resampler_ccc(interpolation=1, decimation=self.decimation, taps=[])
+            self.connector = self.decim = gr.filter.rational_resampler_ccc(interpolation=1, decimation=self.decimation, taps=[])
             self.flow.append(self.decim)
 
         self.src_null_sink = gr.blocks.null_sink(gr.gr.sizeof_gr_complex)
@@ -117,8 +117,8 @@ class SatsReceiver(gr.gr.top_block):
                 sat = self.satellites[sat_name]
                 self.up.scheduler.cancel(*sat.events)
                 sat.stop()
-                if self.is_runned:
-                    self.disconnect(self.flow[-2], sat)
+                if sat.is_runned:
+                    self.disconnect(self.connector, sat)
                 del self.satellites[sat_name]
 
             for sat_name in to_create_sats:
@@ -140,9 +140,9 @@ class SatsReceiver(gr.gr.top_block):
                     continue
 
                 if self.calculate_pass(sat):
-                    if self.is_runned:
-                        self.connect(self.flow[-2], sat)
                     self.satellites[sat.name] = sat
+                    if sat.is_runned:
+                        self.connect(self.connector, sat)
 
             if to_remove_sats or to_create_sats:
                 self.unlock()
@@ -266,6 +266,11 @@ class SatsReceiver(gr.gr.top_block):
 
         return any(x.is_runned for x in self.satellites.values())
 
+    def set_source(self, src):
+        if self.connector == self.signal_src:
+            self.connector = src
+        self.signal_src = self.flow[0] = src
+
     def start(self, max_noutput_items=10000000):
         if self.enabled and not self.is_runned:
             self.log.info('START tune=%sHz samp_rate=%sHz gain=%s biast=%s',
@@ -273,9 +278,8 @@ class SatsReceiver(gr.gr.top_block):
                           self.gain, self.biast)
 
             try:
-                self.signal_src = gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
-                                                  'fc32', 1, '', '', [''], [''])
-                self.flow[0] = self.signal_src
+                self.set_source(gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
+                                                'fc32', 1, '', '', [''], ['']))
             except RuntimeError as e:
                 self.log.error('cannot start: %s', e)
 
@@ -297,7 +301,7 @@ class SatsReceiver(gr.gr.top_block):
             self.connect(*self.flow)
 
             for sat in self.satellites.values():
-                self.connect(self.flow[-2], sat)
+                self.connect(self.connector, sat)
 
             super(SatsReceiver, self).start(max_noutput_items)
             self.is_runned = True
@@ -314,16 +318,15 @@ class SatsReceiver(gr.gr.top_block):
             super(SatsReceiver, self).stop()
 
             self.disconnect(*self.flow)
-            from_disc = self.flow[-2]
-            self.signal_src = gr.blocks.null_source(gr.gr.sizeof_gr_complex)
-            self.flow[0] = self.signal_src
+            con = self.connector
+            self.set_source(gr.blocks.null_source(gr.gr.sizeof_gr_complex))
 
         for sat in self.satellites.values():
             if sched_clear:
                 self.up.scheduler.cancel(*sat.events)
             sat.stop()
             if self.is_runned:
-                self.disconnect(from_disc, sat)
+                self.disconnect(con, sat)
 
         self.is_runned = False
 
