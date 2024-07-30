@@ -16,6 +16,7 @@ import gnuradio.fft
 import gnuradio.filter
 import gnuradio.gr
 import gnuradio.pdu
+import pmt
 import satellites
 import satellites.components
 import satellites.components.deframers
@@ -66,6 +67,9 @@ class Decoder(gr.gr.hier_block2):
     def set_observation_key(self, observation_key: str):
         self.observation_key = observation_key
         self.base_kw.update(observation_key=observation_key)
+
+    def lock_reconf(self, detach=0):
+        pass
 
     def start(self):
         pfx = '_'.join([*self.name().lower().split(), self.t.strftime('%Y%m%d%H%M%S')])
@@ -139,6 +143,17 @@ class RawDecoder(Decoder):
         for ch in range(ch_n):
             self.connect((pre_sink, ch), (self.wav_sink, ch))
 
+    def lock_reconf(self, detach=0):
+        self.wav_sink.close()
+        if detach:
+            return
+
+        self.wav_sink.set_append(1)
+        if not self.wav_sink.open(str(self.tmp_file)):
+            self.wav_sink.set_append(0)
+            self.finalize()
+            self.start()
+
     def start(self):
         super(RawDecoder, self).start()
 
@@ -147,7 +162,7 @@ class RawDecoder(Decoder):
     def finalize(self):
         self.wav_sink.close()
         if self.tmp_file.exists():
-            self.recorder.satellite.executor.execute(self._raw_finalize, **self.base_kw)
+            self.recorder.satellite.executor.execute(self._raw_finalize, **self.base_kw.copy())
 
     @staticmethod
     def _raw_finalize(log: logging.Logger,
@@ -170,7 +185,7 @@ class RawDecoder(Decoder):
         res_fn = tmp_file.rename(out_dir / d.strftime(f'{sat_name}_%Y-%m-%d_%H-%M-%S,%f{subname}_RAW.{suff}'))
         files = {}
 
-        if wf_cfg is not None:
+        if st.st_size and wf_cfg is not None and out_fmt in (utils.RawOutFormat.WAV, utils.RawOutFormat.WAV64):
             wfp = res_fn.with_suffix('.wfc')
             try:
                 wf = utils.Waterfall.from_wav(res_fn, end_timestamp=st.st_mtime, **wf_cfg)
@@ -479,6 +494,16 @@ class CcsdsConvConcatDecoder(ConstelSoftDecoder):
         )
 
         if pre_deint:
+            # self.stopdu1 = satellites.hier.sync_to_pdu_soft(
+            #     packlen=72,
+            #     sync='00100111',
+            #     threshold=1,
+            # )
+            # self.stopdu2 = satellites.hier.sync_to_pdu_soft(
+            #     packlen=72,
+            #     sync='01001110',
+            #     threshold=1,
+            # )
             self.deint = deint.Deinterleave()
             self.pdutos = gr.pdu.pdu_to_stream_f(gr.pdu.EARLY_BURST_APPEND, 64)
 

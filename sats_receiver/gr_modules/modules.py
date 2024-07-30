@@ -38,8 +38,6 @@ class RadioModule(gr.gr.hier_block2):
 
         self.resamp_gcd = resamp_gcd = math.gcd(bandwidth, samp_rate)
 
-        self.blocks_copy = gr.blocks.copy(gr.gr.sizeof_gr_complex)
-        self.blocks_copy.set_enabled(self.enabled)
         self.freqshifter = gr.blocks.rotator_cc(2 * math.pi * (main_tune - frequency) / samp_rate)
         self.resampler = gr.filter.rational_resampler_ccc(
             interpolation=bandwidth // resamp_gcd,
@@ -50,7 +48,6 @@ class RadioModule(gr.gr.hier_block2):
 
         self.connect(
             self,
-            self.blocks_copy,
             self.freqshifter,
             self.resampler,
             self,
@@ -58,7 +55,6 @@ class RadioModule(gr.gr.hier_block2):
 
     def set_enabled(self, enabled):
         self.enabled = enabled
-        self.blocks_copy.set_enabled(enabled)
 
     def set_freq_offset(self, new_freq: Union[int, float]):
         self.freqshifter.set_phase_inc(2 * math.pi * (self.main_tune - new_freq) / self.samp_rate)
@@ -301,6 +297,10 @@ class SatRecorder(gr.gr.hier_block2):
 
     def set_freq_offset(self, new_freq: Union[int, float]):
         self.radio.set_freq_offset(new_freq)
+
+    def lock_reconf(self, detach=0):
+        for d in self.decoders:
+            d.lock_reconf(detach)
 
     @property
     def is_runned(self) -> bool:
@@ -547,7 +547,8 @@ class Satellite(gr.gr.hier_block2):
             self.start_event = self.stop_event = None
 
             for r in self.recorders:
-                r.stop()
+                if r.is_runned:
+                    r.stop()
 
     def correct_doppler(self, observer: ephem.Observer):
         if self.is_runned and self.doppler:
@@ -556,6 +557,11 @@ class Satellite(gr.gr.hier_block2):
             for r in self.recorders:
                 if r.is_runned:
                     r.set_freq_offset(utils.doppler_shift(r.frequency, self.sat_ephem_tle[0].range_velocity))
+
+    def lock_reconf(self, detach=0):
+        for r in self.recorders:
+            if r.is_runned:
+                r.lock_reconf(detach)
 
     @property
     def name(self) -> str:

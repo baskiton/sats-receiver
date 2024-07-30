@@ -112,13 +112,14 @@ class SatsReceiver(gr.gr.top_block):
 
             if to_remove_sats or to_create_sats:
                 self.lock()
+                self.lock_reconf()
 
             for sat_name in to_remove_sats:
                 sat = self.satellites[sat_name]
                 self.up.scheduler.cancel(*sat.events)
-                sat.stop()
                 if sat.is_runned:
                     self.disconnect(self.connector, sat)
+                sat.stop()
                 del self.satellites[sat_name]
 
             for sat_name in to_create_sats:
@@ -277,6 +278,10 @@ class SatsReceiver(gr.gr.top_block):
                           utils.num_disp(self.tune, 3), utils.num_disp(self.samp_rate, 3),
                           self.gain, self.biast)
 
+            for sat in self.satellites.values():
+                if sat.is_runned:
+                    self.disconnect(self.connector, sat)
+
             try:
                 self.set_source(gr.soapy.source(f'driver={self.source}{self.serial and f",serial={self.serial}"}',
                                                 'fc32', 1, '', '', [''], ['']))
@@ -299,9 +304,9 @@ class SatsReceiver(gr.gr.top_block):
             self.soapy_apply(0)
 
             self.connect(*self.flow)
-
             for sat in self.satellites.values():
-                self.connect(self.connector, sat)
+                if sat.is_runned:
+                    self.connect(self.connector, sat)
 
             super(SatsReceiver, self).start(max_noutput_items)
             self.is_runned = True
@@ -318,17 +323,44 @@ class SatsReceiver(gr.gr.top_block):
             super(SatsReceiver, self).stop()
 
             self.disconnect(*self.flow)
-            con = self.connector
+            conn = self.connector
             self.set_source(gr.blocks.null_source(gr.gr.sizeof_gr_complex))
 
         for sat in self.satellites.values():
             if sched_clear:
                 self.up.scheduler.cancel(*sat.events)
+            if self.is_runned and sat.is_runned:
+                try:
+                    self.disconnect(conn, sat)
+                except ValueError as e:
+                    sat.log.warning('stop %s fail: %s', conn.name(), e)
             sat.stop()
-            if self.is_runned:
-                self.disconnect(con, sat)
 
         self.is_runned = False
+
+    def lock_reconf(self, detach_sat=None):
+        for s in self.satellites.values():
+            if s.is_runned:
+                s.lock_reconf(detach_sat == s)
+
+    def sat_attach(self, sat: modules.Satellite):
+        self.lock()
+        self.lock_reconf()
+        self.connect(self.connector, sat)
+        sat.start()
+        self.unlock()
+
+    def sat_detach(self, sat: modules.Satellite):
+        try:
+            self.lock()
+            self.lock_reconf(sat)
+            if sat.is_runned:
+                self.disconnect(self.connector, sat)
+        except ValueError as e:
+            sat.log.warning('detach %s fail: %s', self.connector.name(), e)
+        finally:
+            self.unlock()
+            sat.stop()
 
     def action(self):
         if self.is_active and not self.start():
@@ -371,8 +403,8 @@ class SatsReceiver(gr.gr.top_block):
                     if set_t < rise_t:
                         rise_t = t
                     sat.events = [
-                        None if sat.is_runned else self.up.scheduler.plan(rise_t, sat.start),
-                        self.up.scheduler.plan(set_t, sat.stop),
+                        None if sat.is_runned else self.up.scheduler.plan(rise_t, self.sat_attach, sat),
+                        self.up.scheduler.plan(set_t, self.sat_detach, sat),
                         self.up.scheduler.plan(set_tt, self.calculate_pass, sat)
                     ]
                     self.log.info('Sat `%s` planned on %s <-> %s',
