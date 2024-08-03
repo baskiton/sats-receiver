@@ -229,7 +229,7 @@ class SatRecorder(gr.gr.hier_block2):
             self.demodulator = demodulators.Quad2FskDemod(self.bandwidth, self.fsk_baudrate, self.deviation_factor, self.quad_gain)
             self.iq_demod = 0
 
-        channels = getattr(self.demodulator, 'channels', (self.bandwidth,))
+        channels = getattr(self.demodulator, 'channels', (self.demode_out_sr,))
         self.decoders = []
         if self.decode == utils.Decode.APT:
             self.decoders.append(decoders.AptDecoder(self, self.bandwidth))

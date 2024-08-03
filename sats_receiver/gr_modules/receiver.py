@@ -136,7 +136,7 @@ class SatsReceiver(gr.gr.top_block):
                 try:
                     sat = modules.Satellite(cfg, sat_ephem_tle, self.up.observer, self.tune, self.samp_rate,
                                             self.output_directory, self.up.executor)
-                except ValueError as e:
+                except Exception as e:
                     self.log.warning('%s: %s. Skip', sat_name, e)
                     continue
 
