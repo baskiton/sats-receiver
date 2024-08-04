@@ -176,13 +176,13 @@ class Worker(mp.Process):
 
             elif dtype == Decode.RAW:
                 try:
-                    self._draw_wr(fp, params)
+                    self._draw_wf(fp, params)
                 except:
                     self.log.exception('waterfall')
 
             elif dtype == Decode.PROTO_RAW:
                 try:
-                    self._draw_wr(fp, params)
+                    self._draw_wf(fp, params)
                 except:
                     self.log.error('waterfall')
 
@@ -194,7 +194,7 @@ class Worker(mp.Process):
 
             self.log.info('%s done: %s', params['sat_name'], res.name)
 
-    def _draw_wr(self, fp, params):
+    def _draw_wf(self, fp, params):
         self.log.info('Draw Waterfall')
 
         wf = 0
@@ -206,7 +206,7 @@ class Worker(mp.Process):
         elif ftype != RawFileType.AUDIO:
             self.log.warning('Unknown filetype: %s', ftype)
         if wf:
-            wf.plot(fp.with_stem(f'{fp.stem}_{ftype.name}_wf').with_suffix('.png'), -110, -50)
+            wf.plot(fp.with_stem(f'{fp.stem}_{ftype.name}_wf').with_suffix('.jpg'))#, -110, -50)
 
 
 class MyTCPHandler(socketserver.StreamRequestHandler):
@@ -412,7 +412,7 @@ def setup_logging(q, log_lvl):
     pil_logger.setLevel(logging.DEBUG + 2)
 
     gr_logger = gr.gr.logging()
-    gr_logger.set_default_level(gr.gr.log_levels.info)
+    gr_logger.set_default_level(gr.gr.log_levels.err)
 
 
 if __name__ == '__main__':

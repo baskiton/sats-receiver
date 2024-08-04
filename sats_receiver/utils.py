@@ -652,7 +652,14 @@ class Waterfall:
         fig = plt.colorbar(aspect=50, pad=0.1)
         fig.set_label('Power, dB')
 
-        plt.savefig(out_fn, bbox_inches='tight', dpi=200)
+        plt.savefig(out_fn, bbox_inches='tight', dpi=200, format='png', transparent=0)
+        i = Image.open(out_fn).convert('RGB')
+        kw = {}
+        if out_fn.suffix == '.png':
+            kw.update(optimize=1)
+        elif out_fn.suffix == '.jpg':
+            kw.update(optimize=1, subsampling=2, quality=95)
+        i.save(out_fn, **kw)
         plt.close()
 
     def spec_compress(self):
