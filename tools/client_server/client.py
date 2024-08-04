@@ -13,7 +13,7 @@ import zlib
 
 from collections import deque
 
-from tools.client_server.server import SRV_HDR, SRV_HDR_SIGN, SRV_HDR_VER
+from tools.client_server.server import CMD, RDY_CMD, RDY_CMD_NAME, SRV_HDR, SRV_HDR_SIGN, SRV_HDR_VER
 
 
 class TcpSender(threading.Thread):
@@ -87,10 +87,12 @@ class TcpSender(threading.Thread):
                     return
 
                 if ss.fileno() in x:
-                    cmd = ss.recv(3)
-                    if cmd == b'RDY':
+                    cmd, = CMD.unpack(ss.recv(CMD.size))
+                    if cmd == RDY_CMD_NAME:
+                        off, = RDY_CMD.unpack(ss.recv(RDY_CMD.size))
                         to = 0
                         f = fp.open('rb')
+                        f.seek(off, os.SEEK_SET)
                         if self.compress:
                             zo = zlib.compressobj(wbits=-9)
 

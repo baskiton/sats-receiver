@@ -34,6 +34,10 @@ SRV_HDR = struct.Struct('!4sBI')    # SREC, ver, sz
 SRV_HDR_SIGN = b'SREC'
 SRV_HDR_VER = 1
 
+CMD = struct.Struct('!3s')
+RDY_CMD = struct.Struct('!Q')     # offset
+RDY_CMD_NAME = b'RDY'
+
 
 class Worker(mp.Process):
     SD_METEOR_72 = 'meteor_m2-x_lrpt'
@@ -255,9 +259,17 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         t = time.monotonic()
         t_next = t + 1
 
+        mode = 'ab'
         if compress:
+            # resume download not awailable
             zo = zlib.decompressobj(wbits=-9)
-        with fp.open('wb') as f:
+            mode = 'wb'
+        with fp.open(mode) as f:
+            off = f.tell()
+            sz_left -= off
+            self.wfile.write(CMD.pack(RDY_CMD_NAME))
+            self.wfile.write(RDY_CMD.pack(off))
+
             while sz_left:
                 data = self.request.recv(self.server.buf_sz)
                 if not data:
@@ -289,7 +301,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
             self.log.error('_handle from %s', self.client_address, exc_info=True)
         finally:
             try:
-                self.wfile.write(b'END')
+                self.wfile.write(CMD.pack(b'END'))
             except:
                 pass
 
@@ -339,7 +351,6 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         out_dir.mkdir(parents=True, exist_ok=True)
         fp = out_dir / params['filename']
 
-        self.wfile.write(b'RDY')
         self.recv_file(fp, params['fsize'], params['compress'])
 
         self.server.worker.put(params, fp, dtype)
