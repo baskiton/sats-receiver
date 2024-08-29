@@ -128,8 +128,13 @@ class SatsReceiver(gr.gr.top_block):
                     self.log.debug('Skip disabled sat `%s`', sat_name)
                     continue
 
-                sat_ephem_tle = self.up.tle.get(sat_name)
-                if sat_ephem_tle is None:
+                sat_ephem_tle = 0
+                s = cfg.get('tle_strings')
+                if s and len(s) >= 2:
+                    sat_ephem_tle = utils.tle_generate(sat_name, s[0], s[1], 1, self.log)
+                if not sat_ephem_tle:
+                    sat_ephem_tle = self.up.tle.get(sat_name)
+                if not sat_ephem_tle:
                     self.log.info('Sat `%s` not found in TLE. Skip', sat_name)
                     continue
 
