@@ -163,3 +163,24 @@ def process(fp: pathlib.Path, params: dict):
 
     x = executor.action()
     print(x)
+
+
+def _process(fp: pathlib.Path, params: dict, q: mp.Queue = None):
+    logger = logging.getLogger()
+    logger.handlers.clear()
+    logger.setLevel(mp.get_logger().level)
+    if q is not None:
+        qh = logging.handlers.QueueHandler(q)
+        logger.addHandler(qh)
+    log = logging.getLogger('GRProcess')
+
+    try:
+        process(fp, params)
+    except:
+        log.error('process error:', exc_info=True)
+
+
+def process2(fp: pathlib.Path, params: dict, log: logging.Logger = None):
+    p = mp.Process(target=_process, args=(fp, params, log))
+    p.start()
+    p.join()

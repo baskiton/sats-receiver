@@ -188,7 +188,7 @@ class Worker(mp.Process):
 
                 try:
                     self.log.info('Decode processing')
-                    gr_decoder.process(fp, params)
+                    gr_decoder.process2(fp, params, self.q)
                 except:
                     self.log.error('gr_decoder')
 
