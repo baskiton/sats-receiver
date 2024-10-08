@@ -13,7 +13,7 @@ import zlib
 
 from collections import deque
 
-from tools.client_server.server import CMD, RDY_CMD, RDY_CMD_NAME, SRV_HDR, SRV_HDR_SIGN, SRV_HDR_VER
+from tools.client_server import common as cli_srv_common
 
 
 class TcpSender(threading.Thread):
@@ -66,14 +66,13 @@ class TcpSender(threading.Thread):
         with self.ssl_ctx.wrap_socket(sk.create_connection(self.addr)) as ss:
             self.log.debug('send `%s`', fp.name)
 
-            ss.send(SRV_HDR.pack(SRV_HDR_SIGN, SRV_HDR_VER, len(d_raw)))
-            ss.send(d_raw)
+            ss.send(cli_srv_common.pack_hdr(cli_srv_common.HDR_CMD_SEND, d_raw))
 
-            if self._send_routine(ss, fp):
+            if self._send_routine(ss, fp, data['fsize']):
                 self.log.debug('send `%s` done', fp.name)
                 return fp
 
-    def _send_routine(self, ss: ssl.SSLSocket, fp: pathlib.Path):
+    def _send_routine(self, ss: ssl.SSLSocket, fp: pathlib.Path, fsz: int):
         poller = select.poll()
         poller.register(ss, select.POLLIN)
         poller.register(self._stop_rd, select.POLLIN)
@@ -87,17 +86,28 @@ class TcpSender(threading.Thread):
                     return
 
                 if ss.fileno() in x:
-                    cmd, = CMD.unpack(ss.recv(CMD.size))
-                    if cmd == RDY_CMD_NAME:
-                        off, = RDY_CMD.unpack(ss.recv(RDY_CMD.size))
-                        to = 0
-                        f = fp.open('rb')
-                        f.seek(off, os.SEEK_SET)
-                        if self.compress:
-                            zo = zlib.compressobj(wbits=-9)
+                    z = cli_srv_common.read_cmd(ss)
+                    if not z:
+                        if fsz:
+                            raise ConnectionError('Connection lost')
 
                     else:
-                        return 1
+                        cmd, args = z
+                        if cmd == cli_srv_common.REPLY_CMD_RDY:
+                            off, = args
+                            to = 0
+                            f = fp.open('rb')
+                            f.seek(off, os.SEEK_SET)
+                            fsz -= off
+                            if self.compress:
+                                zo = zlib.compressobj(wbits=-9)
+
+                        elif cmd == cli_srv_common.REPLY_CMD_END:
+                            return 1
+
+                        else:
+                            self.log.error('%s', cli_srv_common.reply_name.get(cmd, cmd))
+                            return
 
             if to == 0:
                 d = f.read(self.buffer_sz)
@@ -108,6 +118,7 @@ class TcpSender(threading.Thread):
                     f.close()
                     return 1
 
+                fsz -= len(d)
                 if not self.compress:
                     ss.send(d)
                 else:

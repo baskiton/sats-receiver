@@ -28,15 +28,7 @@ from sats_receiver.systems.apt import Apt
 from sats_receiver.utils import Decode, MapShapes, numbi_disp, close, Waterfall, WfMode, RawFileType
 
 from tools.client_server import gr_decoder
-
-
-SRV_HDR = struct.Struct('!4sBI')    # SREC, ver, sz
-SRV_HDR_SIGN = b'SREC'
-SRV_HDR_VER = 1
-
-CMD = struct.Struct('!3s')
-RDY_CMD = struct.Struct('!Q')     # offset
-RDY_CMD_NAME = b'RDY'
+from tools.client_server import common as cli_srv_common
 
 
 class Worker(mp.Process):
@@ -250,8 +242,90 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         return ret_fn
 
     def __init__(self, request, client_address, server):
-        self.log = logging.getLogger('Handler')
+        try:
+            self.prefix = '%s:%s' % client_address
+        except:
+            self.prefix = '%s' % client_address
+        self.log = logging.getLogger('Handler: ' + self.prefix)
+        self.ctx = None
         super().__init__(request, client_address, server)
+
+    def send_reply(self, *a):
+        if a:
+            self.wfile.write(cli_srv_common.pack_reply(*a))
+
+    def handle(self):
+        try:
+            self._handle()
+        except KeyError as e:
+            self.log.error('Missing key: %s', e)
+        except:
+            self.log.error('_handle', exc_info=True)
+        finally:
+            try:
+                self.send_reply(cli_srv_common.REPLY_CMD_END)
+            except:
+                pass
+
+    def _handle(self):
+        hdr = self.rfile.read(cli_srv_common.HDR.size)
+        if not hdr:
+            return
+
+        try:
+            hdr = cli_srv_common.Hdr._make(cli_srv_common.HDR.unpack(hdr))
+        except (struct.error, TypeError) as e:
+            self.log.error('%s: %s', e, hdr)
+            return
+
+        e = cli_srv_common.verify_hdr(hdr)
+        if e:
+            cause, e = e
+            self.log.error('Invalid %s: %s', e, hdr)
+            self.send_reply(*e)
+            return
+
+        if hdr.cmd == cli_srv_common.HDR_CMD_SEND:
+            e = self.cmd_send(hdr)
+            if e:
+                self.send_reply(*e)
+                return
+
+    def cmd_send(self, hdr: cli_srv_common.Hdr):
+        data = self.rfile.read(hdr.sz)
+        try:
+            params = json.loads(data.decode())
+        except json.JSONDecodeError as e:
+            self.log.error('Invalid JSON: %s', e)
+            return cli_srv_common.REPLY_CMD_ERR,
+
+        s = io.StringIO()
+        s.write(str(self.client_address) + '\n')
+        pprint.pprint(params, stream=s)
+        s.seek(0)
+        self.log.debug(s.read())
+
+        clients = json.load(self.server.client_list.open())
+        client_info = clients.get(params['secret'])
+        if not client_info:
+            self.log.debug('Unknown secret: %s', params['secret'])
+            return cli_srv_common.REPLY_CMD_ERR,
+
+        try:
+            dtype = Decode[params['decoder_type']]
+        except ValueError:
+            self.log.warning('Invalid dtype `%s`. Skip', params['decoder_type'])
+            return cli_srv_common.REPLY_CMD_ERR,
+
+        self.log.info('%s for %s', dtype, params['sat_name'])
+
+        out_dir = self.server.recv_path / params['sat_name']
+        out_dir.mkdir(parents=True, exist_ok=True)
+        fp = out_dir / params['filename']
+
+        self.recv_file(fp, params['fsize'], params['compress'])
+
+        self.server.worker.put(params, fp, dtype)
 
     def recv_file(self, fp: pathlib.Path, fsz: int, compress: bool):
         numfsz = numbi_disp(fsz)
@@ -267,8 +341,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
         with fp.open(mode) as f:
             off = f.tell()
             sz_left -= off
-            self.wfile.write(CMD.pack(RDY_CMD_NAME))
-            self.wfile.write(RDY_CMD.pack(off))
+            self.send_reply(cli_srv_common.REPLY_CMD_RDY, off)
 
             while sz_left:
                 data = self.request.recv(self.server.buf_sz)
@@ -288,72 +361,9 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
                 t = time.monotonic()
                 if t > t_next:
                     t_next = t + 10
-                    self.log.debug('%s %s/%s', fp.name, numbi_disp(fsz - sz_left), numfsz)
+                    self.log.debug('%s/%s', numbi_disp(fsz - sz_left), numfsz)
 
         self.log.debug('%s %s/%s', fp.name, numbi_disp(fsz - sz_left), numfsz)
-
-    def handle(self):
-        try:
-            self._handle()
-        except KeyError as e:
-            self.log.error('%s -> Missing key: %s', self.client_address, e)
-        except:
-            self.log.error('_handle from %s', self.client_address, exc_info=True)
-        finally:
-            try:
-                self.wfile.write(CMD.pack(b'END'))
-            except:
-                pass
-
-    def _handle(self):
-        hdr_b = self.rfile.read(SRV_HDR.size)
-        if not hdr_b:
-            return
-
-        try:
-            sign, ver, sz = hdr = SRV_HDR.unpack_from(hdr_b)
-        except struct.error as e:
-            self.log.debug('%s -> %s', self.client_address, e)
-            return
-
-        if not (sign == SRV_HDR_SIGN and ver == SRV_HDR_VER):
-            self.log.debug('%s -> Invalid HDR: %s (%s)', self.client_address, hdr, hdr_b)
-            return
-
-        data = self.rfile.read(sz)
-        try:
-            params = json.loads(data.decode())
-        except json.JSONDecodeError as e:
-            self.log.error('%s -> %s %s Invalid JSON: %s', self.client_address, hdr, data, e)
-            return
-
-        s = io.StringIO()
-        s.write(str(self.client_address) + '\n')
-        pprint.pprint(params, stream=s)
-        s.seek(0)
-        self.log.debug(s.read())
-
-        clients = json.load(self.server.client_list.open())
-        client_info = clients.get(params['secret'])
-        if not client_info:
-            self.log.debug('%s -> Unknown secret: %s', self.client_address, params['secret'])
-            return
-
-        try:
-            dtype = Decode[params['decoder_type']]
-        except ValueError:
-            self.log.warning('%s -> Invalid dtype. Skip', self.client_address)
-            return
-
-        self.log.info('%s -> %s for %s', self.client_address, dtype, params['sat_name'])
-
-        out_dir = self.server.recv_path / params['sat_name']
-        out_dir.mkdir(parents=True, exist_ok=True)
-        fp = out_dir / params['filename']
-
-        self.recv_file(fp, params['fsize'], params['compress'])
-
-        self.server.worker.put(params, fp, dtype)
 
 
 class _TcpServer(socketserver.TCPServer):
