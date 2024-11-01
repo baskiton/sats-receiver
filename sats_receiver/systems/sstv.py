@@ -83,7 +83,7 @@ class Sstv:
         data = self._image_process(data)
 
         img = Image.fromarray((data * 255).clip(0, 255).astype(np.uint8), self.MODE)
-        if self.MODE != 'RGB':
+        if self.MODE == 'YCbCr':
             img = img.convert('RGB')
 
         self.log.debug('add EXIF')
@@ -227,6 +227,56 @@ class Robot72(_Robot):
     IMG_H = 240
 
     _color_method = _Robot._422
+
+
+class _RobotBW(Sstv):
+
+    def _image_process(self, data: np.ndarray) -> np.ndarray:
+        return sp.signal.resample(data, self.IMG_W, axis=1)
+
+
+class RobotBW8(_RobotBW):
+    VIS = 0x02
+
+    HSYNC_MS = 10
+    C_MS = 56
+    LINE_S = (HSYNC_MS + C_MS) / 1000
+
+    IMG_W = 160
+    IMG_H = 120 + 8
+
+
+class RobotBW12(_RobotBW):
+    VIS = 0x06
+
+    HSYNC_MS = 7
+    C_MS = 93
+    LINE_S = (HSYNC_MS + C_MS) / 1000
+
+    IMG_W = 160
+    IMG_H = 128 + 8
+
+
+class RobotBW24(_RobotBW):
+    VIS = 0x0a
+
+    HSYNC_MS = 12
+    C_MS = 93
+    LINE_S = (HSYNC_MS + C_MS) / 1000
+
+    IMG_W = 320
+    IMG_H = 240 + 8
+
+
+class RobotBW36(_RobotBW):
+    VIS = 0x0e
+
+    HSYNC_MS = 12
+    C_MS = 138
+    LINE_S = (HSYNC_MS + C_MS) / 1000
+
+    IMG_W = 320
+    IMG_H = 240 + 8
 
 
 class _Martin(Sstv):
@@ -477,6 +527,10 @@ class SstvRecognizer:
     _2300 = (2300 - 1100) / SIGNAL_FREQ_SHIFT
 
     CODES = {
+        RobotBW8.VIS: RobotBW8,
+        RobotBW12.VIS: RobotBW12,
+        RobotBW24.VIS: RobotBW24,
+        RobotBW36.VIS: RobotBW36,
         Robot24.VIS: Robot24,
         Robot36.VIS: Robot36,
         Robot72.VIS: Robot72,
