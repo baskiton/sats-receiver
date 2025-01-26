@@ -149,7 +149,7 @@ Each receiver object contain:
 | enabled            | Boolean         | _Optional._ Enable or Disable this Receiver. `true` by default                                                                                     |
 | serial             | String          | _Optional._ Serial number of the receiver. Empty by default                                                                                        |
 | biast              | Boolean         | _Optional._ Bias-T enable/disable. `false` by default. **WARNING! Be careful when enabling this option! Use only if you know what it is and why!** |
-| gain               | Boolean         | _Optional._ Receiver gain, dB. `0` by default                                                                                                      |
+| gain               | Number, Map     | _Optional._ Receiver gain, dB. `0` by default. It could also be a dictionary {name: value}                                                         |
 | freq_correction    | Number          | _Optional._ Receiver frequency correction, PPM. `0.0` by default                                                                                   |
 | freq_correction_hz | Integer         | _Optional._ Receiver frequency correction, Hz. `0` by default                                                                                      |
 

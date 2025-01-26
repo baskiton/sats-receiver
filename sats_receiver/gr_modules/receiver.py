@@ -194,7 +194,7 @@ class SatsReceiver(gr.gr.top_block):
         return bool(self.config.get('biast', False))
 
     @property
-    def gain(self) -> Union[int, float]:
+    def gain(self) -> Union[int, float, Mapping[str, Union[int, float]]]:
         """
         Receiver gain, db
         """
@@ -436,7 +436,7 @@ class SatsReceiver(gr.gr.top_block):
         if (not isinstance(self.signal_src, gr.blocks.null_source)
                 and 'biastee' in self.src_settings_keys):
             try:
-                self.signal_src.write_setting('biastee', v)
+                self.signal_src.write_setting('biastee', bool(v))
             except (ValueError, AttributeError) as e:
                 if not silent:
                     self.log.warning('change bias-t error: %s', e)
@@ -447,5 +447,9 @@ class SatsReceiver(gr.gr.top_block):
         if self.signal_src.has_frequency_correction(ch):
             self.signal_src.set_frequency_correction(ch, self.freq_correction)
         self.signal_src.set_gain_mode(ch, False)
-        self.signal_src.set_gain(ch, self.gain)
+        if isinstance(self.gain, Mapping):
+            for k, v in self.gain.items():
+                self.signal_src.set_gain(ch, k, v)
+        else:
+            self.signal_src.set_gain(ch, self.gain)
         self.set_biast(self.biast)
