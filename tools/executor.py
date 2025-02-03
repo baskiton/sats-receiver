@@ -112,13 +112,14 @@ class Executor(mp.Process):
                     continue
 
                 elif decoder_type == utils.Decode.RAW:
-                    _, sat_name, observation_key, files, end_time = x
+                    _, sat_name, observation_key, files, wf_minmax, end_time = x
                     for ty, fp in files.items():
                         self.sender.push(decoder_type=dty,
                                          file_type=ty.name,
                                          sat_name=sat_name,
                                          observation_key=observation_key,
                                          filename=str(fp),
+                                         wf_minmax=wf_minmax,
                                          end_time=str(end_time))
 
                 elif decoder_type in (utils.Decode.CSOFT, utils.Decode.CCSDSCC, utils.Decode.APT):
@@ -159,7 +160,7 @@ class Executor(mp.Process):
                                      end_time=str(end_time))
 
                 elif decoder_type == utils.Decode.PROTO_RAW:
-                    _, mode, proto_opt, deftype, channels, sat_name, observation_key, files, end_time = x
+                    _, mode, proto_opt, deftype, channels, sat_name, observation_key, files, wf_minmax, end_time = x
                     for ty, fp in files.items():
                         self.sender.push(decoder_type=dty,
                                          proto_mode=mode.name,
@@ -170,6 +171,7 @@ class Executor(mp.Process):
                                          sat_name=sat_name,
                                          observation_key=observation_key,
                                          filename=str(fp),
+                                         wf_minmax=wf_minmax,
                                          end_time=str(end_time))
 
     def execute(self, fn, *args, **kwargs):

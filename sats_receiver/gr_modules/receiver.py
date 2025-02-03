@@ -139,8 +139,7 @@ class SatsReceiver(gr.gr.top_block):
                     continue
 
                 try:
-                    sat = modules.Satellite(cfg, sat_ephem_tle, self.up.observer, self.tune, self.samp_rate,
-                                            self.output_directory, self.up.executor)
+                    sat = modules.Satellite(cfg, sat_ephem_tle, self)
                 except Exception as e:
                     self.log.warning('%s: %s. Skip', sat_name, e)
                     continue
@@ -259,6 +258,10 @@ class SatsReceiver(gr.gr.top_block):
     @property
     def output_directory(self) -> pathlib.Path:
         return pathlib.Path(self.config['output_directory']).expanduser()
+
+    @property
+    def wf_minmax(self) -> list[Union[int, float, None]]:
+        return self.config.get('wf_minmax', [None, None])
 
     @property
     def sats(self) -> list[Mapping]:

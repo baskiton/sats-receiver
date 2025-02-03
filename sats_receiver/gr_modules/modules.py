@@ -487,11 +487,7 @@ class Satellite(gr.gr.hier_block2):
     def __init__(self,
                  config: Mapping,
                  sat_ephem_tle: tuple[ephem.EarthSatellite, tuple[str, str, str]],
-                 observer: Observer,
-                 main_tune: Union[int, float],
-                 samp_rate: Union[int, float],
-                 output_directory: pathlib.Path,
-                 executor):
+                 receiver: 'SatsReceiver'):
         n = config.get('name', '')
         self.prefix = f'{self.__class__.__name__}{n and f": {n}"}'
         self.log = logging.getLogger(self.prefix)
@@ -506,22 +502,29 @@ class Satellite(gr.gr.hier_block2):
         )
 
         self.sat_ephem_tle = sat_ephem_tle
-        self.observer = observer
-        self.executor = executor
+        self.receiver = receiver
         self.config = config
-        self.output_directory = output_directory / self.name
+        self.output_directory = receiver.output_directory / self.name
         self.output_directory.mkdir(parents=True, exist_ok=True)
         self.events: list[Optional[utils.Event]] = [None, None, None]
         self.recorders = []
 
         for cfg in self.frequencies:
             try:
-                r = SatRecorder(self, cfg, main_tune, samp_rate)
+                r = SatRecorder(self, cfg, receiver.tune, receiver.samp_rate)
                 if r.enabled:
                     self.connect(self, r)
                     self.recorders.append(r)
             except ValueError as e:
                 self.log.warning('Skip freq `%s`: %s', cfg.get('freq', 'Unknown'), e)
+
+    @property
+    def observer(self) -> Observer:
+        return self.receiver.up.observer
+
+    @property
+    def executor(self):
+        return self.receiver.up.executor
 
     @property
     def is_runned(self) -> bool:

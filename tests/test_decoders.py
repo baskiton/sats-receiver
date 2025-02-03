@@ -89,6 +89,11 @@ class TestExecutor:
                 return
 
 
+class TestReceiver:
+    def __init__(self):
+        self.wf_minmax = [None, None]
+
+
 class DecoderTopBlock(gr.gr.top_block):
     def __init__(self,
                  wav_channels: int,
@@ -152,7 +157,7 @@ class TestDecoders(TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.sat_nt = nt('Satellite', 'name output_directory executor observer sat_ephem_tle')
+        cls.sat_nt = nt('Satellite', 'name receiver output_directory executor observer sat_ephem_tle')
         cls.rec_nt = nt('SatRecorder',
                         'satellite subname mode '
                         'sstv_sync sstv_wsr sstv_live_exec '
@@ -175,8 +180,9 @@ class TestDecoders(TestCase):
 
         self.tle = TestTle()
         self.executor = TestExecutor()
+        self.receiver = TestReceiver()
         self.satellite = self.sat_nt(
-            'TEST SAT', self.out_dp, self.executor,
+            'TEST SAT', self.receiver, self.out_dp, self.executor,
             Observer(dict(latitude=11.111, longitude=-22.222, elevation=-33.333, weather=0)),
             self.tle.get('TEST SAT'),
         )
@@ -470,7 +476,7 @@ class TestDecoders(TestCase):
 
         x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
-        dtype, sat_name, observation_key, files, end_time = x
+        dtype, sat_name, observation_key, files, wf_minmax, end_time = x
         self.assertEqual(utils.Decode.RAW, dtype)
         self.assertEqual(self.recorder.satellite.name, sat_name)
         self.assertEqual(1, len(files))
@@ -498,7 +504,7 @@ class TestDecoders(TestCase):
 
         x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
-        dtype, sat_name, observation_key, files, end_time = x
+        dtype, sat_name, observation_key, files, wf_minmax, end_time = x
         self.assertEqual(utils.Decode.RAW, dtype)
         self.assertEqual(self.recorder.satellite.name, sat_name)
         self.assertEqual(1, len(files))
@@ -529,7 +535,7 @@ class TestDecoders(TestCase):
 
         x = self.tb.executor.action(TIMEOUT)
         self.assertIsInstance(x, tuple)
-        dtype, sat_name, observation_key, files, end_time = x
+        dtype, sat_name, observation_key, files, wf_minmax, end_time = x
         self.assertEqual(utils.Decode.RAW, dtype)
         self.assertEqual(self.recorder.satellite.name, sat_name)
         self.assertEqual(1, len(files))

@@ -152,6 +152,7 @@ Each receiver object contain:
 | gain               | Number, Map     | _Optional._ Receiver gain, dB. `0` by default. It could also be a dictionary {name: value}                                                         |
 | freq_correction    | Number          | _Optional._ Receiver frequency correction, PPM. `0.0` by default                                                                                   |
 | freq_correction_hz | Integer         | _Optional._ Receiver frequency correction, Hz. `0` by default                                                                                      |
+| wf_minmax          | Array of Number | _Optional._ Waterfall min/max 2-array value. `[null, null]` by default                                                                             |
 
 
 #### sats

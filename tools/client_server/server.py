@@ -198,7 +198,8 @@ class Worker(mp.Process):
         elif ftype != RawFileType.AUDIO:
             self.log.warning('Unknown filetype: %s', ftype)
         if wf:
-            wf.plot(fp.with_stem(f'{fp.stem}_{ftype.name}_wf').with_suffix('.jpg'))#, -110, -50)
+            wf.plot(fp.with_stem(f'{fp.stem}_{ftype.name}_wf').with_suffix('.jpg'),
+                    *params.get('wf_minmax', (None, None)))
 
 
 class MyTCPHandler(socketserver.StreamRequestHandler):

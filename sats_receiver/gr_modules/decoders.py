@@ -122,6 +122,7 @@ class RawDecoder(Decoder):
 
         self.base_kw['out_fmt'] = out_fmt
         self.base_kw['iq_in'] = iq_in
+        self.base_kw['wf_minmax'] = recorder.satellite.receiver.wf_minmax
 
         pre_sink = self
         if iq_in:
@@ -176,7 +177,8 @@ class RawDecoder(Decoder):
                       send_iq: bool,
                       out_fmt: utils.RawOutFormat,
                       iq_in: bool,
-                      **kw) -> tuple[utils.Decode, str, str, dict[utils.RawFileType, pathlib.Path], dt.datetime]:
+                      wf_minmax: list[Union[int, float, None]],
+                      **kw) -> tuple[utils.Decode, str, str, dict[utils.RawFileType, pathlib.Path], list[Union[int, float, None]], dt.datetime]:
         log.debug('finalizing...')
 
         st = tmp_file.stat()
@@ -204,7 +206,8 @@ class RawDecoder(Decoder):
         if not files:
             return utils.Decode.NONE,
 
-        return dtype, sat_name, observation_key, files, dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc())
+        return (dtype, sat_name, observation_key, files, wf_minmax,
+                dt.datetime.fromtimestamp(st.st_mtime, dateutil.tz.tzutc()))
 
 
 class AptDecoder(Decoder):
