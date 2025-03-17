@@ -124,25 +124,29 @@ class RawDecoder(Decoder):
         self.base_kw['iq_in'] = iq_in
         self.base_kw['wf_minmax'] = recorder.satellite.receiver.wf_minmax
 
-        pre_sink = self
+        self.pre_sink = self
         if iq_in:
-            pre_sink = self.ctf = gr.blocks.complex_to_float(1)
-            self.connect(self, pre_sink)
+            self.pre_sink = self.ctf = gr.blocks.complex_to_float(1)
+            self.connect(self, self.pre_sink)
 
         ch_n = iq_in and 2 or 1
-        self.wav_sink = gr.blocks.wavfile_sink(
-            str(self.tmp_file),
-            ch_n,
-            samp_rate,
-            out_fmt.value,
-            out_subfmt.value,
-            False
+        self.wav_sink_kw = dict(
+            filename=str(self.tmp_file),
+            n_channels=ch_n,
+            sample_rate=samp_rate,
+            format=out_fmt.value,
+            subformat=out_subfmt.value,
+            append=False,
         )
+        self.make_new_sink()
+
+    def make_new_sink(self):
+        # NOTE: only in locked state!
+        self.wav_sink = gr.blocks.wavfile_sink(**self.wav_sink_kw)
         self.wav_sink.close()
         utils.unlink(self.tmp_file)
-
-        for ch in range(ch_n):
-            self.connect((pre_sink, ch), (self.wav_sink, ch))
+        for ch in range(self.wav_sink_kw['n_channels']):
+            self.connect((self.pre_sink, ch), (self.wav_sink, ch))
 
     def lock_reconf(self, detach=0):
         self.wav_sink.close()
@@ -151,13 +155,15 @@ class RawDecoder(Decoder):
 
         self.wav_sink.set_append(1)
         if not self.wav_sink.open(str(self.tmp_file)):
-            self.wav_sink.set_append(0)
+            # fully renew sink
             self.finalize()
-            self.start()
+            self.disconnect(self.wav_sink)
+            self.start(1)
 
-    def start(self):
+    def start(self, remake_sink=0):
         super(RawDecoder, self).start()
-
+        if remake_sink:
+            self.make_new_sink()
         self.wav_sink.open(str(self.tmp_file))
 
     def finalize(self):
