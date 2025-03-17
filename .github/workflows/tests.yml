@@ -51,7 +51,7 @@ jobs:
           # Increase this value to reset cache if test-env.yml has not changed
           CACHE_NUMBER: 0
         with:
-          path: ${{ env.CONDA_PKGS_DIR }}
+          path: ${{ env.CONDA }}/envs
           key:
             conda-${{ runner.os }}-${{ runner.arch }}-${{
             steps.get-vars.outputs.today }}-${{ 
