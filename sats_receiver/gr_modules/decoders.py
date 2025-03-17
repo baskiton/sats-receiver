@@ -144,17 +144,6 @@ class RawDecoder(Decoder):
         for ch in range(ch_n):
             self.connect((pre_sink, ch), (self.wav_sink, ch))
 
-    def lock_reconf(self, detach=0):
-        self.wav_sink.close()
-        if detach:
-            return
-
-        self.wav_sink.set_append(1)
-        if not self.wav_sink.open(str(self.tmp_file)):
-            self.wav_sink.set_append(0)
-            self.finalize()
-            self.start()
-
     def start(self):
         super(RawDecoder, self).start()
 
