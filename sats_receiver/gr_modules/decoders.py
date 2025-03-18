@@ -142,6 +142,7 @@ class RawDecoder(Decoder):
 
     def make_new_sink(self):
         # NOTE: only in locked state!
+        self.wav_sink_kw['filename'] = str(self.tmp_file)
         self.wav_sink = gr.blocks.wavfile_sink(**self.wav_sink_kw)
         self.wav_sink.close()
         utils.unlink(self.tmp_file)
@@ -157,7 +158,10 @@ class RawDecoder(Decoder):
         if not self.wav_sink.open(str(self.tmp_file)):
             # fully renew sink
             self.finalize()
-            self.disconnect(self.wav_sink)
+            try:
+                self.disconnect(self.wav_sink)
+            except ValueError as e:
+                self.log.warning('lock_reconf: %s. Already disconnected?', e)
             self.start(1)
 
     def start(self, remake_sink=0):
