@@ -129,20 +129,23 @@ class RawDecoder(Decoder):
             self.pre_sink = self.ctf = gr.blocks.complex_to_float(1)
             self.connect(self, self.pre_sink)
 
-        ch_n = iq_in and 2 or 1
+        self.wav_sink_is_appended = out_fmt in (utils.RawOutFormat.WAV, utils.RawOutFormat.WAV64)
         self.wav_sink_kw = dict(
             filename=str(self.tmp_file),
-            n_channels=ch_n,
+            n_channels=iq_in and 2 or 1,
             sample_rate=samp_rate,
             format=out_fmt.value,
             subformat=out_subfmt.value,
             append=False,
         )
+        self.wav_sink = None
         self.make_new_sink()
 
     def make_new_sink(self):
         # NOTE: only in locked state!
         self.wav_sink_kw['filename'] = str(self.tmp_file)
+        if self.wav_sink is not None:
+            del self.wav_sink
         self.wav_sink = gr.blocks.wavfile_sink(**self.wav_sink_kw)
         self.wav_sink.close()
         utils.unlink(self.tmp_file)
@@ -150,12 +153,11 @@ class RawDecoder(Decoder):
             self.connect((self.pre_sink, ch), (self.wav_sink, ch))
 
     def lock_reconf(self, detach=0):
-        self.wav_sink.close()
         if detach:
+            self.wav_sink.close()
             return
 
-        self.wav_sink.set_append(1)
-        if not self.wav_sink.open(str(self.tmp_file)):
+        if not self.wav_sink_is_appended:
             # fully renew sink
             self.finalize()
             try:
