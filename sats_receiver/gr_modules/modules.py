@@ -511,8 +511,8 @@ class Satellite(gr.gr.hier_block2):
 
         for cfg in self.frequencies:
             try:
-                r = SatRecorder(self, cfg, receiver.tune, receiver.samp_rate)
-                if r.enabled:
+                if cfg.get('enabled', True):
+                    r = SatRecorder(self, cfg, receiver.tune, receiver.samp_rate)
                     self.connect(self, r)
                     self.recorders.append(r)
             except ValueError as e:
