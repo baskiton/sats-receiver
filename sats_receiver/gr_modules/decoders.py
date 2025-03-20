@@ -71,10 +71,13 @@ class Decoder(gr.gr.hier_block2):
     def lock_reconf(self, detach=0):
         pass
 
-    def start(self):
+    def upd_tmp_file(self):
         pfx = '_'.join([*self.name().lower().split(), self.t.strftime('%Y%m%d%H%M%S')])
         self.tmp_file = utils.mktmp(self.out_dir, pfx)
         self.base_kw.update(tmp_file=self.tmp_file, start_dt=self.t)
+
+    def start(self):
+        self.upd_tmp_file()
 
     def finalize(self):
         pass
@@ -141,14 +144,15 @@ class RawDecoder(Decoder):
         self.wav_sink = None
         self.make_new_sink()
 
-    def make_new_sink(self):
+    def make_new_sink(self, close=1):
         # NOTE: only in locked state!
         self.wav_sink_kw['filename'] = str(self.tmp_file)
         if self.wav_sink is not None:
             del self.wav_sink
         self.wav_sink = gr.blocks.wavfile_sink(**self.wav_sink_kw)
-        self.wav_sink.close()
-        utils.unlink(self.tmp_file)
+        if close:
+            self.wav_sink.close()
+            utils.unlink(self.tmp_file)
         for ch in range(self.wav_sink_kw['n_channels']):
             self.connect((self.pre_sink, ch), (self.wav_sink, ch))
 
@@ -164,12 +168,11 @@ class RawDecoder(Decoder):
                 self.disconnect(self.wav_sink)
             except ValueError as e:
                 self.log.warning('lock_reconf: %s. Already disconnected?', e)
-            self.start(1)
+            self.upd_tmp_file()
+            self.make_new_sink(0)
 
-    def start(self, remake_sink=0):
+    def start(self):
         super(RawDecoder, self).start()
-        if remake_sink:
-            self.make_new_sink()
         self.wav_sink.open(str(self.tmp_file))
 
     def finalize(self):
