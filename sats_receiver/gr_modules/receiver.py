@@ -367,8 +367,8 @@ class SatsReceiver(gr.gr.top_block):
         except ValueError as e:
             sat.log.warning('detach %s fail: %s', self.connector.name(), e)
         finally:
-            self.unlock()
             sat.stop()
+            self.unlock()
 
     def action(self):
         if self.is_active and not self.start():
