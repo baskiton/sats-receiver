@@ -49,6 +49,8 @@ class Tle:
                 while 0 < len(line) <= 69:
                     names.add(line.strip())
                     line = f.readline()
+                if not line:
+                    continue
 
                 try:
                     names.add(int(line[2:7]))
