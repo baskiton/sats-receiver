@@ -456,7 +456,7 @@ class Waterfall:
         spec = np.memmap(uncompressed_f, np.float32, mode='w+', shape=(n_fft, fft_size))
         np_madvise(spec, mmap.MADV_SEQUENTIAL)
         uncompressed_kw = dict(
-            uncompressed_f=uncompressed_f,
+            # uncompressed_f=uncompressed_f,
             start_timestamp=start_timestamp,
             samp_rate=wav.samp_rate,
             fft_size=fft_size,
@@ -511,7 +511,7 @@ class Waterfall:
                 setattr(self, k, v)
 
         else:
-            self.uncompressed_f = mktmp2(buffering=0, dir=compressed_wf.parent, delete=1)
+            uncompressed_f = mktmp2(buffering=0, dir=compressed_wf.parent, delete=1)
             vals_f = mktmp2(buffering=0, dir=compressed_wf.parent, delete=1)
             with compressed_wf.open('rb') as f:
                 hdr = self.FILE_HDR_FMT.unpack_from(f.read(self.FILE_HDR_FMT.size))
@@ -545,7 +545,7 @@ class Waterfall:
                 vals.flush()
                 offset += vals.nbytes
 
-                self.spec = np.memmap(self.uncompressed_f, np.float32, mode='w+', shape=vals.shape)
+                self.spec = np.memmap(uncompressed_f, np.float32, mode='w+', shape=vals.shape)
                 np_madvise(self.spec, mmap.MADV_SEQUENTIAL)
                 spec_l1 = self.spec.shape[1] * self.spec.itemsize
                 for i in range(vals.shape[0]):
