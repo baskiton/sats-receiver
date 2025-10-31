@@ -200,8 +200,8 @@ class RawDecoder(Decoder):
         if st.st_size and wf_cfg is not None and out_fmt in (utils.RawOutFormat.WAV, utils.RawOutFormat.WAV64):
             wfp = res_fn.with_suffix('.wfc')
             try:
-                wf = utils.Waterfall.from_wav(res_fn, end_timestamp=st.st_mtime, **wf_cfg)
-                files[utils.RawFileType.WFC] = wf.to_cfile(wfp)
+                wf = utils.Waterfall.from_wav(res_fn, wfp, end_timestamp=st.st_mtime, **wf_cfg)
+                files[utils.RawFileType.WFC] = wfp
             except Exception as e:
                 log.warning('WF error: %s', e)
                 utils.unlink(wfp)

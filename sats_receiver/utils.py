@@ -7,6 +7,7 @@ import heapq
 import itertools
 import logging
 import math
+import mmap
 import os
 import pathlib
 import struct
@@ -383,6 +384,7 @@ class WavFile:
                 if bytes_per_sample not in (1, 2, 4, 8):
                     raise ValueError(f'mmap not compatible with {bytes_per_sample}-bytes container')
                 self.data = np.memmap(f, dtype=dtype, mode='c', offset=start).reshape((-1, self.channels))
+                np_madvise(self.data, mmap.MADV_SEQUENTIAL)
                 self.duration = len(self.data) / self.samp_rate
                 break
 
@@ -435,21 +437,34 @@ class Waterfall:
     SCALE_IN_STDS = 8
 
     @classmethod
-    def from_wav(cls, in_fn, fft_size=4096, mode=WfMode.MEAN, end_timestamp=0):
-        wav = WavFile(pathlib.Path(in_fn))
+    def from_wav(cls, in_fp: pathlib.Path, out_fp: pathlib.Path, fft_size=4096, mode=WfMode.MEAN, end_timestamp=0):
+        wav = WavFile(in_fp)
         if wav.data.dtype != np.float32:
             wav.data = wav.data[:len(wav.data) & -2].astype(np.float32)
-
         data = wav.data.view(np.complex64).reshape(wav.data.shape[0])
 
         rps = 10000
         refresh = int((wav.samp_rate / fft_size) / rps) or 1
-        data_dtypes = np.dtype([('tabs', 'int64'), ('spec', 'float32', (fft_size, ))])
 
         fft_shift = math.ceil(fft_size / 2)
         n_fft = len(data) // fft_size
         dur_per_fft_us = (wav.duration * 1000000) / n_fft
         start_timestamp = end_timestamp and end_timestamp - wav.duration
+
+        uncompressed_f = mktmp2(buffering=0, dir=out_fp.parent, delete=1)
+        tabs = np.empty(n_fft, np.int64)
+        spec = np.memmap(uncompressed_f, np.float32, mode='w+', shape=(n_fft, fft_size))
+        np_madvise(spec, mmap.MADV_SEQUENTIAL)
+        uncompressed_kw = dict(
+            uncompressed_f=uncompressed_f,
+            start_timestamp=start_timestamp,
+            samp_rate=wav.samp_rate,
+            fft_size=fft_size,
+            refresh=refresh,
+            n_fft=n_fft,
+            tabs=tabs,
+            spec=spec,
+        )
 
         if not isinstance(mode, WfMode) and isinstance(mode, str):
             mode = WfMode[mode]
@@ -462,61 +477,102 @@ class Waterfall:
         else:
             raise ValueError('Invalid waterfall mode')
 
-        data = compute(data, fft_size, n_fft, fft_shift, refresh, dur_per_fft_us, data_dtypes)
-        if not data.size:
+        if not compute(data, fft_size, n_fft, fft_shift, refresh, dur_per_fft_us, tabs, spec):
             raise ValueError('Empty data array')
 
-        return cls(start_timestamp, wav.samp_rate, fft_size, refresh, n_fft, data)
+        spec.flush()
 
-    @classmethod
-    def from_cfile(cls, compressed_wf: pathlib.Path):
-        with compressed_wf.open('rb') as f:
-            hdr = cls.FILE_HDR_FMT.unpack_from(f.read(cls.FILE_HDR_FMT.size))
-            fft_size = hdr[2]
-            n_fft = hdr[4]
-            tabs = np.fromfile(f, np.int64, n_fft)
-            spec = cls.spec_decompress(f, fft_size, n_fft)
-            data_dtypes = np.dtype([('tabs', 'int64'), ('spec', 'float32', (fft_size, ))])
-            data = np.empty(n_fft, dtype=data_dtypes)
-            data['tabs'] = tabs
-            data['spec'] = spec
-            return cls(*hdr, data)
-
-    def __init__(self, start_timestamp, samp_rate, fft_size, refresh, n_fft, data):
-        self.start_timestamp = start_timestamp
-        self.samp_rate = samp_rate
-        self.fft_size = fft_size
-        self.refresh = refresh
-        self.n_fft = n_fft
-        self.data = data
-
-        nint = self.data['spec'].shape[0]
-        self.trel = np.arange(nint) * self.refresh * self.fft_size / float(self.samp_rate)
-        self.freq = np.linspace(-0.5 * self.samp_rate,
-                                0.5 * self.samp_rate,
-                                self.fft_size,
-                                endpoint=False)
-
-    def to_cfile(self, out_fp: pathlib.Path):
         with out_fp.open('wb') as f:
-            f.write(self.FILE_HDR_FMT.pack(self.start_timestamp, self.samp_rate, self.fft_size, self.refresh, self.n_fft))
-            self.data['tabs'].tofile(f)
-            for i in self.spec_compress():
-                i.tofile(f)
-        return out_fp
+            f.write(cls.FILE_HDR_FMT.pack(start_timestamp, wav.samp_rate, fft_size, refresh, n_fft))
+
+            std = np.std(spec, axis=0)
+            off = np.mean(spec, axis=0) + cls.OFFSET_IN_STDS * std
+            scale = cls.SCALE_IN_STDS * std / 255
+
+            tabs.tofile(f)
+            off.tofile(f)
+            scale.tofile(f)
+            np.clip((spec - off) / scale, 0.0, 255.0).astype(np.uint8).tofile(f)    # vals
+            np_madvise(spec, mmap.MADV_DONTNEED)
+
+        return cls(out_fp, uncompressed_kw)
+
+    def __init__(self, compressed_wf: pathlib.Path, from_uncompressed=None):
+        if from_uncompressed:
+            # self.uncompressed_f = from_uncompressed['uncompressed']
+            # self.start_timestamp = from_uncompressed['start_timestamp']
+            # self.samp_rate = from_uncompressed['samp_rate']
+            # self.fft_size = from_uncompressed['fft_size']
+            # self.refresh = from_uncompressed['refresh']
+            # self.n_fft = from_uncompressed['n_fft']
+            # self.tabs = from_uncompressed['tabs']
+            # self.spec = from_uncompressed['spec']
+            for k, v in from_uncompressed.items():
+                setattr(self, k, v)
+
+        else:
+            self.uncompressed_f = mktmp2(buffering=0, dir=compressed_wf.parent, delete=1)
+            vals_f = mktmp2(buffering=0, dir=compressed_wf.parent, delete=1)
+            with compressed_wf.open('rb') as f:
+                hdr = self.FILE_HDR_FMT.unpack_from(f.read(self.FILE_HDR_FMT.size))
+                self.start_timestamp, self.samp_rate, self.fft_size, self.refresh, self.n_fft = hdr
+
+                offset = f.tell()
+                self.tabs = np.memmap(f, np.int64, mode='r', offset=offset, shape=self.n_fft)
+                offset += self.tabs.nbytes
+
+                # decompress
+                off = np.memmap(f, np.float32, mode='r', offset=offset, shape=self.fft_size)
+                offset += off.nbytes
+
+                scale = np.memmap(f, np.float32, mode='r', offset=offset, shape=self.fft_size)
+                offset += scale.nbytes
+
+                _vals = np.memmap(f, np.uint8, mode='r', offset=offset).reshape(self.n_fft, self.fft_size)
+                np_madvise(_vals, mmap.MADV_SEQUENTIAL)
+
+                vals = np.memmap(vals_f, np.float32, mode='w+', shape=_vals.shape)
+                np_madvise(vals, mmap.MADV_SEQUENTIAL)
+
+                _vals_l1 = _vals.shape[1] * _vals.itemsize
+                vals_l1 = vals.shape[1] * vals.itemsize
+                for i in range(_vals.shape[0]):
+                    vals[i] = _vals[i]
+                    l0 = i * _vals.shape[1]
+                    np_madvise(_vals, mmap.MADV_DONTNEED, l0 * _vals.itemsize, _vals_l1)
+                    np_madvise(vals, mmap.MADV_DONTNEED, l0 * vals.itemsize, vals_l1)
+
+                vals.flush()
+                offset += vals.nbytes
+
+                self.spec = np.memmap(self.uncompressed_f, np.float32, mode='w+', shape=vals.shape)
+                np_madvise(self.spec, mmap.MADV_SEQUENTIAL)
+                spec_l1 = self.spec.shape[1] * self.spec.itemsize
+                for i in range(vals.shape[0]):
+                    self.spec[i] = vals[i] * scale + off
+                    l0 = i * vals.shape[1]
+                    np_madvise(vals, mmap.MADV_DONTNEED, l0 * vals.itemsize, vals_l1)
+                    np_madvise(self.spec, mmap.MADV_DONTNEED, l0 * self.spec.itemsize, spec_l1)
+
+                self.spec.flush()
+                np_madvise(self.spec, mmap.MADV_DONTNEED)
+                np_madvise(vals, mmap.MADV_DONTNEED)
+                np_madvise(off, mmap.MADV_DONTNEED)
+                np_madvise(scale, mmap.MADV_DONTNEED)
 
     @staticmethod
-    def _compute_mean(raw_data, fft_size, n_fft, fft_shift, refresh, dur_per_fft_us, data_dtypes):
+    def _compute_mean(raw_data, fft_size, n_fft, fft_shift, refresh, dur_per_fft_us, tabs, spec):
         fft_cnt = 0
         hold_buffer = np.zeros(fft_size, dtype=np.complex64)
         hold_buffer_f = hold_buffer.view(np.float32)
         rbw = 1.0
         inv_rbv = 1 / rbw
-        buf = []
 
+        l1 = fft_size * raw_data.itemsize
         for i in range(n_fft):
             off = i * fft_size
             fft_buf = fft.fft(raw_data[off:off + fft_size], fft_size)
+            np_madvise(raw_data, mmap.MADV_DONTNEED, off * raw_data.itemsize, l1)
 
             # Accumulate the complex numbers
             hold_buffer += np.concatenate((fft_buf[fft_shift:fft_shift + fft_size - fft_shift],
@@ -532,26 +588,27 @@ class Waterfall:
                 iq = (hold_buffer_f * inv_nrm_factor).reshape((-1, 2))
                 wr_buf = 10.0 * np.log10((np.add(*np.hsplit(iq * iq, 2)) + 1e-20) * inv_rbv)
 
-                x = np.empty(1, dtype=data_dtypes)
-                x['tabs'][0] = i * dur_per_fft_us
-                x['spec'][0] = wr_buf.flatten()
-                buf.append(x)
+                tabs[i] = i * dur_per_fft_us
+                spec[i] = wr_buf.flatten()
+                np_madvise(spec, mmap.MADV_DONTNEED, i * wr_buf.nbytes, wr_buf.nbytes)
 
                 fft_cnt = 0
                 hold_buffer.fill(0.0)
 
-        return np.concatenate(buf)
+        return tabs.size
 
     @staticmethod
-    def _compute_max_hold(raw_data, fft_size, n_fft, fft_shift, refresh, dur_per_fft_us, data_dtypes):
+    def _compute_max_hold(raw_data, fft_size, n_fft, fft_shift, refresh, dur_per_fft_us, tabs, spec):
         fft_cnt = 0
         hold_buffer = np.zeros(fft_size, dtype=np.complex64)
         hold_buffer_f = hold_buffer.view(np.float32)
-        buf = []
 
+        l1 = fft_size * raw_data.itemsize
         for i in range(n_fft):
             off = i * fft_size
             fft_buf = fft.fft(raw_data[off:off + fft_size], fft_size)
+            np_madvise(raw_data, mmap.MADV_DONTNEED, off * raw_data.itemsize, l1)
+
             shift_buf = np.concatenate((fft_buf[fft_shift:fft_shift + fft_size - fft_shift],
                                         fft_buf[:fft_shift]))
 
@@ -570,25 +627,24 @@ class Waterfall:
                 # Compute the energy in dB
                 wr_buf = 10.0 * np.log10(hold_buffer_f[:fft_size] + 1e-20)
 
-                x = np.empty(1, dtype=data_dtypes)
-                x['tabs'][0] = i * dur_per_fft_us
-                x['spec'][0] = wr_buf[:fft_size]
-                buf.append(x)
+                tabs[i] = i * dur_per_fft_us
+                spec[i] = wr_buf.flatten()
+                np_madvise(spec, mmap.MADV_DONTNEED, i * wr_buf.nbytes, wr_buf.nbytes)
 
                 fft_cnt = 0
                 hold_buffer.fill(0.0)
 
-        return np.concatenate(buf)
+        return tabs.size
 
     @staticmethod
-    def _compute_decimation(raw_data, fft_size, n_fft, fft_shift, refresh, dur_per_fft_us, data_dtypes):
+    def _compute_decimation(raw_data, fft_size, n_fft, fft_shift, refresh, dur_per_fft_us, tabs, spec):
         fft_cnt = 0
         hold_buffer = np.zeros(fft_size, dtype=np.complex64)
         hold_buffer_f = hold_buffer.view(np.float32)
         rbw = 1.0
         inv_rbv = 1 / rbw
-        buf = []
 
+        l1 = fft_size * raw_data.itemsize
         for i in range(n_fft):
             fft_cnt += 1
             if fft_cnt != refresh:
@@ -596,6 +652,8 @@ class Waterfall:
 
             off = i * fft_size
             fft_buf = fft.fft(raw_data[off:off + fft_size], fft_size)
+            np_madvise(raw_data, mmap.MADV_DONTNEED, off * raw_data.itemsize, l1)
+
             shift_buf = np.concatenate((fft_buf[fft_shift:fft_shift + fft_size - fft_shift],
                                         fft_buf[:fft_shift]))
 
@@ -606,36 +664,41 @@ class Waterfall:
             iq = (shift_buf * inv_nrm_factor).reshape((-1, 2))
             hold_buffer_f[:fft_size] = (10.0 * np.log10((np.add(*np.hsplit(iq * iq, 2)) + 1e-20) * inv_rbv)).view(np.float32).flatten()
 
-            x = np.empty(1, dtype=data_dtypes)
-            x['tabs'][0] = i * dur_per_fft_us
-            x['spec'][0] = hold_buffer_f[:fft_size]
-            buf.append(x)
+            tabs[i] = i * dur_per_fft_us
+            spec[i] = hold_buffer_f[:fft_size]
+            np_madvise(spec, mmap.MADV_DONTNEED, i * hold_buffer_f[:fft_size].nbytes, hold_buffer_f[:fft_size].nbytes)
 
             fft_cnt = 0
 
-        return np.concatenate(buf)
+        return tabs.size
 
     def plot(self, out_fn, vmin=None, vmax=None):
-        tmin = self.start_timestamp + np.min(self.data['tabs'] / 1000000.0)
-        tmax = self.start_timestamp + np.max(self.data['tabs'] / 1000000.0)
-        fmin = np.min(self.freq / 1000.0)
-        fmax = np.max(self.freq / 1000.0)
+        freq = np.linspace(-0.5 * self.samp_rate,
+                           0.5 * self.samp_rate,
+                           self.fft_size,
+                           endpoint=False) / 1000
+        fmin = np.min(freq)
+        fmax = np.max(freq)
+
+        tmin = self.start_timestamp + np.min(self.tabs) / 1000000.0
+        tmax = self.start_timestamp + np.max(self.tabs) / 1000000.0
+
         if vmin is None or vmax is None:
             vmin = -100
             vmax = -50
-            c_idx = self.data['spec'] > -200.0
+            c_idx = self.spec > -200.0
             if np.sum(c_idx) > 100:
-                data_mean = np.mean(self.data['spec'][c_idx])
-                data_std = np.std(self.data['spec'][c_idx])
+                data_mean = np.mean(self.spec[c_idx])
+                data_std = np.std(self.spec[c_idx])
                 vmin = data_mean - 2.0 * data_std
                 vmax = data_mean + 6.0 * data_std
 
         plt.figure(figsize=(10, 20))
-        plt.imshow(self.data['spec'],
+        plt.imshow(self.spec,
                    origin='lower',
                    aspect='auto',
                    interpolation='None',
-                   extent=[fmin, fmax, tmin, tmax],
+                   extent=(fmin, fmax, tmin, tmax),
                    vmin=vmin,
                    vmax=vmax,
                    cmap='viridis')
@@ -653,6 +716,7 @@ class Waterfall:
         fig.set_label('Power, dB')
 
         plt.savefig(out_fn, bbox_inches='tight', dpi=200, format='png', transparent=0)
+        plt.close()
         i = Image.open(out_fn).convert('RGB')
         kw = {}
         if out_fn.suffix == '.png':
@@ -660,22 +724,6 @@ class Waterfall:
         elif out_fn.suffix == '.jpg':
             kw.update(optimize=1, subsampling=2, quality=95)
         i.save(out_fn, **kw)
-        plt.close()
-
-    def spec_compress(self):
-        spec = self.data['spec']
-        std = np.std(spec, axis=0)
-        off = np.mean(spec, axis=0) + self.OFFSET_IN_STDS * std
-        scale = self.SCALE_IN_STDS * std / 255
-        vals = np.clip((spec - off) / scale, 0.0, 255.0).astype(np.uint8)
-        return off, scale, vals
-
-    @staticmethod
-    def spec_decompress(f, fft_size, n_fft):
-        off = np.fromfile(f, np.float32, fft_size)
-        scale = np.fromfile(f, np.float32, fft_size)
-        vals = np.fromfile(f, np.uint8).reshape(n_fft, fft_size).astype(np.float32)
-        return vals * scale + off
 
 
 def numbi_disp(number, zero=None):
@@ -781,7 +829,7 @@ def mktmp(dir: pathlib.Path = None, prefix: str = None, suffix='.tmp') -> pathli
     return pathlib.Path(f.name)
 
 
-def mktmp2(mode='w+b', buffering=-1, dir: pathlib.Path = None, prefix: str = None, suffix='.tmp'):
+def mktmp2(mode='w+b', buffering=-1, dir: pathlib.Path = None, prefix: str = None, suffix='.tmp', delete: Union[int, bool] = False):
     if dir:
         dir.mkdir(parents=True, exist_ok=True)
     return tempfile.NamedTemporaryFile(mode=mode,
@@ -789,7 +837,7 @@ def mktmp2(mode='w+b', buffering=-1, dir: pathlib.Path = None, prefix: str = Non
                                        dir=dir,
                                        prefix=prefix,
                                        suffix=suffix,
-                                       delete=False)
+                                       delete=delete)
 
 
 def close(*ff) -> None:
@@ -886,3 +934,8 @@ def tle_generate(name, l1, l2, ignore_checksum=0, log=None):
                 l2 = l2[:-1] + cs2
             else:
                 raise e
+
+
+def np_madvise(arr, opt, *a):
+    if hasattr(arr, '_mmap') and sys.platform != 'win32':
+        arr._mmap.madvise(opt, *a)

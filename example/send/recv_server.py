@@ -165,7 +165,8 @@ class Worker(mp.Process):
                 try:
                     ftype = RawFileType[params['file_type']]
                     if ftype == RawFileType.IQ:
-                        wf = Waterfall.from_wav(fp, end_timestamp=dt.datetime.fromisoformat(params['end_time']).timestamp())
+                        ofp = fp.with_stem(fp.stem + '_wav').with_suffix('.wfc')
+                        wf = Waterfall.from_wav(fp, ofp, end_timestamp=dt.datetime.fromisoformat(params['end_time']).timestamp())
                     elif ftype == RawFileType.WFC:
                         wf = Waterfall.from_cfile(fp)
                     else:   # unreachable
