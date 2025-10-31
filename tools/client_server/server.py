@@ -195,7 +195,7 @@ class Worker(mp.Process):
             ofp = fp.with_stem(fp.stem + '_wav').with_suffix('.wfc')
             wf = Waterfall.from_wav(fp, ofp, end_timestamp=dt.datetime.fromisoformat(params['end_time']).timestamp())
         elif ftype == RawFileType.WFC:
-            wf = Waterfall.from_cfile(fp)
+            wf = Waterfall(fp)
         elif ftype != RawFileType.AUDIO:
             self.log.warning('Unknown filetype: %s', ftype)
         if wf:
