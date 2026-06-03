@@ -25,7 +25,7 @@ import numpy as np
 from PIL import Image
 from sats_receiver.async_signal import AsyncSignal
 from sats_receiver.systems.apt import Apt
-from sats_receiver.utils import Decode, MapShapes, numbi_disp, close, Waterfall, WfMode, RawFileType
+from sats_receiver.utils import Decode, MapShapes, numbi_disp, close, Waterfall, WfMode, RawFileType, unlink
 
 from tools.client_server import gr_decoder
 from tools.client_server import common as cli_srv_common
@@ -75,17 +75,35 @@ class Worker(mp.Process):
 
         return ret_fn
 
-    def __init__(self, q, map_shapes, satdump):
+    def __init__(self, q, map_shapes, satdump, worker_task_file, worker_timeout=None):
         super().__init__()
 
         self.q = q
         self.map_shapes = map_shapes
         self.satdump = satdump
+        self.worker_task_file = worker_task_file
+        self.worker_timeout = worker_timeout
+
+        self.lock = mp.Lock()
         self.rd, self.wr = mp.Pipe(False)
 
-    def put(self, params, fp, dtype):
+        try:
+            worker_task_file.touch(exist_ok=False)
+            worker_task_file.write_text('{}')
+        except FileExistsError:
+            pass
+
+        for i in json.load(worker_task_file.open('r')):
+            self.wr.send(pathlib.Path(i))
+
+    def put(self, params, fp):
         if self.wr:
-            self.wr.send((params, fp, dtype))
+            with self.lock:
+                data = json.load(self.worker_task_file.open('r'))
+                data[str(fp)] = params
+                json.dump(data, self.worker_task_file.open('w'))
+
+            self.wr.send(fp)
 
     def stop(self):
         if self.wr:
@@ -135,15 +153,19 @@ class Worker(mp.Process):
             if not x:
                 continue
 
-            x = self.rd.recv()
+            task = self.rd.recv()
 
-            if x == '.':
+            if task == '.':
                 break
 
             try:
-                params, fp, dtype = x
-                res = fp
-            except ValueError:
+                with self.lock:
+                    data = json.load(self.worker_task_file.open('r'))
+                params = data[str(task)]
+                dtype = Decode[params['decoder_type']]
+                res = fp = task
+                flush = 1
+            except:
                 self.log.error('invalid task: %s', x)
                 continue
 
@@ -179,17 +201,33 @@ class Worker(mp.Process):
                     self.log.error('waterfall')
 
                 try:
-                    self.log.info('Decode processing')
-                    gr_decoder.process2(fp, params, self.q)
+                    retry_cnt = 2
+                    while retry_cnt:
+                        self.log.info('Decode processing (to=%s)', self.worker_timeout)
+                        if not gr_decoder.process2(fp, params, self.log, self.q, self.worker_timeout):
+                            retry_cnt = 0
+                            flush = 1
+                        else:
+                            self.log.warning('Terminate by timeout. Retry...')
+                            retry_cnt -= 1
+                            flush = 0
                 except:
                     self.log.error('gr_decoder')
+
+            if flush:
+                with self.lock:
+                    data = json.load(self.worker_task_file.open('r'))
+                    data.pop(str(task))
+                    json.dump(data, self.worker_task_file.open('w'))
+            # else:
+            #     self.wr.send(task)
 
             self.log.info('%s done: %s', params['sat_name'], res.name)
 
     def _draw_wf(self, fp, params):
         self.log.info('Draw Waterfall')
 
-        wf = 0
+        wf = ofp = 0
         ftype = RawFileType[params['file_type']]
         if ftype == RawFileType.IQ:
             ofp = fp.with_stem(fp.stem + '_wav').with_suffix('.wfc')
@@ -201,6 +239,8 @@ class Worker(mp.Process):
         if wf:
             wf.plot(fp.with_stem(f'{fp.stem}_{ftype.name}_wf').with_suffix('.jpg'),
                     *params.get('wf_minmax', (None, None)))
+        if ofp:
+            unlink(ofp)
 
 
 class MyTCPHandler(socketserver.StreamRequestHandler):
@@ -270,14 +310,14 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
                 pass
 
     def _handle(self):
-        hdr = self.rfile.read(cli_srv_common.HDR.size)
-        if not hdr:
+        hdr_ = self.rfile.read1(cli_srv_common.HDR.size)
+        if not hdr_:
             return
 
         try:
-            hdr = cli_srv_common.Hdr._make(cli_srv_common.HDR.unpack(hdr))
+            hdr = cli_srv_common.Hdr._make(cli_srv_common.HDR.unpack(hdr_))
         except (struct.error, TypeError) as e:
-            self.log.error('%s: %s', e, hdr)
+            self.log.error('%s: %s', e, hdr_)
             return
 
         e = cli_srv_common.verify_hdr(hdr)
@@ -294,7 +334,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
                 return
 
     def cmd_send(self, hdr: cli_srv_common.Hdr):
-        data = self.rfile.read(hdr.sz)
+        data = self.rfile.read1(hdr.sz)
         try:
             params = json.loads(data.decode())
         except json.JSONDecodeError as e:
@@ -327,7 +367,7 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
 
         self.recv_file(fp, params['fsize'], params['compress'])
 
-        self.server.worker.put(params, fp, dtype)
+        self.server.worker.put(params, fp)
 
     def recv_file(self, fp: pathlib.Path, fsz: int, compress: bool):
         numfsz = numbi_disp(fsz)
@@ -364,6 +404,8 @@ class MyTCPHandler(socketserver.StreamRequestHandler):
                 if t > t_next:
                     t_next = t + 10
                     self.log.debug('%s/%s', numbi_disp(fsz - sz_left), numfsz)
+
+            f.flush()
 
         self.log.debug('%s %s/%s', fp.name, numbi_disp(fsz - sz_left), numfsz)
 
@@ -441,12 +483,14 @@ if __name__ == '__main__':
     map_shapes = pathlib.Path(config['map_shapes']).expanduser().absolute()
     satdump = pathlib.Path(config['satdump']).expanduser().absolute()
     buf_sz = config.get('buf_sz', 8192)
+    worker_timeout = config.get('worker_timeout', None)
+    worker_task_file = pathlib.Path(config['worker_task_file']).expanduser().absolute()
 
     q = mp.Queue()
     setup_logging(q, logging.DEBUG)
     logging.info('Hello!')
 
-    worker = Worker(q, map_shapes, satdump)
+    worker = Worker(q, map_shapes, satdump, worker_task_file, worker_timeout)
     worker.start()
     atexit.register(lambda x: (x.stop(), x.join()), worker)
 

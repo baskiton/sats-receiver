@@ -7,5 +7,7 @@
     "keyfile": "/path/to/key.pem",
     "map_shapes": "/path/to/map_shapes/file",
     "satdump": "/path/to/SatDump.exe",
-    "buf_sz": 8192
+    "buf_sz": 8192,
+    "worker_task_file": "/path/to/tasks.json",
+    "process_timeout": 120
 }
