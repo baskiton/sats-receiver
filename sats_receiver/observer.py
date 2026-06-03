@@ -2,6 +2,7 @@ import datetime as dt
 import http.client
 import json
 import logging
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -16,6 +17,10 @@ from sats_receiver.utils import hpa_to_mmhg
 
 class Observer:
     TD_ERR_DEF = dt.timedelta(seconds=5)
+    FETCH_IDLE = 0
+    FETCH_PROC = 1
+    FETCH_DONE = 2
+    FETCH_ERR = 3
 
     def __init__(self, config: Mapping):
         self.prefix = self.__class__.__name__
@@ -29,6 +34,8 @@ class Observer:
         self.t_err = self.last_weather_time
         self.td_err = self.TD_ERR_DEF
         self.weather_fp = HOMEDIR / 'weather.json'
+        self.fetching_state = self.FETCH_IDLE
+        self.fetch_result = b''
 
         if not self.update_config(config):
             raise ValueError(f'{self.prefix}: Invalid config!')
@@ -105,38 +112,25 @@ class Observer:
         }, safe=',')
 
         try:
+            self.fetching_state = self.FETCH_PROC
             with urllib.request.urlopen('https://api.open-meteo.com/v1/forecast?' + q) as r:
-                j_raw = r.read()
-                j = json.loads(j_raw)
-            self.weather_fp.write_bytes(j_raw)
+                self.fetch_result = r.read()
+                json.loads(self.fetch_result)
             self.td_err = self.TD_ERR_DEF
             self.t_err = t
+            self.fetching_state = self.FETCH_DONE
         except urllib.error.HTTPError as e:
-            if t >= self.t_err:
-                self.t_err = t + self.td_err
-                self.td_err *= 2
-                msg = f'Weather not fetched!\n{e}'
-                if e.code == 400:
-                    msg = f'{msg}:\n"{e.url}"'
-                self.log.error('%s', msg)
-            return
+            self.fetching_state = self.FETCH_ERR
+            msg = str(e)
+            if e.code == 400:
+                msg = f'{msg}: "{e.url}"'
+            self.fetch_result = msg
         except (ConnectionError, http.client.error, urllib.error.URLError) as e:
-            if t >= self.t_err:
-                self.t_err = t + self.td_err
-                self.td_err *= 2
-                self.log.error('Weather not fetched: %s', e)
-            return
+            self.fetching_state = self.FETCH_ERR
+            self.fetch_result = str(e)
         except json.JSONDecodeError as e:
-            if t >= self.t_err:
-                self.t_err = t + self.td_err
-                self.td_err *= 2
-                self.log.error('JSON error: %s', e)
-            return
-
-        self.set_weather(j)
-        self.log.info('weather updated: %.01f°C %.01fhPa (%.01fmmHg)',
-                      self._observer.temp, self._observer.pressure, hpa_to_mmhg(self._observer.pressure))
-        return 1
+            self.fetching_state = self.FETCH_ERR
+            self.fetch_result = f'JSON error: {e}'
 
     def set_weather(self, j):
         self.last_weather_time = dt.datetime.fromisoformat(j['current_weather']['time']).replace(tzinfo=dt.timezone.utc)
@@ -161,8 +155,26 @@ class Observer:
 
     def action(self, t: dt.datetime) -> Optional[int]:
         self.set_date(t)
-        if self.with_weather and t >= self.t_next and self.fetch_weather(t):
+
+        if self.with_weather and t >= self.t_next and self.fetching_state == self.FETCH_IDLE:
+            threading.Thread(target=self.fetch_weather, args=(t,), daemon=True).start()
+
+        elif self.fetching_state == self.FETCH_ERR:
+            if t >= self.t_err:
+                self.t_err = t + self.td_err
+                self.td_err *= 2
+                self.log.error('Weather not fetched: %s', self.fetch_result)
+            self.fetching_state = self.FETCH_IDLE
+            self.fetch_result = b''
+
+        elif self.fetching_state == self.FETCH_DONE:
+            self.weather_fp.write_bytes(self.fetch_result)
+            self.set_weather(json.loads(self.fetch_result))
+            self.log.info('weather updated: %.01f°C %.01fhPa (%.01fmmHg)',
+                          self._observer.temp, self._observer.pressure, hpa_to_mmhg(self._observer.pressure))
             self.t_next = self.last_weather_time + dt.timedelta(hours=self.update_period, minutes=1)
+            self.fetching_state = self.FETCH_IDLE
+            self.fetch_result = b''
             return 1
 
     def next_pass(self,

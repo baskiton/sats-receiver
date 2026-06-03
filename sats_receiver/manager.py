@@ -211,7 +211,6 @@ class ReceiverManager:
             if now >= self.t_next:
                 self.update_config()
 
-            # TODO: remake this. fetching weather block all system..
             need_upd = 0
             recalc = self.observer.action(now)
             if now >= self.t_next:
