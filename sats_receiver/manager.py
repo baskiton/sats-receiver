@@ -1,4 +1,5 @@
 import atexit
+import concurrent.futures
 import datetime as dt
 import json
 import logging
@@ -46,8 +47,10 @@ class ReceiverManager:
         if not self.update_config(True, True):
             raise ValueError(f'{self.prefix}: Invalid config!')
 
-        self.observer = Observer(self.config['observer'])
-        self.tle = Tle(self.config['tle'])
+        self.network_pool = concurrent.futures.ThreadPoolExecutor(2)
+
+        self.observer = Observer(self.config['observer'], self.network_pool)
+        self.tle = Tle(self.config['tle'], self.network_pool)
         self.scheduler = utils.Scheduler()
         self.executor = executor_cls(q, sysu_intv, executor_cfg)
         self.executor.start()
@@ -86,6 +89,7 @@ class ReceiverManager:
         for rec in self.receivers.values():
             rec.stop()
 
+        self.network_pool.shutdown(wait=False, cancel_futures=True)
         self.executor.stop()
         self.stopped = True
 

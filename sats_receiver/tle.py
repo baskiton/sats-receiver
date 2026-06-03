@@ -3,7 +3,6 @@ import http.client
 import logging
 import pathlib
 import shutil
-import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -22,7 +21,7 @@ class Tle:
     FETCH_DONE = 2
     FETCH_ERR = 3
 
-    def __init__(self, config: Mapping):
+    def __init__(self, config: Mapping, tpool):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
@@ -32,8 +31,8 @@ class Tle:
         self.objects: dict[str, tuple[ephem.EarthSatellite, tuple[str, str, str]]] = {}
         self.t_err = self.last_update_tle
         self.td_err = self.TD_ERR_DEF
-        self.fetching_state = self.FETCH_IDLE
-        self.fetch_result = 0
+        self.tpool = tpool
+        self.future = None
 
         if not self.update_config(config):
             raise ValueError(f'{self.prefix}: Invalid config!')
@@ -82,20 +81,8 @@ class Tle:
 
         return 1
 
-    def fetch_tle(self, t: dt.datetime):
-        try:
-            self.fetching_state = self.FETCH_PROC
-            self.fetch_result = urllib.request.urlretrieve(self.url)
-            self.fetching_state = self.FETCH_DONE
-        except urllib.error.HTTPError as e:
-            self.fetching_state = self.FETCH_ERR
-            msg = str(e)
-            if e.code == 400:
-                msg = f'{msg}: "{e.url}"'
-            self.fetch_result = msg
-        except (ConnectionError, http.client.error, urllib.error.URLError, ValueError) as e:
-            self.fetching_state = self.FETCH_ERR
-            self.fetch_result = str(e)
+    def fetch_tle(self):
+        return urllib.request.urlretrieve(self.url)
 
     def update_config(self, config: Mapping):
         """
@@ -155,25 +142,31 @@ class Tle:
         return self.config.get('ignore_checksum', False)
 
     def action(self, t: dt.datetime):
-        if t >= self.t_next and self.fetching_state == self.FETCH_IDLE:
-            threading.Thread(target=self.fetch_tle, args=(t,), daemon=True).start()
+        if self.future and self.future.done():
+            msg = ''
+            try:
+                result = self.future.result()
+            except urllib.error.HTTPError as e:
+                msg = str(e)
+                if e.code == 400:
+                    msg = f'{msg}: "{e.url}"'
+            except (ConnectionError, http.client.error, urllib.error.URLError, ValueError) as e:
+                msg = str(e)
+            else:
+                if self.fill_objects(result and pathlib.Path(result[0]) or None, t):
+                    self.last_update_tle = t
+                    self.log.info('Tle updated')
+                self.t_next = self.last_update_tle + dt.timedelta(days=self.update_period)
+                return 1
+            finally:
+                self.future = None
+                if msg and t >= self.t_err:
+                    self.t_err = t + self.td_err
+                    self.td_err *= 2
+                    self.log.error('Tle not fetched: %s', msg)
 
-        elif self.fetching_state == self.FETCH_ERR:
-            if t >= self.t_err:
-                self.t_err = t + self.td_err
-                self.td_err *= 2
-                self.log.error('Tle not fetched: %s', self.fetch_result)
-            self.fetching_state = self.FETCH_IDLE
-            self.fetch_result = 0
-
-        elif self.fetching_state == self.FETCH_DONE:
-            if self.fill_objects(self.fetch_result and pathlib.Path(self.fetch_result[0]) or None, t):
-                self.last_update_tle = t
-                self.log.info('Tle updated')
-            self.t_next = self.last_update_tle + dt.timedelta(days=self.update_period)
-            self.fetching_state = self.FETCH_IDLE
-            self.fetch_result = 0
-            return 1
+        elif t >= self.t_next and self.future is None:
+            self.future = self.tpool.submit(self.fetch_tle)
 
     def get(self, name: str) -> Optional[tuple[ephem.EarthSatellite, tuple[str, str, str]]]:
         """

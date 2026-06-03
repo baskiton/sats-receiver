@@ -39,7 +39,7 @@ TIMEOUT = support.SHORT_TIMEOUT
 
 class TestTle(Tle):
     def __init__(self):
-        super().__init__({'update_period': 0})
+        super().__init__({'update_period': 0}, None)
         self.tle_file = FILES / 'test_tle.txt'
         self.fill_objects(self.tle_file, dt.datetime.now(dt.timezone.utc))
 
@@ -183,7 +183,7 @@ class TestDecoders(TestCase):
         self.receiver = TestReceiver()
         self.satellite = self.sat_nt(
             'TEST SAT', self.receiver, self.out_dp, self.executor,
-            Observer(dict(latitude=11.111, longitude=-22.222, elevation=-33.333, weather=0)),
+            Observer(dict(latitude=11.111, longitude=-22.222, elevation=-33.333, weather=0), None),
             self.tle.get('TEST SAT'),
         )
         self.recorder = self.rec_nt(self.satellite, 'test', utils.Mode.OQPSK,

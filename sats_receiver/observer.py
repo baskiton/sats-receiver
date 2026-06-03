@@ -22,7 +22,7 @@ class Observer:
     FETCH_DONE = 2
     FETCH_ERR = 3
 
-    def __init__(self, config: Mapping):
+    def __init__(self, config: Mapping, tpool):
         self.prefix = self.__class__.__name__
         self.log = logging.getLogger(self.prefix)
 
@@ -34,8 +34,8 @@ class Observer:
         self.t_err = self.last_weather_time
         self.td_err = self.TD_ERR_DEF
         self.weather_fp = HOMEDIR / 'weather.json'
-        self.fetching_state = self.FETCH_IDLE
-        self.fetch_result = b''
+        self.tpool = tpool
+        self.future = None
 
         if not self.update_config(config):
             raise ValueError(f'{self.prefix}: Invalid config!')
@@ -100,7 +100,7 @@ class Observer:
             'weather',
         ]))
 
-    def fetch_weather(self, t: dt.datetime) -> Optional[int]:
+    def fetch_weather(self) -> Optional[int]:
         q = urllib.parse.urlencode({
             'latitude': self._observer.lat / ephem.degree,
             'longitude': self._observer.lon / ephem.degree,
@@ -111,26 +111,8 @@ class Observer:
             'end_date': dt.datetime.utcnow().date(),
         }, safe=',')
 
-        try:
-            self.fetching_state = self.FETCH_PROC
-            with urllib.request.urlopen('https://api.open-meteo.com/v1/forecast?' + q) as r:
-                self.fetch_result = r.read()
-                json.loads(self.fetch_result)
-            self.td_err = self.TD_ERR_DEF
-            self.t_err = t
-            self.fetching_state = self.FETCH_DONE
-        except urllib.error.HTTPError as e:
-            self.fetching_state = self.FETCH_ERR
-            msg = str(e)
-            if e.code == 400:
-                msg = f'{msg}: "{e.url}"'
-            self.fetch_result = msg
-        except (ConnectionError, http.client.error, urllib.error.URLError) as e:
-            self.fetching_state = self.FETCH_ERR
-            self.fetch_result = str(e)
-        except json.JSONDecodeError as e:
-            self.fetching_state = self.FETCH_ERR
-            self.fetch_result = f'JSON error: {e}'
+        with urllib.request.urlopen('https://api.open-meteo.com/v1/forecast?' + q) as r:
+            return r.read()
 
     def set_weather(self, j):
         self.last_weather_time = dt.datetime.fromisoformat(j['current_weather']['time']).replace(tzinfo=dt.timezone.utc)
@@ -156,26 +138,37 @@ class Observer:
     def action(self, t: dt.datetime) -> Optional[int]:
         self.set_date(t)
 
-        if self.with_weather and t >= self.t_next and self.fetching_state == self.FETCH_IDLE:
-            threading.Thread(target=self.fetch_weather, args=(t,), daemon=True).start()
+        if self.future and self.future.done():
+            msg = ''
+            try:
+                result = self.future.result()
+                j = json.loads(result)
+            except urllib.error.HTTPError as e:
+                msg = str(e)
+                if e.code == 400:
+                    msg = f'{msg}: "{e.url}"'
+            except (ConnectionError, http.client.error, urllib.error.URLError) as e:
+                msg = str(e)
+            except json.JSONDecodeError as e:
+                msg = f'JSON error: {e}'
+            else:
+                self.weather_fp.write_bytes(result)
+                self.set_weather(j)
+                self.log.info('weather updated: %.01f°C %.01fhPa (%.01fmmHg)',
+                              self._observer.temp, self._observer.pressure, hpa_to_mmhg(self._observer.pressure))
+                self.t_next = self.last_weather_time + dt.timedelta(hours=self.update_period, minutes=1)
+                self.td_err = self.TD_ERR_DEF
+                self.t_err = t
+                return 1
+            finally:
+                self.future = None
+                if msg and t >= self.t_err:
+                    self.t_err = t + self.td_err
+                    self.td_err *= 2
+                    self.log.error('Weather not fetched: %s', msg)
 
-        elif self.fetching_state == self.FETCH_ERR:
-            if t >= self.t_err:
-                self.t_err = t + self.td_err
-                self.td_err *= 2
-                self.log.error('Weather not fetched: %s', self.fetch_result)
-            self.fetching_state = self.FETCH_IDLE
-            self.fetch_result = b''
-
-        elif self.fetching_state == self.FETCH_DONE:
-            self.weather_fp.write_bytes(self.fetch_result)
-            self.set_weather(json.loads(self.fetch_result))
-            self.log.info('weather updated: %.01f°C %.01fhPa (%.01fmmHg)',
-                          self._observer.temp, self._observer.pressure, hpa_to_mmhg(self._observer.pressure))
-            self.t_next = self.last_weather_time + dt.timedelta(hours=self.update_period, minutes=1)
-            self.fetching_state = self.FETCH_IDLE
-            self.fetch_result = b''
-            return 1
+        elif self.with_weather and t >= self.t_next and self.future is None:
+            self.future = self.tpool.submit(self.fetch_weather)
 
     def next_pass(self,
                   body: ephem.EarthSatellite,
