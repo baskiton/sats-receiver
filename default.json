@@ -6,7 +6,7 @@
         "weather": true
     },
     "tle": {
-        "url": "http://r4uab.ru/satonline.txt",
+        "url": "http://satgs.ru/satonline.txt",
         "update_period": 1,
         "ignore_checksum": false
     },
@@ -170,12 +170,12 @@
             "biast": false,
             "gain": 7.7,
             "tune": 437500000,
-            "samp_rate": 1024000,
+            "samp_rate": 2048000,
             "output_directory": "~/sats_receiver/records",
             "sats": [
                 {
                     "name": "ORBICRAFT-ZORKIY (RS15S)",
-                    "enabled": true,
+                    "enabled": false,
                     "min_elevation": 15.0,
                     "doppler": true,
                     "frequencies": [
@@ -188,6 +188,79 @@
                             "decode": "SATS",
                             "grs_file": "~/sats_receiver/satyaml/OrbiCraft-Zorkiy.yml",
                             "grs_tlm_decode": false
+                        }
+                    ]
+                },
+                {
+                    "name": "UMKA-1 (RS40S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 437625000,
+                            "freq_correction": 0,
+                            "bandwidth": 48000,
+                            "mode": "FSK",
+                            "channels": [4800, 9600],
+                            "deviation_factor": 5,
+                            "decode": "PROTO",
+                            "proto_deframer": "USP",
+                            "proto_options": {
+                                "syncword_threshold": 13
+                            },
+                            "iq_waterfall": {
+                                "fft_size": 4096,
+                                "mode": "MEAN"
+                            }
+                        },
+                        {
+                            "enabled": true,
+                            "freq": 437625000,
+                            "bandwidth": 48000,
+                            "demode_out_sr": 16000,
+                            "mode": "SSTV_QUAD",
+                            "decode": "SSTV",
+                            "sstv_wsr": 16000,
+                            "sstv_sync": true
+                        }
+                    ]
+                },
+                {
+                    "name": "KUZGTU-1 (RS47S)",
+                    "enabled": true,
+                    "min_elevation": 15.0,
+                    "doppler": true,
+                    "frequencies": [
+                        {
+                            "enabled": true,
+                            "freq": 437100000,
+                            "freq_correction": 0,
+                            "bandwidth": 48000,
+                            "mode": "QUAD2FSK",
+                            "subname": "FSK",
+                            "fsk_baudrate": 9600,
+                            "deviation_factor": 5,
+                            "decode": "PROTO_RAW",
+                            "raw_out_format": "OGG",
+                            "channels": [4800, 96000],
+                            "proto_mode": "FSK",
+                            "proto_deframer": "USP",
+                            "proto_options": {
+                                "syncword_threshold": 13
+                            },
+                            "iq_waterfall": {
+                                "fft_size": 4096,
+                                "mode": "MEAN"
+                            }
+                        },
+                        {
+                            "enabled": false,
+                            "freq": 437100000,
+                            "bandwidth": 48000,
+                            "mode": "RAW",
+                            "decode": "RAW"
                         }
                     ]
                 }

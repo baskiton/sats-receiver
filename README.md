@@ -261,7 +261,7 @@ Each frequency object contain:
   * Martin (M1, M2, M3, M4)
   * PD (50, 90, 120, 160, 180, 240, 290)
   * Scottie (S1, S2, S3, S4)
-* `SATS` See [gr-satellites](#gr-satellites) for details
+* ~~`SATS` See [gr-satellites](#gr-satellites) for details~~ Not recommended
 * `PROTO` Satellite deframer based decoder. KISS file on output. See [proto](#proto) for detail. _Only for *FSK mode._
 * `PROTO_RAW` 
 * ~~`LRPT`~~ Not implemented yet
@@ -310,6 +310,8 @@ Supported deframers and their options:
   * `g3ruh_scrambler`: use G3RUH descrambling (boolean). REQUIRED!
 * `AX5043`
 * `BINAR1`:
+  * `syncword_threshold`: `0` by default
+* `BINAR2`:
   * `syncword_threshold`: `0` by default
 * `CCSDS_CONCATENATED`:
   * `frame_size`: frame size (not including parity check bytes) (int) `223` by default
@@ -360,7 +362,11 @@ Supported deframers and their options:
   * `syncword_threshold`: `4` by default
 * `NUSAT`:
   * `syncword_threshold`: `0` by default
+* `OPENLST`:
+  * `syncword_threshold`: `4` by default
 * `OPS_SAT`
+* `QUBIK`:
+  * `syncword_threshold`: `4` by default
 * `REAKTOR_HELLO_WORLD`:
   * `syncword_threshold`: `4` by default
   * `syncword`: `reaktor hello world` or `light-1` (str) `reaktor hello world` by default
