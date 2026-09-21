@@ -59,7 +59,7 @@ class Tle:
                     continue
 
                 try:
-                    names.add(int(line[2:7]))
+                    names.add(line[2:7])
                 except ValueError:
                     if t >= self.t_err:
                         self.t_err = t + self.td_err
